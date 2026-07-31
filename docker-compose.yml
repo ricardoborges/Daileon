@@ -12,7 +12,11 @@ services:
       - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
       - GITLAB_READ_TOKEN=${GITLAB_READ_TOKEN:-${GITLAB_TOKEN:-}}
       - GITLAB_GROUP_ID=${GITLAB_GROUP_ID:-}
+      - JENKINS_URL=${JENKINS_URL:-https://jenkins.example.com}
+      - JENKINS_USER=${JENKINS_USER:-}
+      - JENKINS_API_TOKEN=${JENKINS_API_TOKEN:-}
       - DATABASE_URL=sqlite+aiosqlite:///./data/daileon.db
+
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - SECRET_KEY=${SECRET_KEY:-daileon-breakglass-secret-key-change-in-prod}

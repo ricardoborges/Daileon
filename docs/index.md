@@ -74,5 +74,7 @@ spec:
 
 - **🗂️ Software Catalog**: Tabela e grid visual de componentes com filtros por Time (Owner), Tipo, Lifecycle e Tags.
 - **📚 TechDocs Engine**: Renderizador interativo de Markdown com suporte a navegação por árvore de pastas e diagramas **Mermaid.js**.
+- **🚦 Jenkins CI/CD Status**: Painel integrado de status de pipelines em tempo real (Produção, Staging, Testes) com métricas de build, gatilhos, duração e branch.
 - **🔎 Busca Centralizada**: Pesquisa rápida em nomes de serviços, tags, responsáveis e conteúdo textual de documentações.
 - **⚙️ Sincronização em 1-Clique**: Botão de Sync manual e crawler agendado no portal.
+

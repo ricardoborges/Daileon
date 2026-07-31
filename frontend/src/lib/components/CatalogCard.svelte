@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ComponentItem } from '$lib/api';
-  import { BookOpen, ExternalLink, Cpu } from 'lucide-svelte';
+  import { BookOpen, ExternalLink, Cpu, Calendar } from 'lucide-svelte';
 
   export let item: ComponentItem;
 
@@ -17,7 +17,14 @@
     }
   }
 
+  function formatDate(isoStr?: string) {
+    if (!isoStr) return null;
+    const d = new Date(isoStr);
+    return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
   $: status = getLifecycle(item.lifecycle);
+  $: displayDate = formatDate(item.last_activity_at || item.gitlab_created_at || item.updated_at);
 </script>
 
 <article class="plate plate-link flex flex-col p-5" style="--chamfer: 14px;">
@@ -56,10 +63,17 @@
 
   <!-- Rodapé técnico -->
   <div class="mt-auto pt-5 border-t border-line flex items-center justify-between gap-3">
-    <span class="label truncate" title={item.owner}>
-      <span class="t-faint">Owner /</span>
-      <span class="t-dim">{item.owner}</span>
-    </span>
+    <div class="flex flex-col gap-0.5 min-w-0">
+      <span class="label truncate" title={item.owner}>
+        <span class="t-faint">Owner /</span>
+        <span class="t-dim">{item.owner}</span>
+      </span>
+      {#if displayDate}
+        <span class="text-[0.625rem] font-mono t-faint flex items-center gap-1">
+          <Calendar class="w-2.5 h-2.5" /> {displayDate}
+        </span>
+      {/if}
+    </div>
 
     <div class="flex items-center gap-2 shrink-0">
       <a href={`/catalog/${item.id}/docs/index.md`} class="btn btn-sm">

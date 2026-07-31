@@ -9,6 +9,9 @@ from app.db.models import Component, DocFile, Tag
 from app.gitlab.gitlab_crawler import SyncMode
 from app.sync.jobs import SyncAlreadyRunning, sync_jobs
 from app.api.auth import auth_router, get_current_user
+from app.jenkins.jenkins_service import fetch_jenkins_job_status
+from app.core.config import settings
+
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -57,6 +60,8 @@ async def list_components(
             "tags": [t.name for t in c.tags],
             "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
             "dependencies": [d.target_component_name for d in c.dependencies],
+            "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
+            "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
             "updated_at": c.updated_at.isoformat() if c.updated_at else None
         }
         for c in components
@@ -88,8 +93,47 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "tags": [t.name for t in c.tags],
         "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
         "dependencies": [d.target_component_name for d in c.dependencies],
+        "jenkins_pipelines": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "environment": p.environment,
+                "job": p.job,
+                "server_url": p.server_url
+            }
+            for p in c.jenkins_pipelines
+        ],
+        "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
+        "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None
     }
+
+@protected_router.get("/catalog/{component_id}/jenkins")
+async def get_component_jenkins_status(component_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Component).where(Component.id == component_id))
+    c = result.scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="Component not found")
+    
+    pipelines_status = []
+    for pipe in c.jenkins_pipelines:
+        status_info = await fetch_jenkins_job_status(pipe.job, server_url=pipe.server_url)
+        pipelines_status.append({
+            "id": pipe.id,
+            "name": pipe.name,
+            "environment": pipe.environment,
+            "job": pipe.job,
+            "server_url": pipe.server_url,
+            "status_info": status_info
+        })
+
+    return {
+        "component_id": c.id,
+        "component_name": c.name,
+        "jenkins_token_configured": bool(settings.JENKINS_API_TOKEN or settings.JENKINS_USER),
+        "pipelines": pipelines_status
+    }
+
 
 @protected_router.get("/catalog/{component_id}/docs")
 async def list_component_docs(component_id: int, db: AsyncSession = Depends(get_db)):

@@ -11,6 +11,7 @@
   let selectedType = '';
   let selectedLifecycle = '';
   let searchQuery = '';
+  let selectedSort = 'activity_desc';
 
   onMount(async () => {
     await loadCatalog();
@@ -32,12 +33,13 @@
     selectedType = '';
     selectedLifecycle = '';
     searchQuery = '';
+    selectedSort = 'activity_desc';
   }
 
   $: owners = Array.from(new Set(components.map(c => c.owner))).filter(Boolean);
   $: types = Array.from(new Set(components.map(c => c.type))).filter(Boolean);
   $: lifecycles = Array.from(new Set(components.map(c => c.lifecycle))).filter(Boolean);
-  $: hasFilters = !!(selectedOwner || selectedType || selectedLifecycle || searchQuery);
+  $: hasFilters = !!(selectedOwner || selectedType || selectedLifecycle || searchQuery || selectedSort !== 'activity_desc');
 
   $: filtered = components.filter(c => {
     if (selectedOwner && c.owner !== selectedOwner) return false;
@@ -48,6 +50,43 @@
       return c.name.toLowerCase().includes(q) || (c.description && c.description.toLowerCase().includes(q));
     }
     return true;
+  });
+
+  $: sorted = [...filtered].sort((a, b) => {
+    if (selectedSort === 'activity_desc') {
+      const tA = a.last_activity_at || a.updated_at || '';
+      const tB = b.last_activity_at || b.updated_at || '';
+      return tB.localeCompare(tA);
+    }
+    if (selectedSort === 'activity_asc') {
+      const tA = a.last_activity_at || a.updated_at || '';
+      const tB = b.last_activity_at || b.updated_at || '';
+      return tA.localeCompare(tB);
+    }
+    if (selectedSort === 'name_asc') {
+      return a.name.localeCompare(b.name);
+    }
+    if (selectedSort === 'name_desc') {
+      return b.name.localeCompare(a.name);
+    }
+    if (selectedSort === 'created_desc') {
+      const cA = a.gitlab_created_at || a.updated_at || '';
+      const cB = b.gitlab_created_at || b.updated_at || '';
+      return cB.localeCompare(cA);
+    }
+    if (selectedSort === 'created_asc') {
+      const cA = a.gitlab_created_at || a.updated_at || '';
+      const cB = b.gitlab_created_at || b.updated_at || '';
+      return cA.localeCompare(cB);
+    }
+    if (selectedSort === 'manifest_desc') {
+      return (b.has_manifest ? 1 : 0) - (a.has_manifest ? 1 : 0);
+    }
+    if (selectedSort === 'lifecycle_desc') {
+      const order: Record<string, number> = { production: 3, experimental: 2, deprecated: 1 };
+      return (order[b.lifecycle.toLowerCase()] || 0) - (order[a.lifecycle.toLowerCase()] || 0);
+    }
+    return 0;
   });
 </script>
 
@@ -106,6 +145,20 @@
         </select>
       </div>
 
+      <div class="space-y-1.5">
+        <label for="f-sort" class="label block">Ordenar por</label>
+        <select id="f-sort" bind:value={selectedSort} class="field font-semibold">
+          <option value="activity_desc">Última atividade (mais recente)</option>
+          <option value="activity_asc">Última atividade (mais antiga)</option>
+          <option value="name_asc">Nome (A - Z)</option>
+          <option value="name_desc">Nome (Z - A)</option>
+          <option value="created_desc">Data de criação (mais novos)</option>
+          <option value="created_asc">Data de criação (mais antigos)</option>
+          <option value="manifest_desc">Conformidade (project-info.yml)</option>
+          <option value="lifecycle_desc">Ciclo de vida (Produção 1º)</option>
+        </select>
+      </div>
+
       {#if hasFilters}
         <button on:click={clearFilters} class="btn btn-sm">
           <X class="w-3 h-3" /> Limpar
@@ -119,7 +172,7 @@
         {loading ? 'Carregando' : 'Pronto'}
       </span>
       <span class="label">
-        Exibindo <span class="t-visor">{filtered.length}</span> de {components.length}
+        Exibindo <span class="t-visor">{sorted.length}</span> de {components.length}
       </span>
     </div>
   </div>
@@ -131,7 +184,7 @@
         <div class="skeleton h-56"></div>
       {/each}
     </div>
-  {:else if filtered.length === 0}
+  {:else if sorted.length === 0}
     <div class="plate p-20 text-center space-y-4">
       <Layers class="w-10 h-10 mx-auto t-faint" />
       <h3 class="text-lg font-bold t-txt">Nenhum componente encontrado</h3>
@@ -142,7 +195,7 @@
     </div>
   {:else}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-      {#each filtered as item}
+      {#each sorted as item}
         <CatalogCard {item} />
       {/each}
     </div>

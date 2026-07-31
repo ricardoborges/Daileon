@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     GITLAB_URL: str = os.getenv("GITLAB_URL", "https://gitlab.com")
     GITLAB_READ_TOKEN: str = os.getenv("GITLAB_READ_TOKEN", os.getenv("GITLAB_TOKEN", ""))
     GITLAB_GROUP_ID: str = os.getenv("GITLAB_GROUP_ID", "")
+
+    # Jenkins API Configuration
+    JENKINS_URL: str = os.getenv("JENKINS_URL", "https://jenkins.example.com")
+    JENKINS_USER: str = os.getenv("JENKINS_USER", "")
+    JENKINS_API_TOKEN: str = os.getenv("JENKINS_API_TOKEN", "")
     # Break-Glass Admin Configuration
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"

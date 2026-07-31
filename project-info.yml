@@ -32,3 +32,13 @@ spec:
 
   dependencies:
     - component: gitlab-api
+
+  jenkins:
+    pipelines:
+      - name: Pipeline de Produção
+        environment: production
+        job: "deployments/daileon-prod"
+      - name: Testes Automáticos & CI
+        environment: test
+        job: "ci/daileon-ci"
+

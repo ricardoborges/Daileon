@@ -47,7 +47,17 @@ spec:
   dependencies:
     - component: usuario-service
     - component: notificacao-service
+
+  jenkins:
+    pipelines:
+      - name: Pipeline de Produção
+        environment: production
+        job: "deployments/pagamento-prod"
+      - name: Testes Automáticos
+        environment: test
+        job: "ci/pagamento-ci"
 ```
+
 
 ### 2.1. Mínimo viável
 
@@ -93,6 +103,7 @@ Esse arquivo é válido e produz um componente `Component` / `service` / `produc
 | `docs` | objeto | Não | `{dir: /docs, index: index.md}` | Ver 3.4. |
 | `links` | lista | Não | `[]` | Ver 3.5. |
 | `dependencies` | lista | Não | `[]` | Ver 3.6. |
+| `jenkins` | objeto / lista | Não | `null` | Configuração de pipelines do Jenkins. Ver 3.7. |
 
 ### 3.4. `spec.docs`
 
@@ -126,6 +137,48 @@ Lista de objetos com um único campo:
 | `component` | string | **Sim** | Nome do componente do qual este depende. |
 
 A dependência é gravada **por nome, como texto livre** — o Daileon não valida se o componente referenciado existe no catálogo, nem cria vínculo de banco entre eles. Para que a relação faça sentido visualmente, use exatamente o `metadata.name` do componente alvo.
+
+### 3.7. `spec.jenkins`
+
+Mapeamento de pipelines CI/CD do Jenkins para exibição de status do último build, duração, gatilho, branch e indicador visual de sucesso/falha na aba **Pipelines (Jenkins)** do componente.
+
+Permite dois formatos de escrita no YAML:
+
+#### Formato com objeto e chave `pipelines`:
+
+```yaml
+spec:
+  jenkins:
+    server_url: "https://jenkins.suaempresa.com" # (Opcional) Override da URL base do Jenkins
+    pipelines:
+      - name: Pipeline de Produção
+        environment: production
+        job: "deployments/pagamento-prod"
+      - name: Testes Automáticos
+        environment: test
+        job: "ci/pagamento-ci"
+```
+
+#### Formato direto com lista:
+
+```yaml
+spec:
+  jenkins:
+    - name: Pipeline de Produção
+      environment: production
+      job: "deployments/pagamento-prod"
+    - name: Testes Automáticos
+      environment: test
+      job: "ci/pagamento-ci"
+```
+
+| Campo | Tipo | Obrigatório | Padrão | Efeito |
+| --- | --- | --- | --- | --- |
+| `name` | string | **Sim** | — | Nome de exibição da pipeline na UI. |
+| `environment` | string | Não | `production` | Ambiente associado (ex: `production`, `staging`, `test`). Define a cor do selo visual. |
+| `job` | string | **Sim** | — | Nome ou caminho do job no Jenkins. Pastas são suportadas (ex: `deployments/meu-job`). |
+| `server_url` | string | Não | `null` | URL do servidor Jenkins, caso diferente do padrão configurado no `.env`. |
+
 
 ---
 
@@ -212,12 +265,16 @@ O banco define limites por coluna. Em SQLite (padrão de desenvolvimento) eles *
 | `links[].url` | 500 |
 | `links[].icon` | 50 |
 | `dependencies[].component` | 100 |
+| `jenkins.pipelines[].name` | 100 |
+| `jenkins.pipelines[].environment` | 50 |
+| `jenkins.pipelines[].job` | 300 |
+| `jenkins.pipelines[].server_url` | 500 |
 
 ---
 
 ## 7. Exemplos
 
-### 7.1. Microsserviço com documentação e observabilidade
+### 7.1. Microsserviço com documentação, observabilidade e CI/CD Jenkins
 
 ```yaml
 apiVersion: daileon/v1
@@ -250,7 +307,20 @@ spec:
   dependencies:
     - component: usuario-service
     - component: notificacao-service
+
+  jenkins:
+    pipelines:
+      - name: Pipeline de Produção
+        environment: production
+        job: "deployments/pagamento-prod"
+      - name: Pipeline de Homologação
+        environment: staging
+        job: "deployments/pagamento-staging"
+      - name: Testes Automáticos (CI)
+        environment: test
+        job: "ci/pagamento-ci"
 ```
+
 
 ### 7.2. Biblioteca compartilhada, docs fora do padrão
 

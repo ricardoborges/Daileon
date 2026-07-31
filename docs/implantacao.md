@@ -19,8 +19,12 @@ cp .env.example .env
 | `GITLAB_URL` | URL base da sua instância do GitLab | `https://gitlab.com` |
 | `GITLAB_READ_TOKEN` | Token com permissões `read_api` e `read_repository` | `glpat-xxxxxxxxxxxx` |
 | `GITLAB_GROUP_ID` | (Opcional) ID ou caminho do grupo do GitLab para limitar a busca | `1234567` ou `sua-empresa` |
+| `JENKINS_URL` | URL base da instância do Jenkins | `https://jenkins.empresa.com` |
+| `JENKINS_USER` | Usuário/service account para API do Jenkins | `daileon-service` |
+| `JENKINS_API_TOKEN` | Token de API REST do Jenkins para consultar status de builds | `11a2b3c4d5e6f7g8h9` |
 | `DATABASE_URL` | String de conexão SQLAlchemy do banco | `sqlite+aiosqlite:///./data/daileon.db` |
 | `API_URL` | Destino do proxy `/api` do frontend SvelteKit. No Docker Compose, use o hostname do serviço | `http://localhost:8000` / `http://backend:8000` |
+
 
 ---
 

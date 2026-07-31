@@ -21,7 +21,6 @@
     Server,
     ShieldCheck,
     CheckCircle2,
-    Key,
   } from "lucide-svelte";
 
   interface Operation {
@@ -65,6 +64,8 @@
   ];
 
   const POLL_MS = 800;
+
+  let activeTab: "sync" | "ldap" = "sync";
 
   let status: SyncStatus | null = null;
   let logs: SyncLogLine[] = [];
@@ -278,370 +279,401 @@
       </h1>
     </div>
     <p class="t-dim text-sm">
-      Operações de manutenção do catálogo contra a API do GitLab.
+      Gerenciamento de sincronização do catálogo e autenticação LDAP.
     </p>
   </header>
 
-  <!-- Configuração do LDAP -->
-  <section class="plate p-6 space-y-6" style="--chamfer: 16px;">
-    <div
-      class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] pb-4"
-    >
-      <div class="space-y-1">
-        <h2 class="text-lg font-bold t-txt flex items-center gap-2">
-          <Server class="w-5 h-5 t-visor" /> Configuração do LDAP
-        </h2>
-        <p class="t-dim text-xs">
-          Configure a integração com o diretório LDAP/Active Directory para
-          autenticação dos demais usuários do portal.
-        </p>
-      </div>
-
-      <label
-        class="flex items-center gap-3 cursor-pointer select-none plate plate-deep px-4 py-2"
-        style="--chamfer: 8px;"
+  <!-- Navegação de Abas -->
+  <div class="border-b border-[var(--line)] pb-4">
+    <div class="seg" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeTab === "sync"}
+        class="seg-item cursor-pointer {activeTab === 'sync' ? 'is-active' : ''}"
+        on:click={() => (activeTab = "sync")}
       >
-        <input
-          type="checkbox"
-          bind:checked={ldapConfig.enabled}
-          class="w-4 h-4 rounded text-[var(--visor)] focus:ring-0 cursor-pointer"
-        />
-        <span class="text-xs font-bold uppercase tracking-wider t-txt">
-          {ldapConfig.enabled ? "LDAP Ativado" : "LDAP Desativado"}
-        </span>
-        <span class="led {ldapConfig.enabled ? 'led-ok' : 'led-alert'}"></span>
-      </label>
+        <RefreshCw class="w-4 h-4" />
+        <span>Sincronização</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeTab === "ldap"}
+        class="seg-item cursor-pointer {activeTab === 'ldap' ? 'is-active' : ''}"
+        on:click={() => (activeTab = "ldap")}
+      >
+        <Server class="w-4 h-4" />
+        <span>LDAP</span>
+      </button>
     </div>
+  </div>
 
-    {#if ldapMessage}
-      <div
-        class="chip {ldapMessageType === 'success'
-          ? 'chip-ok'
-          : 'chip-alert'} !w-full !whitespace-normal !normal-case !tracking-normal text-xs p-3"
-      >
-        {#if ldapMessageType === "success"}
-          <CheckCircle2 class="w-4 h-4 flex-none" />
-        {:else}
-          <AlertTriangle class="w-4 h-4 flex-none" />
+  {#if activeTab === "sync"}
+    <!-- ABA 1: Sincronização -->
+    <div class="space-y-8">
+      <!-- Operações -->
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {#each operations as op}
+          <div
+            class="plate plate-deep p-5 flex flex-col gap-4"
+            style="--chamfer: 14px;"
+          >
+            <div class="space-y-2">
+              <h2 class="text-sm font-bold t-txt flex items-center gap-2">
+                <svelte:component
+                  this={op.icon}
+                  class="w-4 h-4 {op.destructive ? 't-crest' : 't-visor'}"
+                />
+                {op.label}
+              </h2>
+              <p class="label" style="letter-spacing: 0.1em;">{op.summary}</p>
+            </div>
+
+            <p class="t-dim text-xs leading-relaxed flex-1">{op.detail}</p>
+
+            {#if confirming === op.mode}
+              <div class="space-y-3">
+                <p
+                  class="chip chip-alert !whitespace-normal !normal-case !text-[0.6875rem] !tracking-normal w-full"
+                >
+                  <AlertTriangle class="w-3.5 h-3.5 flex-none" />
+                  Esta ação apaga dados e não pode ser desfeita.
+                </p>
+                <div class="flex gap-2">
+                  <button
+                    class="btn btn-sm flex-1"
+                    on:click={() => (confirming = null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    class="btn btn-sm btn-crest flex-1"
+                    disabled={busy}
+                    on:click={() => run(op.mode)}
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </div>
+            {:else}
+              <button
+                class="btn btn-sm w-full {op.destructive
+                  ? 'btn-crest'
+                  : 'btn-primary'}"
+                disabled={busy}
+                on:click={() => request(op)}
+              >
+                <svelte:component
+                  this={op.icon}
+                  class="w-3.5 h-3.5 {running && status?.mode === op.mode
+                    ? 'animate-spin'
+                    : ''}"
+                />
+                {op.label}
+              </button>
+            {/if}
+          </div>
+        {/each}
+      </section>
+
+      <!-- Instrumentação: progresso + saída -->
+      <section class="plate p-5 space-y-4" style="--chamfer: 16px;">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <span class="label flex items-center gap-2">
+            {#if stateLed}<span class="led {stateLed}"></span>{/if}
+            {stateLabel}
+            {#if status?.mode && status.state !== "idle"}
+              <span class="t-faint">&middot; {status.mode}</span>
+            {/if}
+          </span>
+
+          <div class="flex items-center gap-4">
+            {#if (status?.synced_count ?? 0) > 0}
+              <span class="label"
+                >Sincronizados <span class="t-visor">{status?.synced_count}</span
+                ></span
+              >
+            {/if}
+            {#if (status?.removed_count ?? 0) > 0}
+              <span class="label"
+                >Removidos <span class="t-crest">{status?.removed_count}</span
+                ></span
+              >
+            {/if}
+            {#if (status?.failed_count ?? 0) > 0}
+              <span class="label"
+                >Falhas <span class="t-alert">{status?.failed_count}</span></span
+              >
+            {/if}
+            <span class="readout text-sm">
+              {#if indeterminate}
+                --
+              {:else if total && total > 0}
+                {processed}/{total}
+              {:else}
+                {percent}%
+              {/if}
+            </span>
+          </div>
+        </div>
+
+        <div
+          class="progress {barTone} {indeterminate ? 'progress-indeterminate' : ''}"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={indeterminate ? undefined : percent}
+          aria-label="Progresso da operação"
+        >
+          {#if !indeterminate}
+            <div
+              class="progress-fill"
+              style="width: {status?.state === 'idle' ? 0 : percent}%"
+            ></div>
+          {/if}
+        </div>
+
+        {#if uiError}
+          <p
+            class="chip chip-alert !normal-case !tracking-normal !text-[0.6875rem]"
+          >
+            <AlertTriangle class="w-3.5 h-3.5" />
+            {uiError}
+          </p>
         {/if}
-        <span>{ldapMessage}</span>
-      </div>
-    {/if}
+        {#if status?.error}
+          <p
+            class="chip chip-alert !whitespace-normal !normal-case !tracking-normal !text-[0.6875rem]"
+          >
+            <AlertTriangle class="w-3.5 h-3.5 flex-none" />
+            {status.error}
+          </p>
+        {/if}
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-      <!-- Servidor Host -->
-      <div class="space-y-1.5">
-        <label for="ldap_host" class="label text-xs font-semibold t-txt"
-          >Servidor LDAP (Host)</label
-        >
-        <input
-          id="ldap_host"
-          type="text"
-          bind:value={ldapConfig.server_host}
-          placeholder="ldap.empresa.com"
-          class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-          style="background: var(--surface-2); border: 1px solid var(--line);"
-        />
-      </div>
+        <div class="space-y-2">
+          <span class="label flex items-center gap-2">
+            <Terminal class="w-3 h-3" /> Saída
+          </span>
+          <div
+            class="console h-72"
+            bind:this={consoleEl}
+            on:scroll={onConsoleScroll}
+            role="log"
+            aria-live="polite"
+          >
+            {#if logs.length === 0}
+              <p class="px-3 py-3 t-faint">
+                Nenhuma operação executada nesta sessão.
+              </p>
+            {:else}
+              {#each logs as line (line.seq)}
+                <div class="console-line">
+                  <span class="console-ts">{hhmmss(line.ts)}</span>
+                  <span
+                    class:console-ok={line.level === "ok"}
+                    class:console-warn={line.level === "warn"}
+                    class:console-error={line.level === "error"}
+                    >{line.message}</span
+                  >
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </div>
+      </section>
+    </div>
+  {:else if activeTab === "ldap"}
+    <!-- ABA 2: LDAP -->
+    <section class="plate p-6 space-y-6" style="--chamfer: 16px;">
+      <div
+        class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] pb-4"
+      >
+        <div class="space-y-1">
+          <h2 class="text-lg font-bold t-txt flex items-center gap-2">
+            <Server class="w-5 h-5 t-visor" /> Configuração do LDAP
+          </h2>
+          <p class="t-dim text-xs">
+            Configure a integração com o diretório LDAP/Active Directory para
+            autenticação dos demais usuários do portal.
+          </p>
+        </div>
 
-      <!-- Porta -->
-      <div class="space-y-1.5">
-        <label for="ldap_port" class="label text-xs font-semibold t-txt"
-          >Porta (ex: 389 ou 636)</label
-        >
-        <input
-          id="ldap_port"
-          type="number"
-          bind:value={ldapConfig.server_port}
-          placeholder="389"
-          class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-          style="background: var(--surface-2); border: 1px solid var(--line);"
-        />
-      </div>
-
-      <!-- Checkbox SSL -->
-      <div class="space-y-1.5 flex flex-col justify-end">
         <label
-          class="flex items-center gap-2 text-xs font-semibold t-txt cursor-pointer py-2.5"
+          class="flex items-center gap-3 cursor-pointer select-none plate plate-deep px-4 py-2"
+          style="--chamfer: 8px;"
         >
           <input
             type="checkbox"
-            bind:checked={ldapConfig.use_ssl}
-            class="w-4 h-4 rounded text-[var(--visor)]"
+            bind:checked={ldapConfig.enabled}
+            class="w-4 h-4 rounded text-[var(--visor)] focus:ring-0 cursor-pointer"
           />
-          <span>Usar Conexão Segura (SSL / LDAPS)</span>
+          <span class="text-xs font-bold uppercase tracking-wider t-txt">
+            {ldapConfig.enabled ? "LDAP Ativado" : "LDAP Desativado"}
+          </span>
+          <span class="led {ldapConfig.enabled ? 'led-ok' : 'led-alert'}"></span>
         </label>
       </div>
 
-      <!-- Bind DN -->
-      <div class="space-y-1.5 lg:col-span-2">
-        <label for="bind_dn" class="label text-xs font-semibold t-txt"
-          >Bind DN (Conta de Serviço)</label
+      {#if ldapMessage}
+        <div
+          class="chip {ldapMessageType === 'success'
+            ? 'chip-ok'
+            : 'chip-alert'} !w-full !whitespace-normal !normal-case !tracking-normal text-xs p-3"
         >
-        <input
-          id="bind_dn"
-          type="text"
-          bind:value={ldapConfig.bind_dn}
-          placeholder="cn=admin,dc=empresa,dc=com"
-          class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-          style="background: var(--surface-2); border: 1px solid var(--line);"
-        />
-      </div>
+          {#if ldapMessageType === "success"}
+            <CheckCircle2 class="w-4 h-4 flex-none" />
+          {:else}
+            <AlertTriangle class="w-4 h-4 flex-none" />
+          {/if}
+          <span>{ldapMessage}</span>
+        </div>
+      {/if}
 
-      <!-- Bind Password -->
-      <div class="space-y-1.5">
-        <label for="bind_password" class="label text-xs font-semibold t-txt"
-          >Senha do Bind DN</label
-        >
-        <input
-          id="bind_password"
-          type="password"
-          bind:value={ldapConfig.bind_password}
-          placeholder="••••••••"
-          class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-          style="background: var(--surface-2); border: 1px solid var(--line);"
-        />
-      </div>
-
-      <!-- Base DN -->
-      <div class="space-y-1.5 lg:col-span-2">
-        <label for="base_dn" class="label text-xs font-semibold t-txt"
-          >Base DN (Busca de Usuários)</label
-        >
-        <input
-          id="base_dn"
-          type="text"
-          bind:value={ldapConfig.base_dn}
-          placeholder="ou=users,dc=empresa,dc=com"
-          class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-          style="background: var(--surface-2); border: 1px solid var(--line);"
-        />
-      </div>
-
-      <!-- Atributo do Usuário -->
-      <div class="space-y-1.5">
-        <label for="user_attr" class="label text-xs font-semibold t-txt"
-          >Atributo do Usuário (ex: sAMAccountName ou uid)</label
-        >
-        <input
-          id="user_attr"
-          type="text"
-          bind:value={ldapConfig.user_attribute}
-          placeholder="uid ou sAMAccountName"
-          class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-          style="background: var(--surface-2); border: 1px solid var(--line);"
-        />
-      </div>
-    </div>
-
-    <!-- Botões de Ação -->
-    <div
-      class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-[var(--line)]"
-    >
-      <button
-        type="button"
-        on:click={handleTestLDAP}
-        disabled={ldapTesting || !ldapConfig.server_host}
-        class="btn btn-sm px-4 flex items-center gap-2"
-      >
-        {#if ldapTesting}
-          <div
-            class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
-          ></div>
-          <span>Testando...</span>
-        {:else}
-          <Server class="w-3.5 h-3.5 t-visor" />
-          <span>Testar Conexão</span>
-        {/if}
-      </button>
-
-      <button
-        type="button"
-        on:click={handleSaveLDAP}
-        disabled={ldapSaving}
-        class="btn btn-sm btn-primary px-5 flex items-center gap-2"
-      >
-        {#if ldapSaving}
-          <div
-            class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
-          ></div>
-          <span>Salvando...</span>
-        {:else}
-          <ShieldCheck class="w-3.5 h-3.5" />
-          <span>Salvar Configuração LDAP</span>
-        {/if}
-      </button>
-    </div>
-  </section>
-
-  <!-- Operações -->
-  <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-    {#each operations as op}
-      <div
-        class="plate plate-deep p-5 flex flex-col gap-4"
-        style="--chamfer: 14px;"
-      >
-        <div class="space-y-2">
-          <h2 class="text-sm font-bold t-txt flex items-center gap-2">
-            <svelte:component
-              this={op.icon}
-              class="w-4 h-4 {op.destructive ? 't-crest' : 't-visor'}"
-            />
-            {op.label}
-          </h2>
-          <p class="label" style="letter-spacing: 0.1em;">{op.summary}</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <!-- Servidor Host -->
+        <div class="space-y-1.5">
+          <label for="ldap_host" class="label text-xs font-semibold t-txt"
+            >Servidor LDAP (Host)</label
+          >
+          <input
+            id="ldap_host"
+            type="text"
+            bind:value={ldapConfig.server_host}
+            placeholder="ldap.empresa.com"
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
         </div>
 
-        <p class="t-dim text-xs leading-relaxed flex-1">{op.detail}</p>
-
-        {#if confirming === op.mode}
-          <div class="space-y-3">
-            <p
-              class="chip chip-alert !whitespace-normal !normal-case !text-[0.6875rem] !tracking-normal w-full"
-            >
-              <AlertTriangle class="w-3.5 h-3.5 flex-none" />
-              Esta ação apaga dados e não pode ser desfeita.
-            </p>
-            <div class="flex gap-2">
-              <button
-                class="btn btn-sm flex-1"
-                on:click={() => (confirming = null)}
-              >
-                Cancelar
-              </button>
-              <button
-                class="btn btn-sm btn-crest flex-1"
-                disabled={busy}
-                on:click={() => run(op.mode)}
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        {:else}
-          <button
-            class="btn btn-sm w-full {op.destructive
-              ? 'btn-crest'
-              : 'btn-primary'}"
-            disabled={busy}
-            on:click={() => request(op)}
+        <!-- Porta -->
+        <div class="space-y-1.5">
+          <label for="ldap_port" class="label text-xs font-semibold t-txt"
+            >Porta (ex: 389 ou 636)</label
           >
-            <svelte:component
-              this={op.icon}
-              class="w-3.5 h-3.5 {running && status?.mode === op.mode
-                ? 'animate-spin'
-                : ''}"
+          <input
+            id="ldap_port"
+            type="number"
+            bind:value={ldapConfig.server_port}
+            placeholder="389"
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
+        </div>
+
+        <!-- Checkbox SSL -->
+        <div class="space-y-1.5 flex flex-col justify-end">
+          <label
+            class="flex items-center gap-2 text-xs font-semibold t-txt cursor-pointer py-2.5"
+          >
+            <input
+              type="checkbox"
+              bind:checked={ldapConfig.use_ssl}
+              class="w-4 h-4 rounded text-[var(--visor)]"
             />
-            {op.label}
-          </button>
-        {/if}
+            <span>Usar Conexão Segura (SSL / LDAPS)</span>
+          </label>
+        </div>
+
+        <!-- Bind DN -->
+        <div class="space-y-1.5 lg:col-span-2">
+          <label for="bind_dn" class="label text-xs font-semibold t-txt"
+            >Bind DN (Conta de Serviço)</label
+          >
+          <input
+            id="bind_dn"
+            type="text"
+            bind:value={ldapConfig.bind_dn}
+            placeholder="cn=admin,dc=empresa,dc=com"
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
+        </div>
+
+        <!-- Bind Password -->
+        <div class="space-y-1.5">
+          <label for="bind_password" class="label text-xs font-semibold t-txt"
+            >Senha do Bind DN</label
+          >
+          <input
+            id="bind_password"
+            type="password"
+            bind:value={ldapConfig.bind_password}
+            placeholder="••••••••"
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
+        </div>
+
+        <!-- Base DN -->
+        <div class="space-y-1.5 lg:col-span-2">
+          <label for="base_dn" class="label text-xs font-semibold t-txt"
+            >Base DN (Busca de Usuários)</label
+          >
+          <input
+            id="base_dn"
+            type="text"
+            bind:value={ldapConfig.base_dn}
+            placeholder="ou=users,dc=empresa,dc=com"
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
+        </div>
+
+        <!-- Atributo do Usuário -->
+        <div class="space-y-1.5">
+          <label for="user_attr" class="label text-xs font-semibold t-txt"
+            >Atributo do Usuário (ex: sAMAccountName ou uid)</label
+          >
+          <input
+            id="user_attr"
+            type="text"
+            bind:value={ldapConfig.user_attribute}
+            placeholder="uid ou sAMAccountName"
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
+        </div>
       </div>
-    {/each}
-  </section>
 
-  <!-- Instrumentação: progresso + saída -->
-  <section class="plate p-5 space-y-4" style="--chamfer: 16px;">
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <span class="label flex items-center gap-2">
-        {#if stateLed}<span class="led {stateLed}"></span>{/if}
-        {stateLabel}
-        {#if status?.mode && status.state !== "idle"}
-          <span class="t-faint">&middot; {status.mode}</span>
-        {/if}
-      </span>
-
-      <div class="flex items-center gap-4">
-        {#if (status?.synced_count ?? 0) > 0}
-          <span class="label"
-            >Sincronizados <span class="t-visor">{status?.synced_count}</span
-            ></span
-          >
-        {/if}
-        {#if (status?.removed_count ?? 0) > 0}
-          <span class="label"
-            >Removidos <span class="t-crest">{status?.removed_count}</span
-            ></span
-          >
-        {/if}
-        {#if (status?.failed_count ?? 0) > 0}
-          <span class="label"
-            >Falhas <span class="t-alert">{status?.failed_count}</span></span
-          >
-        {/if}
-        <span class="readout text-sm">
-          {#if indeterminate}
-            --
-          {:else if total && total > 0}
-            {processed}/{total}
-          {:else}
-            {percent}%
-          {/if}
-        </span>
-      </div>
-    </div>
-
-    <div
-      class="progress {barTone} {indeterminate ? 'progress-indeterminate' : ''}"
-      role="progressbar"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      aria-valuenow={indeterminate ? undefined : percent}
-      aria-label="Progresso da operação"
-    >
-      {#if !indeterminate}
-        <div
-          class="progress-fill"
-          style="width: {status?.state === 'idle' ? 0 : percent}%"
-        ></div>
-      {/if}
-    </div>
-
-    {#if uiError}
-      <p
-        class="chip chip-alert !normal-case !tracking-normal !text-[0.6875rem]"
-      >
-        <AlertTriangle class="w-3.5 h-3.5" />
-        {uiError}
-      </p>
-    {/if}
-    {#if status?.error}
-      <p
-        class="chip chip-alert !whitespace-normal !normal-case !tracking-normal !text-[0.6875rem]"
-      >
-        <AlertTriangle class="w-3.5 h-3.5 flex-none" />
-        {status.error}
-      </p>
-    {/if}
-
-    <div class="space-y-2">
-      <span class="label flex items-center gap-2">
-        <Terminal class="w-3 h-3" /> Saída
-      </span>
+      <!-- Botões de Ação -->
       <div
-        class="console h-72"
-        bind:this={consoleEl}
-        on:scroll={onConsoleScroll}
-        role="log"
-        aria-live="polite"
+        class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-[var(--line)]"
       >
-        {#if logs.length === 0}
-          <p class="px-3 py-3 t-faint">
-            Nenhuma operação executada nesta sessão.
-          </p>
-        {:else}
-          {#each logs as line (line.seq)}
-            <div class="console-line">
-              <span class="console-ts">{hhmmss(line.ts)}</span>
-              <span
-                class:console-ok={line.level === "ok"}
-                class:console-warn={line.level === "warn"}
-                class:console-error={line.level === "error"}
-                >{line.message}</span
-              >
-            </div>
-          {/each}
-        {/if}
+        <button
+          type="button"
+          on:click={handleTestLDAP}
+          disabled={ldapTesting || !ldapConfig.server_host}
+          class="btn btn-sm px-4 flex items-center gap-2"
+        >
+          {#if ldapTesting}
+            <div
+              class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
+            ></div>
+            <span>Testando...</span>
+          {:else}
+            <Server class="w-3.5 h-3.5 t-visor" />
+            <span>Testar Conexão</span>
+          {/if}
+        </button>
+
+        <button
+          type="button"
+          on:click={handleSaveLDAP}
+          disabled={ldapSaving}
+          class="btn btn-sm btn-primary px-5 flex items-center gap-2"
+        >
+          {#if ldapSaving}
+            <div
+              class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
+            ></div>
+            <span>Salvando...</span>
+          {:else}
+            <ShieldCheck class="w-3.5 h-3.5" />
+            <span>Salvar Configuração LDAP</span>
+          {/if}
+        </button>
       </div>
-    </div>
-  </section>
+    </section>
+  {/if}
 </main>

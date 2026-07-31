@@ -45,6 +45,18 @@ class ComponentDependency(Base):
 
     component: Mapped["Component"] = relationship("Component", back_populates="dependencies")
 
+class ComponentJenkinsPipeline(Base):
+    __tablename__ = "component_jenkins_pipelines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    environment: Mapped[str] = mapped_column(String(50), default="production")
+    job: Mapped[str] = mapped_column(String(300))
+    server_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    component: Mapped["Component"] = relationship("Component", back_populates="jenkins_pipelines")
+
 class DocFile(Base):
     __tablename__ = "doc_files"
 
@@ -75,9 +87,13 @@ class Component(Base):
     docs_dir: Mapped[str] = mapped_column(String(100), default="/docs")
     docs_index: Mapped[str] = mapped_column(String(100), default="index.md")
     has_manifest: Mapped[bool] = mapped_column(default=False)
+    gitlab_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_activity_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     tags: Mapped[List[Tag]] = relationship("Tag", secondary=component_tags, lazy="selectin")
     links: Mapped[List[ComponentLink]] = relationship("ComponentLink", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
     dependencies: Mapped[List[ComponentDependency]] = relationship("ComponentDependency", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
     docs: Mapped[List[DocFile]] = relationship("DocFile", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
+    jenkins_pipelines: Mapped[List[ComponentJenkinsPipeline]] = relationship("ComponentJenkinsPipeline", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
+

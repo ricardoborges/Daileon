@@ -19,6 +19,8 @@ export interface ComponentItem {
   tags: string[];
   links: Array<{ title: string; url: string; icon?: string }>;
   dependencies: string[];
+  gitlab_created_at?: string;
+  last_activity_at?: string;
   updated_at?: string;
 }
 
@@ -192,3 +194,48 @@ export async function testLDAPConfig(config: LDAPConfig): Promise<{ success: boo
   }
   return res.json();
 }
+
+export interface JenkinsLastBuild {
+  number?: number;
+  url?: string;
+  building?: boolean;
+  result?: string;
+  duration_ms?: number;
+  timestamp?: number;
+  display_name?: string;
+  causes?: string[];
+  branch?: string;
+  commit?: string;
+}
+
+export interface JenkinsStatusInfo {
+  job: string;
+  configured: boolean;
+  status: 'SUCCESS' | 'FAILURE' | 'UNSTABLE' | 'ABORTED' | 'BUILDING' | 'NOT_FOUND' | 'UNAUTHORIZED' | 'UNREACHABLE' | 'NOT_CONFIGURED' | 'UNKNOWN';
+  message?: string | null;
+  job_url?: string;
+  last_build?: JenkinsLastBuild | null;
+}
+
+export interface JenkinsPipelineItem {
+  id: number;
+  name: string;
+  environment: string;
+  job: string;
+  server_url?: string | null;
+  status_info: JenkinsStatusInfo;
+}
+
+export interface JenkinsComponentResponse {
+  component_id: number;
+  component_name: string;
+  jenkins_token_configured: boolean;
+  pipelines: JenkinsPipelineItem[];
+}
+
+export async function fetchComponentJenkins(id: number): Promise<JenkinsComponentResponse> {
+  const res = await authFetch(`${API_BASE}/catalog/${id}/jenkins`);
+  if (!res.ok) throw new Error('Falha ao carregar status do Jenkins');
+  return res.json();
+}
+

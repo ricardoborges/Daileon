@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Dict, Any, Optional
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models import (
-    Component, Tag, ComponentLink, ComponentDependency, DocFile, component_tags
+    Component, Tag, ComponentLink, ComponentDependency, ComponentJenkinsPipeline, DocFile, component_tags
 )
 from app.catalog.manifest import DaileonManifest
 
@@ -174,6 +175,21 @@ class GitLabCrawlerService:
         component.default_branch = default_branch
         component.has_manifest = has_manifest
 
+        created_at_str = project_data.get("created_at")
+        last_activity_str = project_data.get("last_activity_at")
+        
+        def parse_dt(dt_str: Optional[str]) -> Optional[datetime]:
+            if not dt_str:
+                return None
+            try:
+                clean_str = dt_str.replace("Z", "+00:00")
+                return datetime.fromisoformat(clean_str)
+            except Exception:
+                return None
+
+        component.gitlab_created_at = parse_dt(created_at_str)
+        component.last_activity_at = parse_dt(last_activity_str)
+
         if manifest:
             component.name = manifest.metadata.name
             component.description = manifest.metadata.description or description
@@ -222,7 +238,21 @@ class GitLabCrawlerService:
             for dep in manifest.spec.dependencies:
                 db.add(ComponentDependency(source_component_id=component.id, target_component_name=dep.component))
 
+        # Clear & Update Jenkins Pipelines
+        await db.execute(delete(ComponentJenkinsPipeline).where(ComponentJenkinsPipeline.component_id == component.id))
+        if manifest:
+            jenkins_pipelines = manifest.spec.get_jenkins_pipelines()
+            for pipe in jenkins_pipelines:
+                db.add(ComponentJenkinsPipeline(
+                    component_id=component.id,
+                    name=pipe.name,
+                    environment=pipe.environment,
+                    job=pipe.job,
+                    server_url=pipe.server_url
+                ))
+
         # Fetch and sync Documentation Files
+
         await db.execute(delete(DocFile).where(DocFile.component_id == component.id))
         
         # Also include README.md if present
