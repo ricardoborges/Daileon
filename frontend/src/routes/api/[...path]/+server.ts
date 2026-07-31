@@ -22,8 +22,11 @@ const proxy: RequestHandler = async ({ request, url, fetch }) => {
   const headers = new Headers();
   const accept = request.headers.get('accept');
   const contentType = request.headers.get('content-type');
+  const authorization = request.headers.get('authorization');
   if (accept) headers.set('accept', accept);
   if (contentType) headers.set('content-type', contentType);
+  if (authorization) headers.set('authorization', authorization);
+
 
   const hasBody = !['GET', 'HEAD'].includes(request.method);
 

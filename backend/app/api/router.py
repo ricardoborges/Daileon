@@ -8,10 +8,17 @@ from app.db.session import get_db
 from app.db.models import Component, DocFile, Tag
 from app.gitlab.gitlab_crawler import SyncMode
 from app.sync.jobs import SyncAlreadyRunning, sync_jobs
+from app.api.auth import auth_router, get_current_user
 
 api_router = APIRouter()
+api_router.include_router(auth_router)
 
-@api_router.get("/catalog")
+protected_router = APIRouter(dependencies=[Depends(get_current_user)])
+api_router.include_router(protected_router)
+
+
+@protected_router.get("/catalog")
+
 async def list_components(
     owner: Optional[str] = None,
     type: Optional[str] = None,
@@ -55,7 +62,7 @@ async def list_components(
         for c in components
     ]
 
-@api_router.get("/catalog/{component_id}")
+@protected_router.get("/catalog/{component_id}")
 async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Component).where(Component.id == component_id))
     c = result.scalar_one_or_none()
@@ -84,7 +91,7 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "updated_at": c.updated_at.isoformat() if c.updated_at else None
     }
 
-@api_router.get("/catalog/{component_id}/docs")
+@protected_router.get("/catalog/{component_id}/docs")
 async def list_component_docs(component_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(DocFile).where(DocFile.component_id == component_id))
     docs = result.scalars().all()
@@ -98,7 +105,7 @@ async def list_component_docs(component_id: int, db: AsyncSession = Depends(get_
         for d in docs
     ]
 
-@api_router.get("/catalog/{component_id}/docs/{doc_path:path}")
+@protected_router.get("/catalog/{component_id}/docs/{doc_path:path}")
 async def get_component_doc_content(component_id: int, doc_path: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(DocFile).where(DocFile.component_id == component_id, DocFile.relative_path == doc_path)
@@ -119,7 +126,7 @@ class SyncRequest(BaseModel):
     mode: SyncMode = SyncMode.UPDATE
 
 
-@api_router.post("/sync", status_code=202)
+@protected_router.post("/sync", status_code=202)
 async def trigger_sync(payload: Optional[SyncRequest] = Body(default=None)):
     """Dispara uma operação de catálogo e devolve na hora.
 
@@ -134,7 +141,7 @@ async def trigger_sync(payload: Optional[SyncRequest] = Body(default=None)):
     return job.snapshot()
 
 
-@api_router.get("/sync/status")
+@protected_router.get("/sync/status")
 async def sync_status(since: int = Query(0, ge=0)):
     """Estado da operação atual, com as linhas de log a partir de `since`."""
     job = sync_jobs.current
@@ -142,7 +149,7 @@ async def sync_status(since: int = Query(0, ge=0)):
         return {"state": "idle", "logs": [], "cursor": 0}
     return job.snapshot(since=since)
 
-@api_router.get("/search")
+@protected_router.get("/search")
 async def global_search(q: str = Query(..., min_length=1), db: AsyncSession = Depends(get_db)):
     search_term = f"%{q}%"
     

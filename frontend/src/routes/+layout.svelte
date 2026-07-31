@@ -1,12 +1,23 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import '../app.css';
   import Navbar from '$lib/components/Navbar.svelte';
   import { initTheme } from '$lib/theme';
+  import { auth } from '$lib/auth';
 
   onMount(() => {
     initTheme();
+    auth.init();
   });
+
+  $: currentPath = $page.url.pathname;
+  $: if (!$auth.loading) {
+    if (!$auth.user && currentPath !== '/login') {
+      goto('/login');
+    }
+  }
 </script>
 
 <div class="relative z-10 min-h-screen flex flex-col">

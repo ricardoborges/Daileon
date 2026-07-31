@@ -1,8 +1,9 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import DaileonLogo from './DaileonLogo.svelte';
-  import { Search, Layers, Home, Sun, Moon, Settings } from 'lucide-svelte';
+  import { Search, Layers, Home, Sun, Moon, Settings, LogIn, LogOut, User, Shield } from 'lucide-svelte';
   import { theme, toggleTheme } from '$lib/theme';
+  import { auth } from '$lib/auth';
 
   const links = [
     { href: '/', label: 'Home', icon: Home },
@@ -12,6 +13,7 @@
 
   $: current = $page.url.pathname;
   $: onConfig = current.startsWith('/config');
+  $: onLogin = current.startsWith('/login');
 </script>
 
 <header
@@ -36,18 +38,20 @@
     </a>
 
     <!-- Navegação -->
-    <nav class="hidden md:flex items-center gap-1">
-      {#each links as link}
-        <a
-          href={link.href}
-          class="nav-link"
-          aria-current={current === link.href || (link.href !== '/' && current.startsWith(link.href)) ? 'page' : undefined}
-        >
-          <svelte:component this={link.icon} class="w-3.5 h-3.5" />
-          {link.label}
-        </a>
-      {/each}
-    </nav>
+    {#if $auth.user}
+      <nav class="hidden md:flex items-center gap-1">
+        {#each links as link}
+          <a
+            href={link.href}
+            class="nav-link"
+            aria-current={current === link.href || (link.href !== '/' && current.startsWith(link.href)) ? 'page' : undefined}
+          >
+            <svelte:component this={link.icon} class="w-3.5 h-3.5" />
+            {link.label}
+          </a>
+        {/each}
+      </nav>
+    {/if}
 
     <!-- Comandos -->
     <div class="flex items-center gap-3">
@@ -64,15 +68,46 @@
         {/if}
       </button>
 
-      <a
-        href="/config"
-        title="Configuração"
-        aria-label="Configuração"
-        aria-current={onConfig ? 'page' : undefined}
-        class="btn btn-sm px-2 {onConfig ? 'btn-primary' : ''}"
-      >
-        <Settings class="w-3.5 h-3.5" />
-      </a>
+      {#if $auth.user}
+        <a
+          href="/config"
+          title="Configuração"
+          aria-label="Configuração"
+          aria-current={onConfig ? 'page' : undefined}
+          class="btn btn-sm px-2 {onConfig ? 'btn-primary' : ''}"
+        >
+          <Settings class="w-3.5 h-3.5" />
+        </a>
+      {/if}
+
+
+      {#if $auth.user}
+        <div class="flex items-center gap-2 pl-2 border-l border-[var(--line)]">
+          <div class="flex flex-col text-right leading-tight hidden sm:flex">
+            <span class="text-xs font-bold t-txt truncate max-w-[120px]">{$auth.user.name}</span>
+            <span class="text-[0.625rem] font-mono uppercase tracking-wider t-visor">
+              {$auth.user.auth_type === 'break_glass' ? 'Break-Glass' : 'LDAP'}
+            </span>
+          </div>
+          <button
+            on:click={() => auth.logout()}
+            title="Sair da conta"
+            class="btn btn-sm px-2.5 btn-crest flex items-center gap-1.5 text-xs"
+          >
+            <LogOut class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">Sair</span>
+          </button>
+        </div>
+      {:else if !onLogin}
+        <a
+          href="/login"
+          class="btn btn-sm btn-primary px-3 flex items-center gap-1.5 text-xs"
+        >
+          <LogIn class="w-3.5 h-3.5" />
+          <span>Entrar</span>
+        </a>
+      {/if}
     </div>
   </div>
 </header>
+

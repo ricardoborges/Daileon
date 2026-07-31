@@ -10,11 +10,16 @@ from main import app
 
 @pytest.fixture(scope="module")
 def client():
-    # O TestClient só dispara o lifespan (criação das tabelas) quando usado como
-    # context manager. Sem isso todas as consultas falham com
-    # "no such table: components".
     with TestClient(app) as c:
+        # Autentica e injeta o token nos cabeçalhos padrão do client
+        login_res = c.post("/api/auth/login", json={
+            "username": settings.ADMIN_USERNAME,
+            "password": settings.ADMIN_PASSWORD
+        })
+        token = login_res.json()["access_token"]
+        c.headers["Authorization"] = f"Bearer {token}"
         yield c
+
 
 
 @pytest.fixture(scope="module")

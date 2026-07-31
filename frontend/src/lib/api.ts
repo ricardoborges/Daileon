@@ -1,3 +1,5 @@
+import { getAuthHeader, auth } from '$lib/auth';
+
 export interface ComponentItem {
   id: number;
   gitlab_project_id: number;
@@ -50,6 +52,21 @@ export interface SearchResults {
 
 const API_BASE = '/api';
 
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const headers = {
+    ...getAuthHeader(),
+    ...(options.headers || {})
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    auth.logout();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
+  return res;
+}
+
 export async function fetchCatalog(filters?: { owner?: string; type?: string; lifecycle?: string; tag?: string }): Promise<ComponentItem[]> {
   const params = new URLSearchParams();
   if (filters?.owner) params.append('owner', filters.owner);
@@ -57,25 +74,25 @@ export async function fetchCatalog(filters?: { owner?: string; type?: string; li
   if (filters?.lifecycle) params.append('lifecycle', filters.lifecycle);
   if (filters?.tag) params.append('tag', filters.tag);
 
-  const res = await fetch(`${API_BASE}/catalog?${params.toString()}`);
+  const res = await authFetch(`${API_BASE}/catalog?${params.toString()}`);
   if (!res.ok) throw new Error('Falha ao carregar catálogo');
   return res.json();
 }
 
 export async function fetchComponent(id: number): Promise<ComponentItem> {
-  const res = await fetch(`${API_BASE}/catalog/${id}`);
+  const res = await authFetch(`${API_BASE}/catalog/${id}`);
   if (!res.ok) throw new Error('Componente não encontrado');
   return res.json();
 }
 
 export async function fetchComponentDocs(id: number): Promise<DocFileItem[]> {
-  const res = await fetch(`${API_BASE}/catalog/${id}/docs`);
+  const res = await authFetch(`${API_BASE}/catalog/${id}/docs`);
   if (!res.ok) throw new Error('Docs não encontradas');
   return res.json();
 }
 
 export async function fetchDocContent(id: number, docPath: string): Promise<DocFileDetail> {
-  const res = await fetch(`${API_BASE}/catalog/${id}/docs/${encodeURIComponent(docPath)}`);
+  const res = await authFetch(`${API_BASE}/catalog/${id}/docs/${encodeURIComponent(docPath)}`);
   if (!res.ok) throw new Error('Conteúdo do documento não encontrado');
   return res.json();
 }
@@ -95,7 +112,6 @@ export interface SyncStatus {
   state: SyncState;
   job_id?: string;
   mode?: SyncMode;
-  /** `null` enquanto o total de passos ainda é desconhecido. */
   total?: number | null;
   processed?: number;
   started_at?: string;
@@ -105,21 +121,17 @@ export interface SyncStatus {
   failed_count?: number;
   failures?: Array<{ project_id: number | null; name: string; error: string }>;
   error?: string | null;
-  /** Passar como `since` no próximo poll para receber só as linhas novas. */
   cursor: number;
   logs: SyncLogLine[];
 }
 
-/** Dispara a operação; ela roda em segundo plano no backend. */
 export async function startSync(mode: SyncMode): Promise<SyncStatus> {
-  const res = await fetch(`${API_BASE}/sync`, {
+  const res = await authFetch(`${API_BASE}/sync`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ mode })
   });
   if (!res.ok) {
-    // Sem o detalhe do backend, qualquer falha de infraestrutura aparecia
-    // como se fosse um erro do GitLab.
     const detail = await res.json().then(b => b?.detail).catch(() => null);
     throw new Error(detail || `Falha ao iniciar a operação (HTTP ${res.status})`);
   }
@@ -127,13 +139,56 @@ export async function startSync(mode: SyncMode): Promise<SyncStatus> {
 }
 
 export async function fetchSyncStatus(since = 0): Promise<SyncStatus> {
-  const res = await fetch(`${API_BASE}/sync/status?since=${since}`);
+  const res = await authFetch(`${API_BASE}/sync/status?since=${since}`);
   if (!res.ok) throw new Error(`Falha ao consultar o progresso (HTTP ${res.status})`);
   return res.json();
 }
 
 export async function globalSearch(query: string): Promise<SearchResults> {
-  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+  const res = await authFetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
   if (!res.ok) throw new Error('Erro na busca');
+  return res.json();
+}
+
+export interface LDAPConfig {
+  enabled: boolean;
+  server_host: string;
+  server_port: number;
+  use_ssl: boolean;
+  bind_dn: string;
+  bind_password?: string;
+  base_dn: string;
+  user_attribute: string;
+}
+
+export async function fetchLDAPConfig(): Promise<LDAPConfig> {
+  const res = await authFetch(`${API_BASE}/auth/ldap-config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações de LDAP');
+  return res.json();
+}
+
+export async function saveLDAPConfig(config: LDAPConfig): Promise<{ message: string }> {
+  const res = await authFetch(`${API_BASE}/auth/ldap-config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configuração LDAP');
+  }
+  return res.json();
+}
+
+export async function testLDAPConfig(config: LDAPConfig): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/auth/ldap-config/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao testar conexão LDAP');
+  }
   return res.json();
 }
