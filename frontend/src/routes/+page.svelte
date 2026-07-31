@@ -110,20 +110,13 @@
       </div>
 
       <h1
-        class="text-4xl md:text-[3.25rem] font-bold tracking-[-0.035em] leading-[1.05] t-txt"
+        class="text-2xl md:text-3xl font-bold tracking-[-0.03em] leading-tight t-txt"
       >
-        {$t("home.heroTitlePart1")}<br class="hidden md:block" />
-        {$t("home.heroTitlePart2")}
-        <span class="t-visor">{$t("home.heroTitlePart3")}</span>.
+        {$t("home.heroTitle")}
       </h1>
 
-      <p class="t-dim text-[15px] leading-relaxed max-w-xl">
+      <p class="t-dim text-[15px] leading-relaxed max-w-none md:whitespace-nowrap">
         {$t("home.heroDesc")}
-        <code
-          class="font-mono text-[13px] px-1.5 py-0.5 border border-line bg-surface-2 t-crest"
-          >project-info.yml</code
-        >
-        {$t("home.heroDescSuffix")}
       </p>
 
       <!-- Prompt de busca -->

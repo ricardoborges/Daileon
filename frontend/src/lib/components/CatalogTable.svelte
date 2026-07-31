@@ -76,9 +76,6 @@
               >
                 {item.name}
               </a>
-              {#if item.has_manifest}
-                <span class="led led-visor shrink-0" title={$t("card.hasManifestTitle")}></span>
-              {/if}
             </div>
             {#if item.description}
               <p class="text-xs t-dim truncate mt-0.5" title={item.description}>

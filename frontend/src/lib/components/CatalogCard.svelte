@@ -75,9 +75,6 @@
       class="text-lg font-bold tracking-[-0.02em] t-txt group-hover/name:t-visor transition-colors flex items-center gap-2"
     >
       <span class="truncate">{item.name}</span>
-      {#if item.has_manifest}
-        <span class="led led-visor shrink-0" title={$t("card.hasManifestTitle")}></span>
-      {/if}
     </h3>
   </a>
 

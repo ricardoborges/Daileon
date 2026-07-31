@@ -98,12 +98,9 @@
 
       {#if $auth.user}
         <div class="flex items-center gap-2 pl-2 border-l border-[var(--line)]">
-          <div class="flex flex-col text-right leading-tight hidden sm:flex">
-            <span class="text-xs font-bold t-txt truncate max-w-[120px]">{$auth.user.name}</span>
-            <span class="text-[0.625rem] font-mono uppercase tracking-wider t-visor">
-              {$auth.user.auth_type === 'break_glass' ? 'Break-Glass' : 'LDAP'}
-            </span>
-          </div>
+          <span class="text-xs font-bold t-txt truncate max-w-[140px] hidden sm:inline">
+            {($auth.user.name || $auth.user.username || "").trim().split(/\s+/)[0]}
+          </span>
           <button
             on:click={() => auth.logout()}
             title={$t('nav.logout')}
