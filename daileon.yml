@@ -1,0 +1,34 @@
+apiVersion: daileon/v1
+kind: Component
+metadata:
+  name: daileon-portal
+  description: "Developer Portal interno inspirado no Spotify Backstage com backend Python FastAPI e frontend SvelteKit."
+  tags:
+    - python
+    - fastapi
+    - sveltekit
+    - dev-portal
+    - gitlab
+    - backstage
+  owner: team-platform-engineering
+  domain: internal-tooling
+
+spec:
+  type: website
+  lifecycle: production
+  system: platform-engineering
+  
+  docs:
+    dir: /docs
+    index: index.md
+  
+  links:
+    - url: http://localhost:5173
+      title: Daileon Web UI
+      icon: website
+    - url: http://localhost:8000/docs
+      title: FastAPI OpenAPI Specs
+      icon: api
+
+  dependencies:
+    - component: gitlab-api

@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: daileon-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GITLAB_URL=${GITLAB_URL:-https://gitlab.com}
+      - GITLAB_READ_TOKEN=${GITLAB_READ_TOKEN:-${GITLAB_TOKEN:-}}
+      - GITLAB_GROUP_ID=${GITLAB_GROUP_ID:-}
+      - DATABASE_URL=sqlite+aiosqlite:///./data/daileon.db
+    volumes:
+      - ./backend/data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: daileon-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # Destino do proxy /api dentro da rede Docker (lido em runtime pelo
+      # servidor SvelteKit — o navegador nunca acessa este host diretamente).
+      - API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  default:
+    name: daileon-network
