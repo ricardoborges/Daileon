@@ -29,7 +29,7 @@
     { label: 'Total no catálogo', value: components.length, icon: Layers, tone: 't-visor' },
     { label: 'Em produção', value: components.filter(c => c.lifecycle === 'production').length, icon: Activity, tone: 't-ok' },
     { label: 'Microsserviços', value: components.filter(c => c.type === 'service').length, icon: GitBranch, tone: 't-crest' },
-    { label: 'Com daileon.yml', value: components.filter(c => c.has_manifest).length, icon: ShieldCheck, tone: 't-txt' }
+    { label: 'Com project-info.yml', value: components.filter(c => c.has_manifest).length, icon: ShieldCheck, tone: 't-txt' }
   ];
 </script>
 
@@ -58,7 +58,7 @@
 
       <p class="t-dim text-[15px] leading-relaxed max-w-xl">
         Descubra microsserviços, leia os metadados do
-        <code class="font-mono text-[13px] px-1.5 py-0.5 border border-line bg-surface-2 t-crest">daileon.yml</code>
+        <code class="font-mono text-[13px] px-1.5 py-0.5 border border-line bg-surface-2 t-crest">project-info.yml</code>
         e navegue pela documentação viva — sem sair do portal.
       </p>
 

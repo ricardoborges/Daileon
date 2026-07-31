@@ -80,14 +80,55 @@ export async function fetchDocContent(id: number, docPath: string): Promise<DocF
   return res.json();
 }
 
-export async function triggerSync(): Promise<{ status: string; synced_count: number }> {
-  const res = await fetch(`${API_BASE}/sync`, { method: 'POST' });
+export type SyncMode = 'update' | 'rebuild' | 'prune';
+
+export type SyncState = 'idle' | 'running' | 'success' | 'partial' | 'error';
+
+export interface SyncLogLine {
+  seq: number;
+  ts: string;
+  level: 'info' | 'ok' | 'warn' | 'error';
+  message: string;
+}
+
+export interface SyncStatus {
+  state: SyncState;
+  job_id?: string;
+  mode?: SyncMode;
+  /** `null` enquanto o total de passos ainda é desconhecido. */
+  total?: number | null;
+  processed?: number;
+  started_at?: string;
+  finished_at?: string | null;
+  synced_count?: number;
+  removed_count?: number;
+  failed_count?: number;
+  failures?: Array<{ project_id: number | null; name: string; error: string }>;
+  error?: string | null;
+  /** Passar como `since` no próximo poll para receber só as linhas novas. */
+  cursor: number;
+  logs: SyncLogLine[];
+}
+
+/** Dispara a operação; ela roda em segundo plano no backend. */
+export async function startSync(mode: SyncMode): Promise<SyncStatus> {
+  const res = await fetch(`${API_BASE}/sync`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ mode })
+  });
   if (!res.ok) {
     // Sem o detalhe do backend, qualquer falha de infraestrutura aparecia
     // como se fosse um erro do GitLab.
     const detail = await res.json().then(b => b?.detail).catch(() => null);
-    throw new Error(detail || `Falha na sincronização (HTTP ${res.status})`);
+    throw new Error(detail || `Falha ao iniciar a operação (HTTP ${res.status})`);
   }
+  return res.json();
+}
+
+export async function fetchSyncStatus(since = 0): Promise<SyncStatus> {
+  const res = await fetch(`${API_BASE}/sync/status?since=${since}`);
+  if (!res.ok) throw new Error(`Falha ao consultar o progresso (HTTP ${res.status})`);
   return res.json();
 }
 

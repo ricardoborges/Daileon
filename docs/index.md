@@ -12,7 +12,7 @@ Seu objetivo principal é reduzir a carga cognitiva dos desenvolvedores, oferece
 
 ```mermaid
 graph LR
-    A[Repositórios GitLab] -->|Crawler + daileon.yml| B[Engine de Ingestão Daileon]
+    A[Repositórios GitLab] -->|Crawler + project-info.yml| B[Engine de Ingestão Daileon]
     B --> C[Catálogo de Softwares]
     B --> D[TechDocs Reader]
     B --> E[Busca Unificada]
@@ -23,15 +23,15 @@ graph LR
 ## 💡 2. Como Funciona
 
 ### 2.1. Ingestão Automática ("Documentation & Metadata as Code")
-Cada projeto mantém na raiz do seu repositório um arquivo de manifesto chamado **`daileon.yml`** e uma pasta de documentação (por padrão `/docs`).
+Cada projeto mantém na raiz do seu repositório um arquivo de manifesto chamado **`project-info.yml`** e uma pasta de documentação (por padrão `/docs`).
 
 O Daileon se conecta à **API REST v4 do GitLab** utilizando o token `GITLAB_READ_TOKEN`:
 1. **Varredura**: Lista todos os projetos acessíveis pelo token (ou filtrados por um grupo específico).
-2. **Parsing do Manifesto**: Baixa e valida o arquivo `daileon.yml`. Se o arquivo não existir, o Daileon gera automaticamente um registro *sintético* com as informações básicas do repositório GitLab.
+2. **Parsing do Manifesto**: Baixa e valida o arquivo `project-info.yml`. Se o arquivo não existir, o Daileon gera automaticamente um registro *sintético* com as informações básicas do repositório GitLab.
 3. **Leitura de Docs**: Identifica os arquivos Markdown na pasta `/docs` (ou diretório customizado) e indexa o conteúdo.
 4. **Atualização**: Mantém o catálogo de serviços e o motor de busca atualizados no banco de dados.
 
-### 2.2. O Manifesto `daileon.yml`
+### 2.2. O Manifesto `project-info.yml`
 Exemplo de configuração que cada repositório pode adicionar:
 
 ```yaml
@@ -65,6 +65,8 @@ spec:
     - component: usuario-service
     - component: notificacao-service
 ```
+
+📖 **Referência completa dos campos, valores aceitos e comportamentos:** [Referência do `project-info.yml`](project-info-yml.md).
 
 ---
 

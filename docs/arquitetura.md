@@ -35,7 +35,7 @@ architecture-beta
 - **FastAPI**: Framework web assíncrono para disponibilização da API REST.
 - **GitLab Crawler Service (`app/gitlab/gitlab_crawler.py`)**:
   - Consome `/api/v4/projects` usando `GITLAB_READ_TOKEN`.
-  - Baixa o arquivo `daileon.yml` bruto.
+  - Baixa o arquivo `project-info.yml` bruto.
   - Baixa a árvore da pasta `/docs` (`/api/v4/projects/:id/repository/tree`).
   - Atualiza o banco de dados via inserções/atualizações assíncronas.
 - **Schema Pydantic (`app/catalog/manifest.py`)**: Valida rigorosamente a estrutura YAML do manifesto.
@@ -119,5 +119,6 @@ erDiagram
 | `GET` | `/api/catalog/{id}` | Retorna os detalhes completos de um componente |
 | `GET` | `/api/catalog/{id}/docs` | Retorna a lista de documentos Markdown de um componente |
 | `GET` | `/api/catalog/{id}/docs/{path}` | Retorna o conteúdo de um documento específico |
-| `POST` | `/api/sync` | Aciona manualmente a sincronização com o GitLab |
+| `POST` | `/api/sync` | Dispara uma operação de catálogo (`update`, `rebuild` ou `prune`) e responde `202` na hora |
+| `GET` | `/api/sync/status?since={cursor}` | Progresso da operação em andamento e as linhas de log ainda não entregues |
 | `GET` | `/api/search?q={query}` | Realiza a busca unificada por serviços e dentro do texto das documentações |

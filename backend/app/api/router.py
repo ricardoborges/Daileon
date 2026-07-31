@@ -1,11 +1,13 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 
 from app.db.session import get_db
 from app.db.models import Component, DocFile, Tag
-from app.gitlab.gitlab_crawler import GitLabCrawlerService
+from app.gitlab.gitlab_crawler import SyncMode
+from app.sync.jobs import SyncAlreadyRunning, sync_jobs
 
 api_router = APIRouter()
 
@@ -113,14 +115,32 @@ async def get_component_doc_content(component_id: int, doc_path: str, db: AsyncS
         "updated_at": doc.updated_at.isoformat() if doc.updated_at else None
     }
 
-@api_router.post("/sync")
-async def trigger_sync(db: AsyncSession = Depends(get_db)):
-    crawler = GitLabCrawlerService()
+class SyncRequest(BaseModel):
+    mode: SyncMode = SyncMode.UPDATE
+
+
+@api_router.post("/sync", status_code=202)
+async def trigger_sync(payload: Optional[SyncRequest] = Body(default=None)):
+    """Dispara uma operação de catálogo e devolve na hora.
+
+    O crawl leva minutos; o acompanhamento é por `GET /sync/status`.
+    """
+    mode = (payload or SyncRequest()).mode
     try:
-        synced = await crawler.sync_all(db)
-        return {"status": "success", "synced_count": len(synced)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
+        job = await sync_jobs.start(mode)
+    except SyncAlreadyRunning as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    return job.snapshot()
+
+
+@api_router.get("/sync/status")
+async def sync_status(since: int = Query(0, ge=0)):
+    """Estado da operação atual, com as linhas de log a partir de `since`."""
+    job = sync_jobs.current
+    if not job:
+        return {"state": "idle", "logs": [], "cursor": 0}
+    return job.snapshot(since=since)
 
 @api_router.get("/search")
 async def global_search(q: str = Query(..., min_length=1), db: AsyncSession = Depends(get_db)):

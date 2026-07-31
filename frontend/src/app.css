@@ -554,6 +554,90 @@
     color: var(--txt);
   }
 
+  /* ------------------------------------------------------------- Progresso */
+  /* Trilho de instrumento: ticks impressos no fundo, preenchimento sólido */
+  .progress {
+    position: relative;
+    height: 10px;
+    overflow: hidden;
+    background: var(--surface-3);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    background-image: linear-gradient(90deg, var(--line-strong) 1px, transparent 1px);
+    background-size: 11px 100%;
+  }
+
+  .progress-fill {
+    position: relative;
+    height: 100%;
+    background: linear-gradient(90deg, var(--visor), var(--visor-bright));
+    box-shadow: 0 0 10px -1px var(--visor);
+    transition: width 0.35s ease;
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.45);
+  }
+
+  .progress-ok .progress-fill {
+    background: linear-gradient(90deg, var(--ok), var(--ok));
+    box-shadow: 0 0 10px -1px var(--ok);
+  }
+  .progress-warn .progress-fill {
+    background: linear-gradient(90deg, var(--crest), var(--crest));
+    box-shadow: 0 0 10px -1px var(--crest);
+  }
+  .progress-alert .progress-fill {
+    background: linear-gradient(90deg, var(--alert), var(--alert));
+    box-shadow: 0 0 10px -1px var(--alert);
+  }
+
+  /* Fase sem total conhecido: varredura contínua em vez de percentual falso */
+  .progress-indeterminate::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, var(--visor), transparent);
+    opacity: 0.75;
+    animation: progress-scan 1.3s ease-in-out infinite;
+  }
+
+  /* --------------------------------------------------------------- Console */
+  .console {
+    background: var(--surface-3);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    font-family: theme('fontFamily.mono');
+    font-size: 0.6875rem;
+    line-height: 1.55;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+  }
+
+  .console-line {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.1rem 0.75rem;
+    color: var(--txt-dim);
+    word-break: break-word;
+  }
+  .console-line:hover {
+    background: var(--surface-2);
+  }
+  .console-line .console-ts {
+    color: var(--txt-faint);
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .console-ok { color: var(--ok); }
+  .console-warn { color: var(--crest); }
+  .console-error { color: var(--alert); }
+
   /* --------------------------------------------------------- Carregamento */
   .skeleton {
     position: relative;
@@ -881,6 +965,17 @@
   }
   100% {
     transform: translateX(100%);
+  }
+}
+
+/* A varredura tem 40% da largura do trilho; os offsets são relativos a ela
+   mesma, então precisa ir de -100% a 250% para atravessar a barra inteira. */
+@keyframes progress-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
   }
 }
 

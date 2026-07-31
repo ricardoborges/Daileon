@@ -40,7 +40,7 @@
     <input
       type="text"
       bind:value={query}
-      placeholder="pagamento, Spring, OAuth2, setup..."
+      placeholder="Buscar por componente, time ou documentação..."
       aria-label="Termo de busca"
     />
     <button type="submit" disabled={searching || !query.trim()} class="btn btn-primary btn-sm">

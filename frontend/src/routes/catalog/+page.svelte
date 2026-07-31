@@ -136,7 +136,8 @@
       <Layers class="w-10 h-10 mx-auto t-faint" />
       <h3 class="text-lg font-bold t-txt">Nenhum componente encontrado</h3>
       <p class="t-dim text-sm max-w-sm mx-auto">
-        Ajuste os filtros ou acione a sincronização com o GitLab no topo da tela.
+        Ajuste os filtros ou acione a sincronização com o GitLab em
+        <a href="/config" class="t-visor underline underline-offset-2">Configuração</a>.
       </p>
     </div>
   {:else}

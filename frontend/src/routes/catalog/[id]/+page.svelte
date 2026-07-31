@@ -61,7 +61,7 @@
                 {component.lifecycle}
               </span>
               {#if component.has_manifest}
-                <span class="chip chip-crest">daileon.yml</span>
+                <span class="chip chip-crest">project-info.yml</span>
               {/if}
             </div>
 
@@ -102,7 +102,7 @@
           <div class="meta">
             <dt>Manifesto</dt>
             <dd class={component.has_manifest ? 't-visor' : 't-faint'}>
-              {component.has_manifest ? 'daileon.yml ativo' : 'Fallback sintético'}
+              {component.has_manifest ? 'project-info.yml ativo' : 'Fallback sintético'}
             </dd>
           </div>
         </dl>
@@ -129,7 +129,7 @@
           </h3>
 
           {#if component.links.length === 0}
-            <p class="t-faint text-[13px]">Nenhum link registrado no daileon.yml.</p>
+            <p class="t-faint text-[13px]">Nenhum link registrado no project-info.yml.</p>
           {:else}
             <ul class="divide-y" style="border-color: var(--line);">
               {#each component.links as link}

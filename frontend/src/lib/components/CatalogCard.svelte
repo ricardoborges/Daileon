@@ -37,7 +37,7 @@
     <h3 class="text-lg font-bold tracking-[-0.02em] t-txt group-hover/name:t-visor transition-colors flex items-center gap-2">
       <span class="truncate">{item.name}</span>
       {#if item.has_manifest}
-        <span class="led led-visor" title="Possui daileon.yml"></span>
+        <span class="led led-visor" title="Possui project-info.yml"></span>
       {/if}
     </h3>
   </a>

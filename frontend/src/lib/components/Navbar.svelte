@@ -1,13 +1,8 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { triggerSync } from '$lib/api';
   import DaileonLogo from './DaileonLogo.svelte';
-  import { Search, RefreshCw, Layers, Home, Sun, Moon } from 'lucide-svelte';
+  import { Search, Layers, Home, Sun, Moon, Settings } from 'lucide-svelte';
   import { theme, toggleTheme } from '$lib/theme';
-
-  let syncing = false;
-  let syncMessage = '';
-  let syncError = false;
 
   const links = [
     { href: '/', label: 'Home', icon: Home },
@@ -16,22 +11,7 @@
   ];
 
   $: current = $page.url.pathname;
-
-  async function handleSync() {
-    syncing = true;
-    syncMessage = '';
-    syncError = false;
-    try {
-      const res = await triggerSync();
-      syncMessage = `${res.synced_count} projetos sincronizados`;
-      setTimeout(() => { syncMessage = ''; location.reload(); }, 1500);
-    } catch (e: any) {
-      syncError = true;
-      syncMessage = e.message || 'Falha na sincronização';
-    } finally {
-      syncing = false;
-    }
-  }
+  $: onConfig = current.startsWith('/config');
 </script>
 
 <header
@@ -71,13 +51,6 @@
 
     <!-- Comandos -->
     <div class="flex items-center gap-3">
-      {#if syncMessage}
-        <span class="chip {syncError ? 'chip-alert' : 'chip-ok'} hidden sm:inline-flex">
-          <span class="led {syncError ? 'led-alert' : 'led-ok'}"></span>
-          {syncMessage}
-        </span>
-      {/if}
-
       <button
         on:click={toggleTheme}
         title="Alternar tema"
@@ -91,10 +64,15 @@
         {/if}
       </button>
 
-      <button on:click={handleSync} disabled={syncing} class="btn btn-primary btn-sm">
-        <RefreshCw class="w-3.5 h-3.5 {syncing ? 'animate-spin' : ''}" />
-        <span class="hidden sm:inline">{syncing ? 'Sincronizando' : 'Sync GitLab'}</span>
-      </button>
+      <a
+        href="/config"
+        title="Configuração"
+        aria-label="Configuração"
+        aria-current={onConfig ? 'page' : undefined}
+        class="btn btn-sm px-2 {onConfig ? 'btn-primary' : ''}"
+      >
+        <Settings class="w-3.5 h-3.5" />
+      </a>
     </div>
   </div>
 </header>

@@ -98,7 +98,7 @@ npm run dev
 
 Para que o seu projeto seja catalogado no Daileon com metadados ricos:
 
-1. **Crie o arquivo `daileon.yml` na raiz do seu repositório GitLab**:
+1. **Crie o arquivo `project-info.yml` na raiz do seu repositório GitLab**:
    ```yaml
    apiVersion: daileon/v1
    kind: Component
@@ -113,6 +113,8 @@ Para que o seu projeto seja catalogado no Daileon com metadados ricos:
      docs:
        dir: /docs
    ```
+
+   > Todos os campos e os valores aceitos estão detalhados na [Referência do `project-info.yml`](project-info-yml.md).
 
 2. **Crie a pasta `/docs` no seu repositório** e adicione o arquivo `index.md`.
 

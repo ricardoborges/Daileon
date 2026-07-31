@@ -11,15 +11,15 @@ O **Daileon** é uma plataforma de Developer Portal (Developer Experience - DevE
 
 ### 💡 Escopo Inicial
 - **Varredura Automática do GitLab**: Integração com a API REST/GraphQL do GitLab para crawler automatizado de repositórios.
-- **Metadata via `daileon.yml`**: Descoberta e parsing do arquivo de manifesto `daileon.yml` na raiz dos projetos.
-- **TechDocs em Markdown**: Leitura automática de documentações `.md` localizadas na pasta `/docs` (ou diretório customizado especificado no `daileon.yml`).
+- **Metadata via `project-info.yml`**: Descoberta e parsing do arquivo de manifesto `project-info.yml` na raiz dos projetos.
+- **TechDocs em Markdown**: Leitura automática de documentações `.md` localizadas na pasta `/docs` (ou diretório customizado especificado no `project-info.yml`).
 - **Portal Unificado**: Visualização em catálogo centralizado com navegação rica e busca integrada.
 
 ---
 
-## 📄 2. Especificação do Arquivo `daileon.yml`
+## 📄 2. Especificação do Arquivo `project-info.yml`
 
-Assim como o `catalog-info.yaml` do Backstage, o **`daileon.yml`** é o contrato de metadados mantido junto ao código fonte de cada projeto.
+Assim como o `catalog-info.yaml` do Backstage, o **`project-info.yml`** é o contrato de metadados mantido junto ao código fonte de cada projeto.
 
 ### Exemplo de Estrutura:
 ```yaml
@@ -68,13 +68,13 @@ Para o **MVP (Minimum Viable Product)**, focamos nas funcionalidades essenciais 
 - **GitLab Scanner Service**:
   - Conexão via Personal Access Token / Group Access Token.
   - Crawler agendado e/ou acionado via Webhook GitLab (ex: no push para branch principal).
-  - Inspeção e parsing seguro do arquivo `daileon.yml` na raiz de repositórios acessíveis.
+  - Inspeção e parsing seguro do arquivo `project-info.yml` na raiz de repositórios acessíveis.
 - **Fallbacks Inteligentes**:
-  - Caso o projeto não possua `daileon.yml`, o Daileon cria um registro sintético básico utilizando as informações nativas da API do GitLab (Nome do Repositório, Descrição, Linguagem Principal e README.md).
+  - Caso o projeto não possua `project-info.yml`, o Daileon cria um registro sintético básico utilizando as informações nativas da API do GitLab (Nome do Repositório, Descrição, Linguagem Principal e README.md).
 
 ### 3.2. 📚 TechDocs Engine (Documentação como Código)
 - **Leitor de Documentação Markdown**:
-  - Leitura recursiva da pasta `/docs` (ou caminho customizado configurado no `daileon.yml`).
+  - Leitura recursiva da pasta `/docs` (ou caminho customizado configurado no `project-info.yml`).
   - Suporte a Markdown completo: Tabelas, Mermaid.js (diagramas de sequência/arquitetura), alertas, blocos de código com sintaxe destacada.
 - **Navegação de Docs**:
   - Árvore de arquivos lateral gerada automaticamente com base na estrutura de pastas/arquivos `.md`.
@@ -105,7 +105,7 @@ Para o **MVP (Minimum Viable Product)**, focamos nas funcionalidades essenciais 
 ```mermaid
 timeline
     title Roadmap de Evolução do Daileon
-    Fase 1 : MVP - GitLab Ingestion : Metadata daileon.yml : TechDocs Viewer : Software Catalog : Global Search
+    Fase 1 : MVP - GitLab Ingestion : Metadata project-info.yml : TechDocs Viewer : Software Catalog : Global Search
     Fase 2 : Observabilidade & CI/CD : GitLab Pipelines Status : Quality & SonarQube : OpenAPI / AsyncAPI Render
     Fase 3 : Scaffolder & Templates : Golden Paths (Create App) : Automação de CI/CD : Padrões Arquiteturais
     Fase 4 : Ecossistema & Governança : Scorecards de Saúde : Dependências Visuais : Sistema de Plugins
@@ -114,7 +114,7 @@ timeline
 ### 🗓️ Detalhamento das Fases
 
 #### 🟢 Fase 1: MVP — Fundação & Catálogo Vivo *(Escopo Atual)*
-- [x] Definição da arquitetura e especificação do `daileon.yml`.
+- [x] Definição da arquitetura e especificação do `project-info.yml`.
 - [ ] Construção da API backend de integração com o GitLab API.
 - [ ] Engine de Ingestão e Parser de YAML/Markdown.
 - [ ] Frontend do Software Catalog com suporte a TechDocs e Busca.
@@ -127,7 +127,7 @@ timeline
 #### 🟠 Fase 3: Software Templates & Scaffolder ("Golden Paths")
 - **Gerador de Projetos (Self-Service)**:
   - Criação de novos serviços a partir de moldes padrão da empresa (Java Spring, Node.js Nest, Python FastAPI, Go, etc.).
-  - Criação automática do repositório no GitLab já provisionado com `daileon.yml`, `/docs` e pipeline CI/CD base.
+  - Criação automática do repositório no GitLab já provisionado com `project-info.yml`, `/docs` e pipeline CI/CD base.
 
 #### 🟣 Fase 4: Governança, Grafo de Dependências & Plugins
 - **Grafo de Dependências (Service Map)**: Mapeamento visual das dependências entre serviços e APIs.
@@ -140,20 +140,20 @@ timeline
 
 | Funcionalidade | MVP (Fase 1) | Futuro (Fases 2 a 4) |
 | :--- | :--- | :--- |
-| **Origem dos Dados** | API do GitLab (`daileon.yml` + `/docs`) | GitLab, Kubernetes, SonarQube, Grafana, AWS/Cloud |
+| **Origem dos Dados** | API do GitLab (`project-info.yml` + `/docs`) | GitLab, Kubernetes, SonarQube, Grafana, AWS/Cloud |
 | **Documentação** | Renderizador Markdown (TechDocs) | Markdown + Swagger/OpenAPI + Diagramas dinâmicos |
 | **Catálogo** | Lista/Grid com filtros básicos e busca | Grafo interativo de dependências e domínios |
 | **Integração CI/CD** | Link direto para o GitLab | Dashboard ao vivo de pipelines e deploys |
-| **Criação de Serviços** | Manual no GitLab + adicionar `daileon.yml` | Scaffolder automatizado via Wizard no Portal |
-| **Governança** | Verificação de presença do `daileon.yml` | Scorecards de maturidade técnica e compliance |
+| **Criação de Serviços** | Manual no GitLab + adicionar `project-info.yml` | Scaffolder automatizado via Wizard no Portal |
+| **Governança** | Verificação de presença do `project-info.yml` | Scorecards de maturidade técnica e compliance |
 
 ---
 
 ## 🛠️ 6. Próximos Passos Sugeridos para Iniciar o Desenvolvimento
 
-1. **Validação do Modelo `daileon.yml`**: Validar com os times a estrutura do arquivo de metadados.
+1. **Validação do Modelo `project-info.yml`**: Validar com os times a estrutura do arquivo de metadados.
 2. **Definição da Stack Tecnológica do Daileon**:
    - **Backend**: Node.js (TypeScript) / Go / Python (FastAPI).
    - **Frontend**: React (Vite / Next.js) + Tailwind / CSS moderno.
    - **Database / Cache**: PostgreSQL (armazenamento do catálogo indexado) + Redis.
-3. **Criação do Protótipo da API de Ingestão**: Testar as chamadas da API do GitLab (`/api/v4/projects`, `/repository/files/daileon.yml`, `/repository/tree`).
+3. **Criação do Protótipo da API de Ingestão**: Testar as chamadas da API do GitLab (`/api/v4/projects`, `/repository/files/project-info.yml`, `/repository/tree`).
