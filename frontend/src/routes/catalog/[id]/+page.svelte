@@ -9,6 +9,7 @@
     type DocFileItem,
     type JenkinsComponentResponse
   } from '$lib/api';
+  import { t } from '$lib/i18n';
   import {
     BookOpen,
     ExternalLink,
@@ -151,7 +152,7 @@
 
           {#if component.gitlab_url}
             <a href={component.gitlab_url} target="_blank" rel="noopener noreferrer" class="btn btn-crest shrink-0">
-              <GitBranch class="w-3.5 h-3.5" /> Repositório
+              <GitBranch class="w-3.5 h-3.5" /> {$t('catalog.repository')}
               <ExternalLink class="w-3 h-3" />
             </a>
           {/if}
@@ -160,24 +161,24 @@
         <!-- Leituras -->
         <dl class="grid grid-cols-2 lg:grid-cols-4 gap-y-5 gap-x-4 pt-6 border-t border-line">
           <div class="meta">
-            <dt>Owner / Time</dt>
+            <dt>{$t('catalog.owner_team')}</dt>
             <dd>{component.owner}</dd>
           </div>
           <div class="meta">
-            <dt>Lifecycle</dt>
+            <dt>{$t('catalog.lifecycle')}</dt>
             <dd class="flex items-center gap-2">
               <span class="led {lifecycleLed(component.lifecycle)}"></span>
               {component.lifecycle}
             </dd>
           </div>
           <div class="meta">
-            <dt>Domínio / Sistema</dt>
+            <dt>{$t('catalog.domain_solution')}</dt>
             <dd>{component.domain || '—'} / {component.system || '—'}</dd>
           </div>
           <div class="meta">
-            <dt>Pipelines Jenkins</dt>
+            <dt>{$t('catalog.jenkins_pipelines')}</dt>
             <dd class={jenkinsData?.pipelines?.length ? 't-visor' : 't-faint'}>
-              {jenkinsData?.pipelines?.length ? `${jenkinsData.pipelines.length} configurada(s)` : 'Nenhuma'}
+              {jenkinsData?.pipelines?.length ? $t('catalog.pipelines_configured', { count: jenkinsData.pipelines.length }) : $t('catalog.pipelines_none')}
             </dd>
           </div>
         </dl>
@@ -185,13 +186,13 @@
         <!-- Abas -->
         <div class="seg">
           <button on:click={() => activeTab = 'overview'} class="seg-item {activeTab === 'overview' ? 'is-active' : ''}">
-            <Layers class="w-3 h-3" /> Visão geral
+            <Layers class="w-3 h-3" /> {$t('catalog.tab_overview')}
           </button>
           <button on:click={() => activeTab = 'docs'} class="seg-item {activeTab === 'docs' ? 'is-active' : ''}">
-            <BookOpen class="w-3 h-3" /> TechDocs ({docs.length})
+            <BookOpen class="w-3 h-3" /> {$t('catalog.tab_techdocs', { count: docs.length })}
           </button>
           <button on:click={() => activeTab = 'jenkins'} class="seg-item {activeTab === 'jenkins' ? 'is-active' : ''}">
-            <Activity class="w-3 h-3" /> Pipelines Jenkins ({jenkinsData?.pipelines?.length || 0})
+            <Activity class="w-3 h-3" /> {$t('catalog.tab_jenkins', { count: jenkinsData?.pipelines?.length || 0 })}
           </button>
         </div>
       </div>

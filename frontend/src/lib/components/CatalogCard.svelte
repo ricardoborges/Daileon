@@ -1,60 +1,92 @@
 <script lang="ts">
-  import type { ComponentItem } from '$lib/api';
-  import { BookOpen, ExternalLink, Cpu, Calendar } from 'lucide-svelte';
+  import type { ComponentItem } from "$lib/api";
+  import { BookOpen, ExternalLink, Cpu, Calendar } from "lucide-svelte";
+  import { t, locale } from "$lib/i18n";
 
   export let item: ComponentItem;
 
   function getLifecycle(lifecycle: string) {
     switch (lifecycle.toLowerCase()) {
-      case 'production':
-        return { text: 'Produção', chip: 'chip-ok', led: 'led-ok' };
-      case 'experimental':
-        return { text: 'Experimental', chip: 'chip-crest', led: 'led-crest' };
-      case 'deprecated':
-        return { text: 'Depreciado', chip: 'chip-alert', led: 'led-alert' };
+      case "production":
+        return {
+          text: $t("card.lifecycleProduction"),
+          chip: "chip-ok",
+          led: "led-ok",
+        };
+      case "experimental":
+        return {
+          text: $t("card.lifecycleExperimental"),
+          chip: "chip-crest",
+          led: "led-crest",
+        };
+      case "deprecated":
+        return {
+          text: $t("card.lifecycleDeprecated"),
+          chip: "chip-alert",
+          led: "led-alert",
+        };
       default:
-        return { text: lifecycle, chip: '', led: '' };
+        return { text: lifecycle, chip: "", led: "" };
     }
   }
 
-  function formatDate(isoStr?: string) {
+  function formatDate(isoStr?: string, loc: string = "pt-BR") {
     if (!isoStr) return null;
     const d = new Date(isoStr);
-    return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return Number.isNaN(d.getTime())
+      ? null
+      : d.toLocaleDateString(loc, {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
   }
 
   $: status = getLifecycle(item.lifecycle);
-  $: displayDate = formatDate(item.last_activity_at || item.gitlab_created_at || item.updated_at);
+  $: lastCommitDate = formatDate(
+    item.last_activity_at || item.updated_at,
+    $locale,
+  );
+  $: createdDate = formatDate(item.gitlab_created_at, $locale);
 </script>
 
 <article class="plate plate-link flex flex-col p-5" style="--chamfer: 14px;">
   <!-- Identificação -->
   <div class="flex items-center justify-between gap-3 mb-4">
-    <span class="chip chip-visor">
-      <Cpu class="w-3 h-3" />
-      {item.type}
-    </span>
-    <span class="chip {status.chip}">
-      <span class="led {status.led}"></span>
-      {status.text}
-    </span>
+    {#if item.has_manifest}
+      <span class="chip chip-visor">
+        <Cpu class="w-3 h-3" />
+        {item.type}
+      </span>
+      <span class="chip {status.chip}">
+        <span class="led {status.led}"></span>
+        {status.text}
+      </span>
+    {:else}
+      <span class="chip chip-alert opacity-80">
+        <span class="led led-alert"></span>
+        {$t("card.noManifest")}
+      </span>
+    {/if}
   </div>
 
   <a href={`/catalog/${item.id}`} class="group/name block">
-    <h3 class="text-lg font-bold tracking-[-0.02em] t-txt group-hover/name:t-visor transition-colors flex items-center gap-2">
+    <h3
+      class="text-lg font-bold tracking-[-0.02em] t-txt group-hover/name:t-visor transition-colors flex items-center gap-2"
+    >
       <span class="truncate">{item.name}</span>
       {#if item.has_manifest}
-        <span class="led led-visor" title="Possui project-info.yml"></span>
+        <span class="led led-visor shrink-0" title={$t("card.hasManifestTitle")}></span>
       {/if}
     </h3>
   </a>
 
   <p class="text-[13px] leading-relaxed t-dim mt-2 line-clamp-2">
-    {item.description || 'Sem descrição cadastrada.'}
+    {item.description || $t("card.noDescription")}
   </p>
 
   {#if item.tags.length > 0}
-    <div class="flex flex-wrap gap-1.5 mt-4">
+    <div class="flex flex-wrap gap-1.5 mt-4 mb-2">
       {#each item.tags.slice(0, 5) as tag}
         <span class="tag">{tag}</span>
       {/each}
@@ -62,36 +94,48 @@
   {/if}
 
   <!-- Rodapé técnico -->
-  <div class="mt-auto pt-5 border-t border-line flex items-center justify-between gap-3">
-    <div class="flex flex-col gap-0.5 min-w-0">
+  <div class="mt-auto pt-4 border-t border-line flex flex-col gap-2.5">
+    <div class="flex items-center justify-between gap-3">
       <span class="label truncate" title={item.owner}>
-        <span class="t-faint">Owner /</span>
+        <span class="t-faint">{$t("card.ownerPrefix")}</span>
         <span class="t-dim">{item.owner}</span>
       </span>
-      {#if displayDate}
-        <span class="text-[0.625rem] font-mono t-faint flex items-center gap-1">
-          <Calendar class="w-2.5 h-2.5" /> {displayDate}
-        </span>
-      {/if}
+
+      <div class="flex items-center gap-2 shrink-0">
+        {#if item.has_manifest}
+          <a href={`/catalog/${item.id}/docs/index.md`} class="btn btn-sm">
+            <BookOpen class="w-3 h-3" />
+            {$t("card.docs")}
+          </a>
+        {/if}
+
+        {#if item.gitlab_url}
+          <a
+            href={item.gitlab_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-sm px-2"
+            title={$t("card.openGitlab")}
+            aria-label={$t("card.openGitlab")}
+          >
+            <ExternalLink class="w-3 h-3" />
+          </a>
+        {/if}
+      </div>
     </div>
 
-    <div class="flex items-center gap-2 shrink-0">
-      <a href={`/catalog/${item.id}/docs/index.md`} class="btn btn-sm">
-        <BookOpen class="w-3 h-3" /> Docs
-      </a>
-
-      {#if item.gitlab_url}
-        <a
-          href={item.gitlab_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="btn btn-sm px-2"
-          title="Abrir no GitLab"
-          aria-label="Abrir no GitLab"
-        >
-          <ExternalLink class="w-3 h-3" />
-        </a>
-      {/if}
+    <!-- Datas com labels -->
+    <div
+      class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-2 border-t border-line/40 text-[0.6875rem] font-mono"
+    >
+      <div class="flex items-center gap-1.5">
+        <span class="t-faint">{$t("card.lastCommit")}</span>
+        <span class="t-dim">{lastCommitDate || "—"}</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="t-faint">{$t("card.created")}</span>
+        <span class="t-dim">{createdDate || "—"}</span>
+      </div>
     </div>
   </div>
 </article>

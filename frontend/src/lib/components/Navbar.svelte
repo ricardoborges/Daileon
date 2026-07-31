@@ -1,19 +1,24 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import DaileonLogo from './DaileonLogo.svelte';
-  import { Search, Layers, Home, Sun, Moon, Settings, LogIn, LogOut, User, Shield } from 'lucide-svelte';
+  import { Search, Layers, Home, Sun, Moon, Settings, LogIn, LogOut, Globe } from 'lucide-svelte';
   import { theme, toggleTheme } from '$lib/theme';
   import { auth } from '$lib/auth';
+  import { t, locale, setLocale } from '$lib/i18n';
 
-  const links = [
-    { href: '/', label: 'Home', icon: Home },
-    { href: '/catalog', label: 'Catálogo', icon: Layers },
-    { href: '/search', label: 'Busca', icon: Search }
+  $: links = [
+    { href: '/', label: $t('nav.home'), icon: Home },
+    { href: '/catalog', label: $t('nav.catalog'), icon: Layers },
+    { href: '/search', label: $t('nav.search'), icon: Search }
   ];
 
   $: current = $page.url.pathname;
   $: onConfig = current.startsWith('/config');
   $: onLogin = current.startsWith('/login');
+
+  function toggleLanguage() {
+    setLocale($locale === 'pt-BR' ? 'en-US' : 'pt-BR');
+  }
 </script>
 
 <header
@@ -33,7 +38,7 @@
         <span class="block text-[15px] font-bold tracking-[-0.02em]" style="color: var(--txt);">
           DAILEON
         </span>
-        <span class="label mt-1 block">Developer Portal</span>
+        <span class="label mt-1 block">{$t('nav.portalTitle')}</span>
       </div>
     </a>
 
@@ -55,10 +60,21 @@
 
     <!-- Comandos -->
     <div class="flex items-center gap-3">
+      <!-- Seletor de Idioma -->
+      <button
+        on:click={toggleLanguage}
+        title={$locale === 'pt-BR' ? 'Mudar para English (US)' : 'Mudar para Português (BR)'}
+        aria-label="Alternar idioma"
+        class="btn btn-sm px-2.5 flex items-center gap-1.5 font-mono text-xs"
+      >
+        <Globe class="w-3.5 h-3.5 t-visor" />
+        <span>{$locale === 'pt-BR' ? 'PT' : 'EN'}</span>
+      </button>
+
       <button
         on:click={toggleTheme}
-        title="Alternar tema"
-        aria-label="Alternar tema claro / escuro"
+        title={$t('nav.toggleTheme')}
+        aria-label={$t('nav.toggleTheme')}
         class="btn btn-sm px-2"
       >
         {#if $theme === 'dark'}
@@ -71,15 +87,14 @@
       {#if $auth.user}
         <a
           href="/config"
-          title="Configuração"
-          aria-label="Configuração"
+          title={$t('nav.config')}
+          aria-label={$t('nav.config')}
           aria-current={onConfig ? 'page' : undefined}
           class="btn btn-sm px-2 {onConfig ? 'btn-primary' : ''}"
         >
           <Settings class="w-3.5 h-3.5" />
         </a>
       {/if}
-
 
       {#if $auth.user}
         <div class="flex items-center gap-2 pl-2 border-l border-[var(--line)]">
@@ -91,11 +106,11 @@
           </div>
           <button
             on:click={() => auth.logout()}
-            title="Sair da conta"
+            title={$t('nav.logout')}
             class="btn btn-sm px-2.5 btn-crest flex items-center gap-1.5 text-xs"
           >
             <LogOut class="w-3.5 h-3.5" />
-            <span class="hidden sm:inline">Sair</span>
+            <span class="hidden sm:inline">{$t('nav.logout')}</span>
           </button>
         </div>
       {:else if !onLogin}
@@ -104,7 +119,7 @@
           class="btn btn-sm btn-primary px-3 flex items-center gap-1.5 text-xs"
         >
           <LogIn class="w-3.5 h-3.5" />
-          <span>Entrar</span>
+          <span>{$t('nav.login')}</span>
         </a>
       {/if}
     </div>

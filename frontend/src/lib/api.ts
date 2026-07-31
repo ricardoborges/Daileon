@@ -239,3 +239,27 @@ export async function fetchComponentJenkins(id: number): Promise<JenkinsComponen
   return res.json();
 }
 
+export interface OrganizationConfig {
+  name: string;
+  acronym: string;
+}
+
+export async function fetchOrgConfig(): Promise<OrganizationConfig> {
+  const res = await fetch(`${API_BASE}/org-config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações da organização');
+  return res.json();
+}
+
+export async function saveOrgConfig(config: OrganizationConfig): Promise<{ message: string }> {
+  const res = await authFetch(`${API_BASE}/org-config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configurações da organização');
+  }
+  return res.json();
+}
+

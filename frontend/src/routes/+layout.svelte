@@ -6,9 +6,11 @@
   import Navbar from '$lib/components/Navbar.svelte';
   import { initTheme } from '$lib/theme';
   import { auth } from '$lib/auth';
+  import { initLocale, t } from '$lib/i18n';
 
   onMount(() => {
     initTheme();
+    initLocale();
     auth.init();
   });
 
@@ -37,7 +39,7 @@
     <div class="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <span class="led led-visor"></span>
-        <span class="label">Daileon Developer Portal &middot; Unidade de Catálogo</span>
+        <span class="label">{$t('footer.portalUnit')}</span>
       </div>
 
       <div class="flex items-center gap-5">

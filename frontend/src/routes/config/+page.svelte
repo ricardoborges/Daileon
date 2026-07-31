@@ -6,10 +6,13 @@
     fetchLDAPConfig,
     saveLDAPConfig,
     testLDAPConfig,
+    fetchOrgConfig,
+    saveOrgConfig,
     type SyncLogLine,
     type SyncMode,
     type SyncStatus,
     type LDAPConfig,
+    type OrganizationConfig,
   } from "$lib/api";
   import {
     Settings,
@@ -21,7 +24,9 @@
     Server,
     ShieldCheck,
     CheckCircle2,
+    Building2,
   } from "lucide-svelte";
+  import { t } from "$lib/i18n";
 
   interface Operation {
     mode: SyncMode;
@@ -33,39 +38,36 @@
     destructive: boolean;
   }
 
-  const operations: Operation[] = [
+  $: operations = [
     {
       mode: "update",
-      label: "Sincronizar",
+      label: $t("config.opUpdateLabel"),
       icon: RefreshCw,
-      summary: "Atualiza o catálogo a partir do GitLab",
-      detail:
-        "Relê o project-info.yml e a documentação de cada projeto, atualizando os componentes existentes e importando os novos. Nada é removido.",
+      summary: $t("config.opUpdateSummary"),
+      detail: $t("config.opUpdateDetail"),
       destructive: false,
     },
     {
       mode: "rebuild",
-      label: "Reconstruir base",
+      label: $t("config.opRebuildLabel"),
       icon: Database,
-      summary: "Apaga o catálogo e importa tudo do zero",
-      detail:
-        "Zera componentes, tags, links, dependências e documentação antes de reimportar. Use quando o catálogo estiver inconsistente. Os IDs internos mudam, então links antigos para /catalog/:id deixam de funcionar.",
+      summary: $t("config.opRebuildSummary"),
+      detail: $t("config.opRebuildDetail"),
       destructive: true,
     },
     {
       mode: "prune",
-      label: "Remover órfãos",
+      label: $t("config.opPruneLabel"),
       icon: Eraser,
-      summary: "Exclui o que não existe mais no GitLab",
-      detail:
-        "Compara o catálogo com a lista de projetos do GitLab e remove os componentes sem projeto correspondente. Não altera os demais.",
+      summary: $t("config.opPruneSummary"),
+      detail: $t("config.opPruneDetail"),
       destructive: false,
     },
-  ];
+  ] as Operation[];
 
   const POLL_MS = 800;
 
-  let activeTab: "sync" | "ldap" = "sync";
+  let activeTab: "sync" | "ldap" | "org" = "sync";
 
   let status: SyncStatus | null = null;
   let logs: SyncLogLine[] = [];
@@ -105,13 +107,13 @@
 
   $: stateLabel =
     starting && !status
-      ? "Iniciando"
+      ? $t("config.statusStarting")
       : {
-          idle: "Ocioso",
-          running: "Em execução",
-          success: "Concluído",
-          partial: "Concluído com falhas",
-          error: "Erro",
+          idle: $t("config.statusIdle"),
+          running: $t("config.statusRunning"),
+          success: $t("config.statusSuccess"),
+          partial: $t("config.statusPartial"),
+          error: $t("config.statusError"),
         }[status?.state ?? "idle"];
 
   $: stateLed =
@@ -142,11 +144,48 @@
   let ldapMessage = "";
   let ldapMessageType: "success" | "error" = "success";
 
+  // Organization Config State
+  let orgConfig: OrganizationConfig = {
+    name: "",
+    acronym: "",
+  };
+  let orgLoading = false;
+  let orgSaving = false;
+  let orgMessage = "";
+  let orgMessageType: "success" | "error" = "success";
+
   onMount(() => {
     // Reanexa a uma operação já em andamento (recarregar a página não a cancela).
     poll();
     loadLDAP();
+    loadOrg();
   });
+
+  async function loadOrg() {
+    orgLoading = true;
+    try {
+      orgConfig = await fetchOrgConfig();
+    } catch (e: any) {
+      // Ignora erro inicial
+    } finally {
+      orgLoading = false;
+    }
+  }
+
+  async function handleSaveOrg() {
+    orgSaving = true;
+    orgMessage = "";
+    try {
+      const res = await saveOrgConfig(orgConfig);
+      orgMessage = res.message || "Configurações da organização salvas com sucesso!";
+      orgMessageType = "success";
+    } catch (e: any) {
+      orgMessage = e.message || "Falha ao salvar configurações da organização.";
+      orgMessageType = "error";
+    } finally {
+      orgSaving = false;
+    }
+  }
 
   async function loadLDAP() {
     ldapLoading = true;
@@ -197,25 +236,24 @@
     try {
       const next = await fetchSyncStatus(cursor);
 
-      // Um job novo reinicia a numeração: descarta o log do anterior.
-      if (status?.job_id && next.job_id && next.job_id !== status.job_id) {
+      if (status && status.mode !== next.mode) {
         logs = [];
+        cursor = 0;
       }
-      if (next.logs.length) {
-        logs = [...logs, ...next.logs];
-        await scrollConsole();
-      }
-      cursor = next.cursor;
       status = next;
-      uiError = "";
-    } catch (e: any) {
-      uiError = e.message || "Falha ao consultar o progresso";
-    }
 
-    if (timer) clearTimeout(timer);
-    // Enquanto roda, acompanha de perto; parado, só um heartbeat leve para
-    // detectar operação disparada de outra aba.
-    timer = setTimeout(poll, status?.state === "running" ? POLL_MS : 5000);
+      if (next.logs && next.logs.length > 0) {
+        logs = [...logs, ...next.logs];
+        cursor = logs[logs.length - 1].seq + 1;
+        scrollConsole();
+      }
+
+      if (next.state === "running") {
+        timer = setTimeout(poll, POLL_MS);
+      }
+    } catch (e: any) {
+      uiError = e.message || "Falha ao consultar status da operação";
+    }
   }
 
   async function scrollConsole() {
@@ -266,16 +304,16 @@
   }
 </script>
 
-<svelte:head><title>Configuração &middot; Daileon</title></svelte:head>
+<svelte:head><title>{$t("config.title")} &middot; Daileon</title></svelte:head>
 
 <main class="max-w-7xl mx-auto px-6 py-10 space-y-8">
   <header class="space-y-3">
-    <span class="eyebrow">Painel de Controle</span>
+    <span class="eyebrow">{$t("config.eyebrow")}</span>
     <div class="rule">
       <h1
         class="text-3xl font-bold tracking-[-0.03em] t-txt flex items-center gap-3 whitespace-nowrap"
       >
-        <Settings class="w-7 h-7 t-visor" /> Configuração
+        <Settings class="w-7 h-7 t-visor" /> {$t("config.title")}
       </h1>
     </div>
     <p class="t-dim text-sm">
@@ -294,7 +332,7 @@
         on:click={() => (activeTab = "sync")}
       >
         <RefreshCw class="w-4 h-4" />
-        <span>Sincronização</span>
+        <span>{$t("config.tabSync")}</span>
       </button>
       <button
         type="button"
@@ -304,7 +342,17 @@
         on:click={() => (activeTab = "ldap")}
       >
         <Server class="w-4 h-4" />
-        <span>LDAP</span>
+        <span>{$t("config.tabLdap")}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeTab === "org"}
+        class="seg-item cursor-pointer {activeTab === 'org' ? 'is-active' : ''}"
+        on:click={() => (activeTab = "org")}
+      >
+        <Building2 class="w-4 h-4" />
+        <span>{$t("config.tabOrg")}</span>
       </button>
     </div>
   </div>
@@ -338,21 +386,21 @@
                   class="chip chip-alert !whitespace-normal !normal-case !text-[0.6875rem] !tracking-normal w-full"
                 >
                   <AlertTriangle class="w-3.5 h-3.5 flex-none" />
-                  Esta ação apaga dados e não pode ser desfeita.
+                  {$t("config.opDestructiveAlert")}
                 </p>
                 <div class="flex gap-2">
                   <button
                     class="btn btn-sm flex-1"
                     on:click={() => (confirming = null)}
                   >
-                    Cancelar
+                    {$t("config.opCancel")}
                   </button>
                   <button
                     class="btn btn-sm btn-crest flex-1"
                     disabled={busy}
                     on:click={() => run(op.mode)}
                   >
-                    Confirmar
+                    {$t("config.opConfirmAction")}
                   </button>
                 </div>
               </div>
@@ -453,7 +501,7 @@
 
         <div class="space-y-2">
           <span class="label flex items-center gap-2">
-            <Terminal class="w-3 h-3" /> Saída
+            <Terminal class="w-3 h-3" /> {$t("config.consoleTitle")}
           </span>
           <div
             class="console h-72"
@@ -491,11 +539,10 @@
       >
         <div class="space-y-1">
           <h2 class="text-lg font-bold t-txt flex items-center gap-2">
-            <Server class="w-5 h-5 t-visor" /> Configuração do LDAP
+            <Server class="w-5 h-5 t-visor" /> {$t("config.ldapTitle")}
           </h2>
           <p class="t-dim text-xs">
-            Configure a integração com o diretório LDAP/Active Directory para
-            autenticação dos demais usuários do portal.
+            {$t("config.ldapSubtitle")}
           </p>
         </div>
 
@@ -509,7 +556,7 @@
             class="w-4 h-4 rounded text-[var(--visor)] focus:ring-0 cursor-pointer"
           />
           <span class="text-xs font-bold uppercase tracking-wider t-txt">
-            {ldapConfig.enabled ? "LDAP Ativado" : "LDAP Desativado"}
+            {$t("config.ldapEnable")}
           </span>
           <span class="led {ldapConfig.enabled ? 'led-ok' : 'led-alert'}"></span>
         </label>
@@ -534,13 +581,13 @@
         <!-- Servidor Host -->
         <div class="space-y-1.5">
           <label for="ldap_host" class="label text-xs font-semibold t-txt"
-            >Servidor LDAP (Host)</label
+            >{$t("config.ldapHost")}</label
           >
           <input
             id="ldap_host"
             type="text"
             bind:value={ldapConfig.server_host}
-            placeholder="ldap.empresa.com"
+            placeholder={$t("config.ldapHostPlaceholder")}
             class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
             style="background: var(--surface-2); border: 1px solid var(--line);"
           />
@@ -549,7 +596,7 @@
         <!-- Porta -->
         <div class="space-y-1.5">
           <label for="ldap_port" class="label text-xs font-semibold t-txt"
-            >Porta (ex: 389 ou 636)</label
+            >{$t("config.ldapPort")}</label
           >
           <input
             id="ldap_port"
@@ -571,20 +618,20 @@
               bind:checked={ldapConfig.use_ssl}
               class="w-4 h-4 rounded text-[var(--visor)]"
             />
-            <span>Usar Conexão Segura (SSL / LDAPS)</span>
+            <span>{$t("config.ldapUseSsl")}</span>
           </label>
         </div>
 
         <!-- Bind DN -->
         <div class="space-y-1.5 lg:col-span-2">
           <label for="bind_dn" class="label text-xs font-semibold t-txt"
-            >Bind DN (Conta de Serviço)</label
+            >{$t("config.ldapBindDn")}</label
           >
           <input
             id="bind_dn"
             type="text"
             bind:value={ldapConfig.bind_dn}
-            placeholder="cn=admin,dc=empresa,dc=com"
+            placeholder={$t("config.ldapBindDnPlaceholder")}
             class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
             style="background: var(--surface-2); border: 1px solid var(--line);"
           />
@@ -593,13 +640,13 @@
         <!-- Bind Password -->
         <div class="space-y-1.5">
           <label for="bind_password" class="label text-xs font-semibold t-txt"
-            >Senha do Bind DN</label
+            >{$t("config.ldapBindPass")}</label
           >
           <input
             id="bind_password"
             type="password"
             bind:value={ldapConfig.bind_password}
-            placeholder="••••••••"
+            placeholder={$t("config.ldapBindPassPlaceholder")}
             class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
             style="background: var(--surface-2); border: 1px solid var(--line);"
           />
@@ -608,13 +655,13 @@
         <!-- Base DN -->
         <div class="space-y-1.5 lg:col-span-2">
           <label for="base_dn" class="label text-xs font-semibold t-txt"
-            >Base DN (Busca de Usuários)</label
+            >{$t("config.ldapBaseDn")}</label
           >
           <input
             id="base_dn"
             type="text"
             bind:value={ldapConfig.base_dn}
-            placeholder="ou=users,dc=empresa,dc=com"
+            placeholder={$t("config.ldapBaseDnPlaceholder")}
             class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
             style="background: var(--surface-2); border: 1px solid var(--line);"
           />
@@ -623,7 +670,7 @@
         <!-- Atributo do Usuário -->
         <div class="space-y-1.5">
           <label for="user_attr" class="label text-xs font-semibold t-txt"
-            >Atributo do Usuário (ex: sAMAccountName ou uid)</label
+            >{$t("config.ldapUserAttr")}</label
           >
           <input
             id="user_attr"
@@ -650,10 +697,10 @@
             <div
               class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
             ></div>
-            <span>Testando...</span>
+            <span>{$t("config.ldapTesting")}</span>
           {:else}
             <Server class="w-3.5 h-3.5 t-visor" />
-            <span>Testar Conexão</span>
+            <span>{$t("config.ldapTest")}</span>
           {/if}
         </button>
 
@@ -667,10 +714,95 @@
             <div
               class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
             ></div>
-            <span>Salvando...</span>
+            <span>{$t("config.ldapSaving")}</span>
           {:else}
             <ShieldCheck class="w-3.5 h-3.5" />
-            <span>Salvar Configuração LDAP</span>
+            <span>{$t("config.ldapSave")}</span>
+          {/if}
+        </button>
+      </div>
+    </section>
+  {:else if activeTab === "org"}
+    <!-- ABA 3: Organização -->
+    <section class="plate p-6 space-y-6" style="--chamfer: 16px;">
+      <div
+        class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] pb-4"
+      >
+        <div class="space-y-1">
+          <h2 class="text-lg font-bold t-txt flex items-center gap-2">
+            <Building2 class="w-5 h-5 t-visor" /> {$t("config.orgTitle")}
+          </h2>
+          <p class="t-dim text-xs">
+            {$t("config.orgSubtitle")}
+          </p>
+        </div>
+      </div>
+
+      {#if orgMessage}
+        <div
+          class="chip {orgMessageType === 'success'
+            ? 'chip-ok'
+            : 'chip-alert'} !w-full !whitespace-normal !normal-case !tracking-normal text-xs p-3"
+        >
+          {#if orgMessageType === "success"}
+            <CheckCircle2 class="w-4 h-4 flex-none" />
+          {:else}
+            <AlertTriangle class="w-4 h-4 flex-none" />
+          {/if}
+          <span>{orgMessage}</span>
+        </div>
+      {/if}
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Nome da Organização -->
+        <div class="space-y-1.5">
+          <label for="org_name" class="label text-xs font-semibold t-txt"
+            >{$t("config.orgName")}</label
+          >
+          <input
+            id="org_name"
+            type="text"
+            bind:value={orgConfig.name}
+            placeholder={$t("config.orgNamePlaceholder")}
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
+        </div>
+
+        <!-- Sigla da Organização -->
+        <div class="space-y-1.5">
+          <label for="org_acronym" class="label text-xs font-semibold t-txt"
+            >{$t("config.orgAcronym")}</label
+          >
+          <input
+            id="org_acronym"
+            type="text"
+            bind:value={orgConfig.acronym}
+            placeholder={$t("config.orgAcronymPlaceholder")}
+            class="w-full px-3 py-2 rounded text-sm t-txt outline-none font-mono"
+            style="background: var(--surface-2); border: 1px solid var(--line);"
+          />
+        </div>
+      </div>
+
+      <!-- Botões de Ação -->
+      <div
+        class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-[var(--line)]"
+      >
+        <button
+          type="button"
+          on:click={handleSaveOrg}
+          disabled={orgSaving}
+          class="btn btn-sm btn-primary px-5 flex items-center gap-2"
+        >
+          {#if orgSaving}
+            <div
+              class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
+            ></div>
+            <span>{$t("config.orgSaving")}</span>
+          {:else}
+            <ShieldCheck class="w-3.5 h-3.5" />
+            <span>{$t("config.orgSave")}</span>
           {/if}
         </button>
       </div>

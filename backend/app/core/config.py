@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     LDAP_BASE_DN: str = ""
     LDAP_USER_ATTRIBUTE: str = "uid"
 
+    # Organization Configuration
+    ORGANIZATION_NAME: str = os.getenv("ORGANIZATION_NAME", os.getenv("ORG_NAME", ""))
+    ORGANIZATION_ACRONYM: str = os.getenv("ORGANIZATION_ACRONYM", os.getenv("ORG_ACRONYM", ""))
+
     class Config:
         case_sensitive = True
         env_file = ".env"

@@ -104,3 +104,14 @@ def test_search(client, component):
     data = response.json()
     assert [c["name"] for c in data["components"]] == [component["name"]]
     assert [d["title"] for d in data["docs"]] == ["README"]
+
+def test_get_org_config_unauthenticated():
+    from fastapi.testclient import TestClient
+    from main import app
+    unauth_client = TestClient(app)
+    response = unauth_client.get("/api/org-config")
+    assert response.status_code == 200
+    data = response.json()
+    assert "name" in data
+    assert "acronym" in data
+

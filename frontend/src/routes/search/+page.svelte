@@ -1,6 +1,7 @@
 <script lang="ts">
   import { globalSearch, type SearchResults } from '$lib/api';
   import { Search, Layers, FileText, ArrowRight, CornerDownLeft } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
 
   let query = '';
   let results: SearchResults | null = null;
@@ -23,14 +24,14 @@
 
 <main class="max-w-5xl mx-auto px-6 py-10 space-y-8">
   <header class="space-y-3">
-    <span class="eyebrow">Varredura do Ecossistema</span>
+    <span class="eyebrow">{$t('search.eyebrow')}</span>
     <div class="rule">
       <h1 class="text-3xl font-bold tracking-[-0.03em] t-txt flex items-center gap-3 whitespace-nowrap">
-        <Search class="w-7 h-7 t-visor" /> Busca Unificada
+        <Search class="w-7 h-7 t-visor" /> {$t('search.title')}
       </h1>
     </div>
     <p class="t-dim text-sm">
-      Componentes, tags, responsáveis e o conteúdo integral das documentações Markdown.
+      {$t('search.subtitle')}
     </p>
   </header>
 
@@ -40,14 +41,14 @@
     <input
       type="text"
       bind:value={query}
-      placeholder="Buscar por componente, time ou documentação..."
-      aria-label="Termo de busca"
+      placeholder={$t('search.placeholder')}
+      aria-label={$t('search.placeholder')}
     />
     <button type="submit" disabled={searching || !query.trim()} class="btn btn-primary btn-sm">
       {#if searching}
-        Buscando
+        {$t('search.btnSearching')}
       {:else}
-        Executar <CornerDownLeft class="w-3 h-3" />
+        {$t('search.btnExecute')} <CornerDownLeft class="w-3 h-3" />
       {/if}
     </button>
   </form>
@@ -55,21 +56,21 @@
   {#if results}
     <div class="space-y-10">
       <p class="label">
-        Resultados para <span class="t-visor">"{lastQuery}"</span> &middot;
-        {results.components.length + results.docs.length} ocorrências
+        {$t('search.resultsFor')} <span class="t-visor">"{lastQuery}"</span> &middot;
+        {$t('search.occurrences', { count: results.components.length + results.docs.length })}
       </p>
 
       <!-- Componentes -->
       <section class="space-y-4">
         <div class="rule">
           <h2 class="text-base font-bold t-txt flex items-center gap-2 whitespace-nowrap">
-            <Layers class="w-4 h-4 t-visor" /> Componentes
+            <Layers class="w-4 h-4 t-visor" /> {$t('search.secComponents')}
             <span class="label">({results.components.length})</span>
           </h2>
         </div>
 
         {#if results.components.length === 0}
-          <p class="label">Nenhum componente correspondeu</p>
+          <p class="label">{$t('search.noComponentsMatched')}</p>
         {:else}
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {#each results.components as comp}
@@ -90,13 +91,13 @@
       <section class="space-y-4">
         <div class="rule">
           <h2 class="text-base font-bold t-txt flex items-center gap-2 whitespace-nowrap">
-            <FileText class="w-4 h-4 t-crest" /> Documentos
+            <FileText class="w-4 h-4 t-crest" /> {$t('search.secDocs')}
             <span class="label">({results.docs.length})</span>
           </h2>
         </div>
 
         {#if results.docs.length === 0}
-          <p class="label">Nenhum documento correspondeu</p>
+          <p class="label">{$t('search.noDocsMatched')}</p>
         {:else}
           <div class="space-y-2">
             {#each results.docs as doc}

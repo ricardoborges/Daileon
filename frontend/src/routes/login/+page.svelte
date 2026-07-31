@@ -12,20 +12,31 @@
     ArrowRight,
     CheckCircle2,
   } from "lucide-svelte";
+  import { t } from "$lib/i18n";
+  import { fetchOrgConfig, type OrganizationConfig } from "$lib/api";
 
   let username = "";
   let password = "";
   let error = "";
   let loading = false;
+  let orgConfig: OrganizationConfig | null = null;
 
   $: if ($auth.user) {
     goto("/");
   }
 
+  onMount(async () => {
+    try {
+      orgConfig = await fetchOrgConfig();
+    } catch (e) {
+      console.error("Error loading org config:", e);
+    }
+  });
+
   async function handleLogin() {
     error = "";
     if (!username.trim() || !password) {
-      error = "Preencha os campos de usuário e senha.";
+      error = $t("login.emptyError");
       return;
     }
 
@@ -36,13 +47,13 @@
     if (success) {
       goto("/");
     } else {
-      error = $auth.error || "Credenciais inválidas ou serviço indisponível.";
+      error = $auth.error || $t("login.invalidError");
     }
   }
 </script>
 
 <svelte:head>
-  <title>Autenticação &middot; Daileon</title>
+  <title>{$t("login.pageTitle")}</title>
 </svelte:head>
 
 <main
@@ -55,11 +66,17 @@
         <DaileonLogo size={56} />
       </div>
       <div>
-        <span class="eyebrow block">Daileon</span>
+        {#if orgConfig?.acronym || orgConfig?.name}
+          <span class="eyebrow block">
+            {[orgConfig.name, orgConfig.acronym].filter(Boolean).join(" · ")}
+          </span>
+        {:else}
+          <span class="eyebrow block">Daileon</span>
+        {/if}
         <h1 class="text-2xl font-bold tracking-[-0.03em] t-txt mt-1">
           DEVELOPER PORTAL
         </h1>
-        <p class="t-dim text-xs mt-1">Identifique-se para acessar o catálogo</p>
+        <p class="t-dim text-xs mt-1">{$t("login.subtitle")}</p>
       </div>
     </div>
 
@@ -85,14 +102,14 @@
             for="username"
             class="label flex items-center gap-1.5 text-xs font-semibold t-txt"
           >
-            <User class="w-3.5 h-3.5 t-visor" /> Nome de Usuário
+            <User class="w-3.5 h-3.5 t-visor" />
+            {$t("login.username")}
           </label>
           <div class="relative">
             <input
               id="username"
               type="text"
               bind:value={username}
-              placeholder="ex: admin ou usuario.ldap"
               autocomplete="username"
               required
               class="w-full px-3.5 py-2.5 rounded text-sm t-txt outline-none transition-all"
@@ -107,14 +124,14 @@
             for="password"
             class="label flex items-center gap-1.5 text-xs font-semibold t-txt"
           >
-            <Lock class="w-3.5 h-3.5 t-visor" /> Senha
+            <Lock class="w-3.5 h-3.5 t-visor" />
+            {$t("login.password")}
           </label>
           <div class="relative">
             <input
               id="password"
               type="password"
               bind:value={password}
-              placeholder="••••••••"
               autocomplete="current-password"
               required
               class="w-full px-3.5 py-2.5 rounded text-sm t-txt outline-none transition-all"
@@ -133,17 +150,23 @@
           <div
             class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"
           ></div>
-          <span>Autenticando...</span>
+          <span>{$t("login.submitting")}</span>
         {:else}
           <KeyRound class="w-4 h-4" />
-          <span>Entrar no Sistema</span>
+          <span>{$t("login.submit")}</span>
           <ArrowRight class="w-4 h-4 ml-auto" />
         {/if}
       </button>
 
-      <div class="pt-2 text-center border-t border-[var(--line)]">
-        <p class="text-[0.6875rem] t-faint"></p>
-      </div>
+      {#if orgConfig?.acronym || orgConfig?.name}
+        <div class="pt-2 text-center border-t border-[var(--line)]">
+          <p class="text-[0.6875rem] t-faint">
+            <span class="eyebrow">
+              {[orgConfig.name, orgConfig.acronym].filter(Boolean).join(" · ")}
+            </span>
+          </p>
+        </div>
+      {/if}
     </form>
   </div>
 </main>

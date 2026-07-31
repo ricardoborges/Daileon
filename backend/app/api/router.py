@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.db.models import Component, DocFile, Tag
 from app.gitlab.gitlab_crawler import SyncMode
 from app.sync.jobs import SyncAlreadyRunning, sync_jobs
-from app.api.auth import auth_router, get_current_user
+from app.api.auth import auth_router, get_current_user, get_system_setting, set_system_setting
 from app.jenkins.jenkins_service import fetch_jenkins_job_status
 from app.core.config import settings
 
@@ -240,3 +240,39 @@ async def global_search(q: str = Query(..., min_length=1), db: AsyncSession = De
             for d in docs
         ]
     }
+
+class OrgConfigRequest(BaseModel):
+    name: str = ""
+    acronym: str = ""
+
+async def get_effective_org_config(db: AsyncSession) -> dict:
+    config = await get_system_setting(db, "org_config")
+    if config is None:
+        config = {
+            "name": settings.ORGANIZATION_NAME,
+            "acronym": settings.ORGANIZATION_ACRONYM
+        }
+        if settings.ORGANIZATION_NAME or settings.ORGANIZATION_ACRONYM:
+            await set_system_setting(db, "org_config", config)
+    else:
+        updated = False
+        if settings.ORGANIZATION_NAME and not config.get("name"):
+            config["name"] = settings.ORGANIZATION_NAME
+            updated = True
+        if settings.ORGANIZATION_ACRONYM and not config.get("acronym"):
+            config["acronym"] = settings.ORGANIZATION_ACRONYM
+            updated = True
+        if updated:
+            await set_system_setting(db, "org_config", config)
+
+    return config
+
+@api_router.get("/org-config")
+async def get_org_config(db: AsyncSession = Depends(get_db)):
+    return await get_effective_org_config(db)
+
+@protected_router.post("/org-config")
+async def update_org_config(payload: OrgConfigRequest, db: AsyncSession = Depends(get_db)):
+    data = payload.model_dump()
+    await set_system_setting(db, "org_config", data)
+    return {"message": "Configurações da organização salvas com sucesso!"}
