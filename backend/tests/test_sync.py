@@ -358,3 +358,61 @@ def test_sync_fallback_docs_sem_pasta_docs():
 
     assert sorted(d.relative_path for d in component.docs) == ["CHANGELOG.md", "README.md"]
 
+
+class SemManifestCrawler(FakeCrawler):
+    """Crawler para simular projeto sem manifest (project-info.yml)."""
+
+    async def fetch_file_content(self, project_id, file_path, ref="main"):
+        if file_path == "project-info.yml":
+            return None
+        return await super().fetch_file_content(project_id, file_path, ref=ref)
+
+    async def fetch_top_committer(self, project_id: int):
+        return "gitlab.topcommitter"
+
+
+async def _sync_sem_manifest(db_path: Path):
+    crawler = SemManifestCrawler(gitlab_url="https://gitlab.local", token="fake")
+    async with _session(db_path) as db:
+        await crawler.sync_all(db)
+        component = (await db.execute(select(Component))).scalars().first()
+        return component
+
+
+def test_sync_owner_inferido_pelos_commits():
+    """Projeto sem manifest deve ter o owner inferido pelo maior número de commits."""
+    with tempfile.TemporaryDirectory() as tmp:
+        component = asyncio.run(_sync_sem_manifest(Path(tmp) / "test.db"))
+
+    assert component.owner == "gitlab.topcommitter"
+
+
+def test_normalize_owner_e_extract_commit_author():
+    from app.gitlab.gitlab_crawler import normalize_owner, extract_commit_author
+
+    # Testes de normalize_owner
+    assert normalize_owner("ricardo.silva@company.com") == "ricardo.silva"
+    assert normalize_owner("  Ricardo.Borges@Company.COM ") == "ricardo.borges"
+    assert normalize_owner("team-backend") == "team-backend"
+    assert normalize_owner("") == "unassigned"
+    assert normalize_owner(None) == "unassigned"
+
+    # Testes de extract_commit_author
+    commit_com_email = {
+        "author_email": "ricardo.silva@company.com",
+        "author_name": "Ricardo Oliveira Borges da Silva"
+    }
+    assert extract_commit_author(commit_com_email) == "ricardo.silva"
+
+    commit_so_nome = {
+        "author_name": "ricardo.silva"
+    }
+    assert extract_commit_author(commit_so_nome) == "ricardo.silva"
+
+    commit_nome_completo_sem_email = {
+        "author_name": "Ricardo Borges"
+    }
+    assert extract_commit_author(commit_nome_completo_sem_email) == "ricardo borges"
+
+
+

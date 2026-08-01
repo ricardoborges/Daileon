@@ -217,7 +217,16 @@
           </div>
           <div class="meta">
             <dt>{$t('catalog.domain_solution')}</dt>
-            <dd>{component.domain || '—'} / {component.system || '—'}</dd>
+            <dd>
+              {#if component.domain}
+                <a href={`/domains/${encodeURIComponent(component.domain)}`} class="hover:t-visor underline transition-colors">
+                  {component.domain}
+                </a>
+              {:else}
+                —
+              {/if}
+              / {component.system || '—'}
+            </dd>
           </div>
           <div class="meta">
             <dt>{$t('catalog.jenkins_pipelines')}</dt>

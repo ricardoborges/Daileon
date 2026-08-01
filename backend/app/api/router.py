@@ -254,6 +254,112 @@ async def get_server_detail(server_name: str, db: AsyncSession = Depends(get_db)
     }
 
 
+@protected_router.get("/domains")
+async def list_domains(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Component))
+    components = result.scalars().all()
+
+    domains_map = {}
+    for c in components:
+        if not c.domain or not c.domain.strip():
+            continue
+
+        domain_key = c.domain.strip()
+        if domain_key not in domains_map:
+            domains_map[domain_key] = {
+                "domain": domain_key,
+                "systems": set(),
+                "owners": set(),
+                "components": []
+            }
+
+        d = domains_map[domain_key]
+        if c.system:
+            d["systems"].add(c.system)
+        if c.owner:
+            d["owners"].add(c.owner)
+
+        d["components"].append({
+            "id": c.id,
+            "gitlab_project_id": c.gitlab_project_id,
+            "name": c.name,
+            "description": c.description,
+            "kind": c.kind,
+            "type": c.type,
+            "lifecycle": c.lifecycle,
+            "owner": c.owner,
+            "system": c.system,
+            "gitlab_url": c.gitlab_url,
+            "has_manifest": c.has_manifest,
+            "docs_count": len(c.docs)
+        })
+
+    domains_list = []
+    for d_name, data in domains_map.items():
+        domains_list.append({
+            "domain": data["domain"],
+            "systems": sorted(list(data["systems"])),
+            "owners": sorted(list(data["owners"])),
+            "components_count": len(data["components"]),
+            "components": data["components"]
+        })
+
+    domains_list.sort(key=lambda x: str(x["domain"]).lower())
+    return domains_list
+
+
+@protected_router.get("/domains/{domain_name}")
+async def get_domain_detail(domain_name: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Component))
+    components = result.scalars().all()
+
+    target_components = []
+    systems = set()
+    owners = set()
+    canonical_domain = None
+
+    for c in components:
+        if not c.domain or not c.domain.strip():
+            continue
+
+        if c.domain.strip().lower() == domain_name.strip().lower():
+            if not canonical_domain:
+                canonical_domain = c.domain.strip()
+            if c.system:
+                systems.add(c.system)
+            if c.owner:
+                owners.add(c.owner)
+
+            target_components.append({
+                "id": c.id,
+                "gitlab_project_id": c.gitlab_project_id,
+                "name": c.name,
+                "description": c.description,
+                "kind": c.kind,
+                "type": c.type,
+                "lifecycle": c.lifecycle,
+                "owner": c.owner,
+                "system": c.system,
+                "gitlab_url": c.gitlab_url,
+                "has_manifest": c.has_manifest,
+                "docs_count": len(c.docs),
+                "tags": [t.name for t in c.tags],
+                "deployments_count": len(c.deployments)
+            })
+
+    if not target_components:
+        raise HTTPException(status_code=404, detail="Domínio não encontrado")
+
+    return {
+        "domain": canonical_domain or domain_name,
+        "systems": sorted(list(systems)),
+        "owners": sorted(list(owners)),
+        "components_count": len(target_components),
+        "components": target_components
+    }
+
+
+
 @protected_router.get("/catalog/{component_id}/jenkins")
 async def get_component_jenkins_status(component_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Component).where(Component.id == component_id))

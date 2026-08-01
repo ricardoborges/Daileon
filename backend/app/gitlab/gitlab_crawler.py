@@ -16,6 +16,39 @@ from app.catalog.manifest import DaileonManifest
 logger = logging.getLogger(__name__)
 
 
+def normalize_owner(raw: Optional[str]) -> str:
+    """Normaliza a string do owner, extraindo o username caso seja um e-mail.
+    
+    Exemplos:
+      'ricardo.silva@company.com' -> 'ricardo.silva'
+      'Ricardo.Silva' -> 'ricardo.silva'
+      'team-backend' -> 'team-backend'
+      None / '' -> 'unassigned'
+    """
+    if not raw:
+        return "unassigned"
+    val = raw.strip()
+    if "@" in val:
+        val = val.split("@")[0].strip()
+    return val.lower() if val else "unassigned"
+
+
+def extract_commit_author(commit: Dict[str, Any]) -> Optional[str]:
+    """Extrai e normaliza o username do autor do commit dando prioridade ao e-mail do GitLab."""
+    email = commit.get("author_email") or commit.get("committer_email")
+    if email and "@" in email:
+        username = email.split("@")[0].strip().lower()
+        if username:
+            return username
+
+    raw_author = commit.get("author_name") or commit.get("author_email")
+    if raw_author:
+        norm = normalize_owner(raw_author)
+        return norm if norm != "unassigned" else None
+    return None
+
+
+
 class SyncMode(str, Enum):
     """As três operações que o painel de configuração expõe."""
 
@@ -148,6 +181,7 @@ class GitLabCrawlerService:
         since_iso = since_dt.isoformat()
 
         daily_counts: Dict[str, int] = {}
+        author_counts: Dict[str, int] = {}
         total_commits = 0
         page = 1
         per_page = 100
@@ -176,6 +210,10 @@ class GitLabCrawlerService:
                             daily_counts[date_part] = daily_counts.get(date_part, 0) + 1
                             total_commits += 1
 
+                        author = extract_commit_author(commit)
+                        if author:
+                            author_counts[author] = author_counts.get(author, 0) + 1
+
                     page += 1
                     if len(data) < per_page:
                         break
@@ -183,13 +221,37 @@ class GitLabCrawlerService:
                     logger.error(f"Error fetching commits for project {project_id}: {e}")
                     break
 
+        top_committer = max(author_counts, key=author_counts.get) if author_counts else None
+
         return {
             "project_id": project_id,
             "total_commits": total_commits,
+            "top_committer": top_committer,
+            "author_counts": author_counts,
             "since": since_iso,
             "until": now.isoformat(),
             "daily_counts": daily_counts
         }
+
+    async def fetch_top_committer(self, project_id: int) -> Optional[str]:
+        """Consulta os commits recentes do repositório para inferir o usuário/autor com maior número de commits."""
+        async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
+            url = f"{self.base_url}/api/v4/projects/{project_id}/repository/commits?per_page=100"
+            try:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and data:
+                        author_counts: Dict[str, int] = {}
+                        for commit in data:
+                            author = extract_commit_author(commit)
+                            if author:
+                                author_counts[author] = author_counts.get(author, 0) + 1
+                        if author_counts:
+                            return max(author_counts, key=author_counts.get)
+            except Exception as e:
+                logger.error(f"Error fetching top committer for project {project_id}: {e}")
+        return None
 
 
     async def sync_project(self, db: AsyncSession, project_data: Dict[str, Any]) -> Component:
@@ -254,7 +316,7 @@ class GitLabCrawlerService:
             component.kind = manifest.kind
             component.type = manifest.spec.type
             component.lifecycle = manifest.spec.lifecycle
-            component.owner = manifest.metadata.owner
+            component.owner = normalize_owner(manifest.metadata.owner)
             component.domain = manifest.metadata.domain
             component.system = manifest.spec.system
             component.docs_dir = manifest.spec.docs.dir
@@ -268,6 +330,12 @@ class GitLabCrawlerService:
             component.owner = "unassigned"
             component.docs_dir = "/docs"
             component.docs_index = "index.md"
+
+        # Se o owner estiver indefinido ("unassigned" ou vazio), infere pelo maior número de commits
+        if not component.owner or component.owner == "unassigned":
+            top_committer = await self.fetch_top_committer(project_id)
+            if top_committer:
+                component.owner = normalize_owner(top_committer)
 
         await db.flush()
 

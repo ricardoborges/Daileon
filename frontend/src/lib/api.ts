@@ -34,6 +34,31 @@ export interface ServerItem {
   components: ServerComponentItem[];
 }
 
+export interface DomainComponentItem {
+  id: number;
+  gitlab_project_id: number;
+  name: string;
+  description?: string | null;
+  kind: string;
+  type: string;
+  lifecycle: string;
+  owner: string;
+  system?: string | null;
+  gitlab_url: string;
+  has_manifest: boolean;
+  docs_count?: number;
+  tags?: string[];
+  deployments_count?: number;
+}
+
+export interface DomainItem {
+  domain: string;
+  systems: string[];
+  owners: string[];
+  components_count: number;
+  components: DomainComponentItem[];
+}
+
 export interface ComponentItem {
   id: number;
   gitlab_project_id: number;
@@ -330,5 +355,21 @@ export async function fetchServerDetail(serverName: string): Promise<ServerItem>
   }
   return res.json();
 }
+
+export async function fetchDomains(): Promise<DomainItem[]> {
+  const res = await authFetch(`${API_BASE}/domains`);
+  if (!res.ok) throw new Error('Falha ao carregar lista de domínios');
+  return res.json();
+}
+
+export async function fetchDomainDetail(domainName: string): Promise<DomainItem> {
+  const res = await authFetch(`${API_BASE}/domains/${encodeURIComponent(domainName)}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('Domínio não encontrado');
+    throw new Error('Falha ao carregar detalhes do domínio');
+  }
+  return res.json();
+}
+
 
 

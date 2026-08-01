@@ -35,6 +35,8 @@ def component(client):
                 name="componente-de-teste",
                 description="Componente usado apenas pela suíte de testes.",
                 owner="time-de-teste",
+                domain="internal-tooling",
+                system="platform-engineering",
                 gitlab_url="https://gitlab.local/teste/componente-de-teste",
                 has_manifest=True,
                 tags=[Tag(name="python")],
@@ -153,6 +155,35 @@ def test_get_server_detail(client, component):
 def test_get_server_detail_inexistente(client):
     response = client.get("/api/servers/srv-inexistente-999")
     assert response.status_code == 404
+
+
+def test_list_domains(client, component):
+    response = client.get("/api/domains")
+    assert response.status_code == 200
+    domains = response.json()
+    assert isinstance(domains, list)
+    assert len(domains) >= 1
+    dom = next(d for d in domains if d["domain"] == "internal-tooling")
+    assert dom["components_count"] == 1
+    assert "time-de-teste" in dom["owners"]
+    assert "platform-engineering" in dom["systems"]
+    assert dom["components"][0]["name"] == component["name"]
+
+
+def test_get_domain_detail(client, component):
+    response = client.get("/api/domains/internal-tooling")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["domain"] == "internal-tooling"
+    assert data["components_count"] == 1
+    assert "platform-engineering" in data["systems"]
+    assert data["components"][0]["name"] == component["name"]
+
+
+def test_get_domain_detail_inexistente(client):
+    response = client.get("/api/domains/dominio-inexistente-999")
+    assert response.status_code == 404
+
 
 
 
