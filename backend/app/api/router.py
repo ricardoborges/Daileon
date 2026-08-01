@@ -3,10 +3,11 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
+from sqlalchemy.orm import joinedload
 
 from app.db.session import get_db
-from app.db.models import Component, DocFile, Tag
-from app.gitlab.gitlab_crawler import SyncMode
+from app.db.models import Component, DocFile, Tag, ComponentDeployment
+from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode
 from app.sync.jobs import SyncAlreadyRunning, sync_jobs
 from app.api.auth import auth_router, get_current_user, get_system_setting, set_system_setting
 from app.jenkins.jenkins_service import fetch_jenkins_job_status
@@ -57,9 +58,24 @@ async def list_components(
             "system": c.system,
             "gitlab_url": c.gitlab_url,
             "has_manifest": c.has_manifest,
+            "docs_count": len(c.docs),
             "tags": [t.name for t in c.tags],
             "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
             "dependencies": [d.target_component_name for d in c.dependencies],
+            "deployments": [
+                {
+                    "id": dep.id,
+                    "environment": dep.environment,
+                    "url": dep.url,
+                    "server_name": dep.server_name,
+                    "server_ip": dep.server_ip,
+                    "os": dep.os,
+                    "execution_type": dep.execution_type,
+                    "port": dep.port,
+                    "notes": dep.notes
+                }
+                for dep in c.deployments
+            ],
             "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
             "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
             "updated_at": c.updated_at.isoformat() if c.updated_at else None
@@ -90,6 +106,7 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "docs_dir": c.docs_dir,
         "docs_index": c.docs_index,
         "has_manifest": c.has_manifest,
+        "docs_count": len(c.docs),
         "tags": [t.name for t in c.tags],
         "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
         "dependencies": [d.target_component_name for d in c.dependencies],
@@ -103,10 +120,139 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
             }
             for p in c.jenkins_pipelines
         ],
+        "deployments": [
+            {
+                "id": dep.id,
+                "environment": dep.environment,
+                "url": dep.url,
+                "server_name": dep.server_name,
+                "server_ip": dep.server_ip,
+                "os": dep.os,
+                "execution_type": dep.execution_type,
+                "port": dep.port,
+                "notes": dep.notes
+            }
+            for dep in c.deployments
+        ],
         "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
         "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None
     }
+
+
+@protected_router.get("/servers")
+async def list_servers(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ComponentDeployment)
+        .options(joinedload(ComponentDeployment.component))
+        .join(Component)
+    )
+    deployments = result.scalars().all()
+
+    servers_map = {}
+    for dep in deployments:
+        if not dep.server_name and not dep.server_ip:
+            continue
+        
+        server_key = dep.server_name or dep.server_ip
+        if server_key not in servers_map:
+            servers_map[server_key] = {
+                "server_name": dep.server_name or dep.server_ip,
+                "server_ip": dep.server_ip,
+                "environments": set(),
+                "components": []
+            }
+        
+        s = servers_map[server_key]
+        if dep.server_ip and not s["server_ip"]:
+            s["server_ip"] = dep.server_ip
+        if dep.environment:
+            s["environments"].add(dep.environment)
+            
+        s["components"].append({
+            "deployment_id": dep.id,
+            "component_id": dep.component.id,
+            "component_name": dep.component.name,
+            "component_type": dep.component.type,
+            "owner": dep.component.owner,
+            "environment": dep.environment,
+            "url": dep.url,
+            "os": dep.os,
+            "execution_type": dep.execution_type,
+            "port": dep.port,
+            "notes": dep.notes
+        })
+
+    servers_list = []
+    for s_name, data in servers_map.items():
+        servers_list.append({
+            "server_name": data["server_name"],
+            "server_ip": data["server_ip"],
+            "environments": sorted(list(data["environments"])),
+            "components_count": len(data["components"]),
+            "components": data["components"]
+        })
+
+    servers_list.sort(key=lambda x: str(x["server_name"]).lower())
+    return servers_list
+
+
+@protected_router.get("/servers/{server_name}")
+async def get_server_detail(server_name: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(ComponentDeployment)
+        .options(joinedload(ComponentDeployment.component))
+        .join(Component)
+    )
+    deployments = result.scalars().all()
+
+    target_deployments = []
+    srv_ip = None
+    environments = set()
+    canonical_name = None
+
+    for dep in deployments:
+        dep_sname = dep.server_name or dep.server_ip
+        if not dep_sname:
+            continue
+
+        match_name = dep.server_name and dep.server_name.lower() == server_name.lower()
+        match_ip = dep.server_ip and dep.server_ip.lower() == server_name.lower()
+        match_key = dep_sname.lower() == server_name.lower()
+
+        if match_name or match_ip or match_key:
+            if not canonical_name:
+                canonical_name = dep.server_name or dep.server_ip
+            if dep.server_ip and not srv_ip:
+                srv_ip = dep.server_ip
+            if dep.environment:
+                environments.add(dep.environment)
+
+            target_deployments.append({
+                "deployment_id": dep.id,
+                "component_id": dep.component.id,
+                "component_name": dep.component.name,
+                "component_type": dep.component.type,
+                "owner": dep.component.owner,
+                "environment": dep.environment,
+                "url": dep.url,
+                "os": dep.os,
+                "execution_type": dep.execution_type,
+                "port": dep.port,
+                "notes": dep.notes
+            })
+
+    if not target_deployments:
+        raise HTTPException(status_code=404, detail="Servidor não encontrado")
+
+    return {
+        "server_name": canonical_name or server_name,
+        "server_ip": srv_ip,
+        "environments": sorted(list(environments)),
+        "components_count": len(target_deployments),
+        "components": target_deployments
+    }
+
 
 @protected_router.get("/catalog/{component_id}/jenkins")
 async def get_component_jenkins_status(component_id: int, db: AsyncSession = Depends(get_db)):
@@ -133,6 +279,25 @@ async def get_component_jenkins_status(component_id: int, db: AsyncSession = Dep
         "jenkins_token_configured": bool(settings.JENKINS_API_TOKEN or settings.JENKINS_USER),
         "pipelines": pipelines_status
     }
+
+
+@protected_router.get("/catalog/{component_id}/commits")
+async def get_component_commits(component_id: int, days: int = Query(365, ge=7, le=730), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Component).where(Component.id == component_id))
+    c = result.scalar_one_or_none()
+    if not c:
+        raise HTTPException(status_code=404, detail="Component not found")
+
+    crawler = GitLabCrawlerService()
+    commits_data = await crawler.fetch_project_commits(c.gitlab_project_id, days=days)
+
+    return {
+        "component_id": c.id,
+        "component_name": c.name,
+        "gitlab_project_id": c.gitlab_project_id,
+        **commits_data
+    }
+
 
 
 @protected_router.get("/catalog/{component_id}/docs")

@@ -1,5 +1,39 @@
 import { getAuthHeader, auth } from '$lib/auth';
 
+export interface DeploymentItem {
+  id?: number;
+  environment: string;
+  url?: string | null;
+  server_name?: string | null;
+  server_ip?: string | null;
+  os?: string | null;
+  execution_type?: string | null;
+  port?: string | null;
+  notes?: string | null;
+}
+
+export interface ServerComponentItem {
+  deployment_id: number;
+  component_id: number;
+  component_name: string;
+  component_type: string;
+  owner: string;
+  environment: string;
+  url?: string | null;
+  os?: string | null;
+  execution_type?: string | null;
+  port?: string | null;
+  notes?: string | null;
+}
+
+export interface ServerItem {
+  server_name: string;
+  server_ip?: string | null;
+  environments: string[];
+  components_count: number;
+  components: ServerComponentItem[];
+}
+
 export interface ComponentItem {
   id: number;
   gitlab_project_id: number;
@@ -16,9 +50,11 @@ export interface ComponentItem {
   docs_dir?: string;
   docs_index?: string;
   has_manifest: boolean;
+  docs_count?: number;
   tags: string[];
   links: Array<{ title: string; url: string; icon?: string }>;
   dependencies: string[];
+  deployments?: DeploymentItem[];
   gitlab_created_at?: string;
   last_activity_at?: string;
   updated_at?: string;
@@ -239,6 +275,23 @@ export async function fetchComponentJenkins(id: number): Promise<JenkinsComponen
   return res.json();
 }
 
+export interface ComponentCommitsResponse {
+  component_id: number;
+  component_name: string;
+  gitlab_project_id: number;
+  total_commits: number;
+  since: string;
+  until: string;
+  daily_counts: Record<string, number>;
+}
+
+export async function fetchComponentCommits(id: number, days = 365): Promise<ComponentCommitsResponse> {
+  const res = await authFetch(`${API_BASE}/catalog/${id}/commits?days=${days}`);
+  if (!res.ok) throw new Error('Falha ao carregar atividade de commits');
+  return res.json();
+}
+
+
 export interface OrganizationConfig {
   name: string;
   acronym: string;
@@ -262,4 +315,20 @@ export async function saveOrgConfig(config: OrganizationConfig): Promise<{ messa
   }
   return res.json();
 }
+
+export async function fetchServers(): Promise<ServerItem[]> {
+  const res = await authFetch(`${API_BASE}/servers`);
+  if (!res.ok) throw new Error('Falha ao carregar lista de servidores');
+  return res.json();
+}
+
+export async function fetchServerDetail(serverName: string): Promise<ServerItem> {
+  const res = await authFetch(`${API_BASE}/servers/${encodeURIComponent(serverName)}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('Servidor não encontrado');
+    throw new Error('Falha ao carregar detalhes do servidor');
+  }
+  return res.json();
+}
+
 

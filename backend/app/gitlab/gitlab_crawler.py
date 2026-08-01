@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models import (
-    Component, Tag, ComponentLink, ComponentDependency, ComponentJenkinsPipeline, DocFile, component_tags
+    Component, Tag, ComponentLink, ComponentDependency, ComponentJenkinsPipeline, ComponentDeployment, DocFile, component_tags
 )
 from app.catalog.manifest import DaileonManifest
 
@@ -125,7 +125,10 @@ class GitLabCrawlerService:
 
     async def fetch_docs_tree(self, project_id: int, docs_dir: str, ref: str = "main") -> List[Dict[str, Any]]:
         clean_dir = docs_dir.strip("/")
-        url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={clean_dir}&recursive=true&ref={ref}"
+        if clean_dir:
+            url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={clean_dir}&recursive=true&ref={ref}"
+        else:
+            url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?recursive=true&ref={ref}"
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
             try:
                 resp = await client.get(url)
@@ -135,6 +138,59 @@ class GitLabCrawlerService:
             except Exception as e:
                 logger.error(f"Error fetching docs tree for project {project_id}: {e}")
         return []
+
+    async def fetch_project_commits(self, project_id: int, days: int = 365) -> Dict[str, Any]:
+        """Busca os commits do projeto nos últimos `days` dias e agrega a contagem por data (YYYY-MM-DD)."""
+        from datetime import datetime, timedelta, timezone
+
+        now = datetime.now(timezone.utc)
+        since_dt = now - timedelta(days=days)
+        since_iso = since_dt.isoformat()
+
+        daily_counts: Dict[str, int] = {}
+        total_commits = 0
+        page = 1
+        per_page = 100
+        max_pages = 10
+
+        async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
+            while page <= max_pages:
+                url = (
+                    f"{self.base_url}/api/v4/projects/{project_id}/repository/commits"
+                    f"?since={since_iso}&page={page}&per_page={per_page}"
+                )
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code != 200:
+                        logger.warning(f"GitLab API returned {resp.status_code} fetching commits for project {project_id}")
+                        break
+
+                    data = resp.json()
+                    if not data or not isinstance(data, list):
+                        break
+
+                    for commit in data:
+                        commit_date_str = commit.get("committed_date") or commit.get("created_at")
+                        if commit_date_str:
+                            date_part = commit_date_str[:10]  # YYYY-MM-DD
+                            daily_counts[date_part] = daily_counts.get(date_part, 0) + 1
+                            total_commits += 1
+
+                    page += 1
+                    if len(data) < per_page:
+                        break
+                except Exception as e:
+                    logger.error(f"Error fetching commits for project {project_id}: {e}")
+                    break
+
+        return {
+            "project_id": project_id,
+            "total_commits": total_commits,
+            "since": since_iso,
+            "until": now.isoformat(),
+            "daily_counts": daily_counts
+        }
+
 
     async def sync_project(self, db: AsyncSession, project_data: Dict[str, Any]) -> Component:
         project_id = project_data["id"]
@@ -168,6 +224,8 @@ class GitLabCrawlerService:
             component.tags = []
             component.links = []
             component.dependencies = []
+            component.jenkins_pipelines = []
+            component.deployments = []
             component.docs = []
             db.add(component)
 
@@ -251,6 +309,22 @@ class GitLabCrawlerService:
                     server_url=pipe.server_url
                 ))
 
+        # Clear & Update Deployments
+        await db.execute(delete(ComponentDeployment).where(ComponentDeployment.component_id == component.id))
+        if manifest and manifest.spec.deployments:
+            for dep in manifest.spec.deployments:
+                db.add(ComponentDeployment(
+                    component_id=component.id,
+                    environment=dep.environment,
+                    url=dep.url,
+                    server_name=dep.server_name,
+                    server_ip=dep.server_ip,
+                    os=dep.os,
+                    execution_type=dep.execution_type,
+                    port=str(dep.port) if dep.port is not None else None,
+                    notes=dep.notes
+                ))
+
         # Fetch and sync Documentation Files
 
         await db.execute(delete(DocFile).where(DocFile.component_id == component.id))
@@ -267,14 +341,28 @@ class GitLabCrawlerService:
 
         # Sync docs directory
         docs_tree = await self.fetch_docs_tree(project_id, component.docs_dir, ref=default_branch)
+        is_fallback = False
+        if not docs_tree and component.docs_dir.strip("/"):
+            # Fallback: se a pasta docs_dir (ex: /docs) não retornar nenhum arquivo .md, busca em todo o repositório
+            docs_tree = await self.fetch_docs_tree(project_id, "", ref=default_branch)
+            is_fallback = True
+
         for doc_item in docs_tree:
             file_path = doc_item["path"]
+            
+            # Se for o README.md na raiz e já o inserimos acima, evita duplicar no banco
+            if file_path.lower() == "readme.md" and readme_content:
+                continue
+
             doc_content = await self.fetch_file_content(project_id, file_path, ref=default_branch)
             if doc_content:
-                # Relative path from docs dir
-                rel_path = file_path[len(component.docs_dir.strip('/')):].lstrip("/")
-                if not rel_path:
-                    rel_path = doc_item["name"]
+                clean_dir = component.docs_dir.strip("/")
+                if is_fallback or not clean_dir or not file_path.startswith(clean_dir):
+                    rel_path = file_path
+                else:
+                    rel_path = file_path[len(clean_dir):].lstrip("/")
+                    if not rel_path:
+                        rel_path = doc_item["name"]
                 
                 title = rel_path.split("/")[-1].replace(".md", "").replace("_", " ").replace("-", " ").title()
                 db.add(DocFile(
@@ -438,6 +526,8 @@ class GitLabCrawlerService:
         await db.execute(delete(DocFile))
         await db.execute(delete(ComponentLink))
         await db.execute(delete(ComponentDependency))
+        await db.execute(delete(ComponentJenkinsPipeline))
+        await db.execute(delete(ComponentDeployment))
         await db.execute(component_tags.delete())
         await db.execute(delete(Tag))
         await db.execute(delete(Component))
@@ -451,6 +541,8 @@ class GitLabCrawlerService:
                 ComponentDependency.source_component_id == component_id
             )
         )
+        await db.execute(delete(ComponentJenkinsPipeline).where(ComponentJenkinsPipeline.component_id == component_id))
+        await db.execute(delete(ComponentDeployment).where(ComponentDeployment.component_id == component_id))
         await db.execute(
             component_tags.delete().where(component_tags.c.component_id == component_id)
         )

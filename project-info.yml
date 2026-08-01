@@ -23,9 +23,6 @@ spec:
     index: index.md
   
   links:
-    - url: http://localhost:5173
-      title: Daileon Web UI
-      icon: website
     - url: http://localhost:8000/docs
       title: FastAPI OpenAPI Specs
       icon: api
@@ -41,4 +38,24 @@ spec:
       - name: Testes Automáticos & CI
         environment: test
         job: "ci/daileon-ci"
+
+  deployments:
+    - environment: production
+      url: http://localhost:5173
+      server_name: srv-prod-portal01
+      server_ip: 192.168.10.100
+      os: "Linux Ubuntu 22.04 LTS"
+      execution_type: Docker
+      port: 5173
+      notes: "Ambiente principal de produção do Daileon"
+      
+    - environment: test
+      url: http://localhost:8000
+      server_name: srv-test-portal01
+      server_ip: 192.168.20.100
+      os: "Windows Server 2022"
+      execution_type: VM
+      port: 8000
+      notes: "Servidor de testes e homologação local"
+
 

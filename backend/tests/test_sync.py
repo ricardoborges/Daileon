@@ -39,6 +39,14 @@ spec:
       url: https://grafana.local/pedidos
   dependencies:
     - component: usuario-service
+  deployments:
+    - environment: production
+      url: https://pedido.empresa.com
+      server_name: srv-prod-app01
+      server_ip: 10.0.1.10
+      os: "Linux Ubuntu 22.04"
+      execution_type: Docker
+      port: 8080
 """
 
 PROJECT = {
@@ -71,10 +79,20 @@ class FakeCrawler(GitLabCrawlerService):
             "project-info.yml": _manifest_de(self._nome_de(project_id)),
             "README.md": "# Pedido Service",
             "docs/index.md": "# Visão geral",
+            "CHANGELOG.md": "# Changelog",
         }.get(file_path)
 
     async def fetch_docs_tree(self, project_id, docs_dir, ref="main"):
-        return [{"path": "docs/index.md", "name": "index.md", "type": "blob"}]
+        clean = docs_dir.strip("/")
+        if clean == "docs":
+            return [{"path": "docs/index.md", "name": "index.md", "type": "blob"}]
+        elif not clean:
+            return [
+                {"path": "README.md", "name": "README.md", "type": "blob"},
+                {"path": "docs/index.md", "name": "index.md", "type": "blob"},
+                {"path": "CHANGELOG.md", "name": "CHANGELOG.md", "type": "blob"},
+            ]
+        return []
 
     async def fetch_projects(self, group_id=None):
         return list(self.projetos)
@@ -108,7 +126,7 @@ async def _sync(db_path: Path, times: int) -> Component:
 
         component = components[0]
         # Materializa as coleções ainda dentro do contexto async
-        _ = component.tags, component.links, component.dependencies, component.docs
+        _ = component.tags, component.links, component.dependencies, component.jenkins_pipelines, component.deployments, component.docs
         return component
 
 
@@ -127,6 +145,12 @@ def test_sync_projeto_novo():
     assert sorted(t.name for t in component.tags) == ["java", "spring"]
     assert [l.title for l in component.links] == ["Dashboard"]
     assert [d.target_component_name for d in component.dependencies] == ["usuario-service"]
+    assert len(component.deployments) == 1
+    assert component.deployments[0].server_name == "srv-prod-app01"
+    assert component.deployments[0].server_ip == "10.0.1.10"
+    assert component.deployments[0].os == "Linux Ubuntu 22.04"
+    assert component.deployments[0].execution_type == "Docker"
+    assert component.deployments[0].port == "8080"
     assert sorted(d.relative_path for d in component.docs) == ["README.md", "index.md"]
 
 
@@ -301,3 +325,36 @@ def test_prune_aborta_quando_o_gitlab_nao_retorna_projetos():
 
     assert isinstance(erro, ProjectListError)
     assert nomes == ["pedido-service", "usuario-service"], "o catálogo tem que sobreviver"
+
+
+class SemPastaDocsCrawler(FakeCrawler):
+    """Crawler para simular projeto sem a pasta /docs, ativando a busca fallback."""
+
+    async def fetch_docs_tree(self, project_id, docs_dir, ref="main"):
+        clean = docs_dir.strip("/")
+        if clean == "docs":
+            return []  # Sem pasta /docs
+        elif not clean:
+            return [
+                {"path": "README.md", "name": "README.md", "type": "blob"},
+                {"path": "CHANGELOG.md", "name": "CHANGELOG.md", "type": "blob"},
+            ]
+        return []
+
+
+async def _sync_fallback_docs(db_path: Path):
+    crawler = SemPastaDocsCrawler(gitlab_url="https://gitlab.local", token="fake")
+    async with _session(db_path) as db:
+        await crawler.sync_all(db)
+        component = (await db.execute(select(Component))).scalars().first()
+        _ = component.docs
+        return component
+
+
+def test_sync_fallback_docs_sem_pasta_docs():
+    """Quando a pasta /docs não existe, o crawler faz a busca fallback por arquivos .md no projeto todo."""
+    with tempfile.TemporaryDirectory() as tmp:
+        component = asyncio.run(_sync_fallback_docs(Path(tmp) / "test.db"))
+
+    assert sorted(d.relative_path for d in component.docs) == ["CHANGELOG.md", "README.md"]
+

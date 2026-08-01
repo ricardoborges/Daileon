@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 import yaml
 
@@ -32,6 +32,23 @@ class ManifestJenkinsConfig(BaseModel):
     server_url: Optional[str] = None
     pipelines: List[ManifestJenkinsPipeline] = Field(default_factory=list)
 
+class ManifestDeployment(BaseModel):
+    environment: str = "production"
+    url: Optional[str] = None
+    server_name: Optional[str] = None
+    server_ip: Optional[str] = None
+    os: Optional[str] = None
+    execution_type: Optional[str] = None
+    port: Optional[Union[int, str]] = None
+    notes: Optional[str] = None
+
+    @field_validator("port", mode="before")
+    @classmethod
+    def prep_port(cls, v):
+        if v is not None:
+            return str(v)
+        return v
+
 class ManifestSpec(BaseModel):
     type: str = "service"
     lifecycle: str = "production"
@@ -40,6 +57,7 @@ class ManifestSpec(BaseModel):
     links: List[ManifestLink] = Field(default_factory=list)
     dependencies: List[ManifestDependency] = Field(default_factory=list)
     jenkins: Optional[ManifestJenkinsConfig] = None
+    deployments: List[ManifestDeployment] = Field(default_factory=list)
 
     @field_validator("jenkins", mode="before")
     @classmethod

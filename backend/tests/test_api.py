@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import Component, ComponentDependency, ComponentLink, DocFile, Tag
+from app.db.models import Component, ComponentDependency, ComponentDeployment, ComponentLink, DocFile, Tag
 from main import app
 
 
@@ -56,6 +56,15 @@ def component(client):
                 title="Visão Geral",
                 content_markdown="# Visão Geral\n\n```mermaid\nsequenceDiagram\n    A->>B: ping\n```",
             ))
+            db.add(ComponentDeployment(
+                component_id=c.id,
+                environment="production",
+                server_name="srv-teste-01",
+                server_ip="10.0.0.1",
+                os="Linux",
+                execution_type="docker",
+                port="8080"
+            ))
             db.commit()
             return {"id": c.id, "name": c.name}
     finally:
@@ -73,12 +82,14 @@ def test_list_catalog(client, component):
     data = response.json()
     assert isinstance(data, list)
     assert [c["name"] for c in data] == [component["name"]]
+    assert data[0]["docs_count"] == 2
 
 def test_get_component_detail(client, component):
     response = client.get(f"/api/catalog/{component['id']}")
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == component["name"]
+    assert data["docs_count"] == 2
     assert "python" in data["tags"]
     assert data["dependencies"] == ["outro-componente"]
 
@@ -114,4 +125,34 @@ def test_get_org_config_unauthenticated():
     data = response.json()
     assert "name" in data
     assert "acronym" in data
+
+def test_list_servers(client, component):
+    response = client.get("/api/servers")
+    assert response.status_code == 200
+    servers = response.json()
+    assert isinstance(servers, list)
+    assert len(servers) >= 1
+    srv = next(s for s in servers if s["server_name"] == "srv-teste-01")
+    assert srv["server_ip"] == "10.0.0.1"
+    assert len(srv["components"]) == 1
+    comp_info = srv["components"][0]
+    assert comp_info["component_name"] == component["name"]
+    assert comp_info["component_id"] == component["id"]
+
+
+def test_get_server_detail(client, component):
+    response = client.get("/api/servers/srv-teste-01")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["server_name"] == "srv-teste-01"
+    assert data["server_ip"] == "10.0.0.1"
+    assert data["components_count"] == 1
+    assert data["components"][0]["component_name"] == component["name"]
+
+
+def test_get_server_detail_inexistente(client):
+    response = client.get("/api/servers/srv-inexistente-999")
+    assert response.status_code == 404
+
+
 

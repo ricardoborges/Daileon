@@ -34,7 +34,7 @@ class ComponentLink(Base):
     url: Mapped[str] = mapped_column(String(500))
     icon: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
-    component: Mapped["Component"] = relationship("Component", back_populates="links")
+    component: Mapped["Component"] = relationship("Component", back_populates="links", lazy="selectin")
 
 class ComponentDependency(Base):
     __tablename__ = "component_dependencies"
@@ -43,7 +43,7 @@ class ComponentDependency(Base):
     source_component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
     target_component_name: Mapped[str] = mapped_column(String(100))
 
-    component: Mapped["Component"] = relationship("Component", back_populates="dependencies")
+    component: Mapped["Component"] = relationship("Component", back_populates="dependencies", lazy="selectin")
 
 class ComponentJenkinsPipeline(Base):
     __tablename__ = "component_jenkins_pipelines"
@@ -55,7 +55,23 @@ class ComponentJenkinsPipeline(Base):
     job: Mapped[str] = mapped_column(String(300))
     server_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    component: Mapped["Component"] = relationship("Component", back_populates="jenkins_pipelines")
+    component: Mapped["Component"] = relationship("Component", back_populates="jenkins_pipelines", lazy="selectin")
+
+class ComponentDeployment(Base):
+    __tablename__ = "component_deployments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
+    environment: Mapped[str] = mapped_column(String(50), default="production")
+    url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    server_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    server_ip: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    os: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    execution_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    port: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    component: Mapped["Component"] = relationship("Component", back_populates="deployments", lazy="selectin")
 
 class DocFile(Base):
     __tablename__ = "doc_files"
@@ -67,7 +83,7 @@ class DocFile(Base):
     content_markdown: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    component: Mapped["Component"] = relationship("Component", back_populates="docs")
+    component: Mapped["Component"] = relationship("Component", back_populates="docs", lazy="selectin")
 
 class Component(Base):
     __tablename__ = "components"
@@ -96,4 +112,5 @@ class Component(Base):
     dependencies: Mapped[List[ComponentDependency]] = relationship("ComponentDependency", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
     docs: Mapped[List[DocFile]] = relationship("DocFile", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
     jenkins_pipelines: Mapped[List[ComponentJenkinsPipeline]] = relationship("ComponentJenkinsPipeline", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
+    deployments: Mapped[List[ComponentDeployment]] = relationship("ComponentDeployment", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
 

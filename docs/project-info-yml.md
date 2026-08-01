@@ -104,6 +104,7 @@ Esse arquivo é válido e produz um componente `Component` / `service` / `produc
 | `links` | lista | Não | `[]` | Ver 3.5. |
 | `dependencies` | lista | Não | `[]` | Ver 3.6. |
 | `jenkins` | objeto / lista | Não | `null` | Configuração de pipelines do Jenkins. Ver 3.7. |
+| `deployments` | lista | Não | `[]` | Lista de ambientes e servidores de instalação. Ver 3.8. |
 
 ### 3.4. `spec.docs`
 
@@ -178,6 +179,44 @@ spec:
 | `environment` | string | Não | `production` | Ambiente associado (ex: `production`, `staging`, `test`). Define a cor do selo visual. |
 | `job` | string | **Sim** | — | Nome ou caminho do job no Jenkins. Pastas são suportadas (ex: `deployments/meu-job`). |
 | `server_url` | string | Não | `null` | URL do servidor Jenkins, caso diferente do padrão configurado no `.env`. |
+
+### 3.8. `spec.deployments`
+
+Lista de informações sobre os ambientes de implantação, servidores e infraestrutura onde o projeto está rodando. Permite registrar a URL do ambiente, nome do servidor, IP, Sistema Operacional, modo de execução (VM, Docker, Bare Metal, etc.) e porta do serviço.
+
+> 💡 **Evitando Redundância:** Não é necessário cadastrar as URLs de homologação ou produção na seção `spec.links` — o Daileon agrega automaticamente as URLs de `deployments` na visão geral de links do componente. Use `spec.links` apenas para recursos auxiliares (ex: Grafana Dashboard, Specs OpenAPI, Jira).
+
+```yaml
+spec:
+  deployments:
+    - environment: production
+      url: https://pagamento.empresa.com
+      server_name: srv-prod-app01
+      server_ip: 10.0.1.50
+      os: "Linux Ubuntu 22.04 LTS"
+      execution_type: Docker
+      port: 8080
+      notes: Cluster Kubernetes principal
+    - environment: homologação
+      url: https://homolog-pagamento.empresa.com
+      server_name: Arya
+      server_ip: 10.43.210.55
+      os: "Windows Server 2022"
+      execution_type: VM
+      port: 8080
+      notes: Ambiente de homologação
+```
+
+| Campo | Tipo | Obrigatório | Padrão | Efeito |
+| --- | --- | --- | --- | --- |
+| `environment` | string | Não | `production` | Nome do ambiente (ex: `production`, `homologation`, `staging`, `test`, `dev`). |
+| `url` | string | Não | `null` | URL pública ou interna de acesso ao ambiente. |
+| `server_name` | string | Não | `null` | Nome do servidor ou host. Agrupado no catálogo global de Servidores. |
+| `server_ip` | string | Não | `null` | Endereço IP do servidor. |
+| `os` | string | Não | `null` | Sistema Operacional e versão (ex: `Linux Ubuntu 22.04 LTS`, `Windows Server 2022`). |
+| `execution_type` | string | Não | `null` | Modo de execução do serviço (ex: `VM`, `Docker`, `Bare Metal`, `Kubernetes`). |
+| `port` | número / string | Não | `null` | Porta em que o serviço escuta (ex: `8080`, `5173`, `443`). |
+| `notes` | string | Não | `null` | Observações adicionais sobre o ambiente ou infraestrutura. |
 
 
 ---

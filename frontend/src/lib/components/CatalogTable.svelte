@@ -126,10 +126,10 @@
           <!-- Ações -->
           <td class="py-3.5 px-4 whitespace-nowrap text-right">
             <div class="flex items-center justify-end gap-2">
-              {#if item.has_manifest}
-                <a href={`/catalog/${item.id}/docs/index.md`} class="btn btn-sm">
+              {#if item.has_manifest || (item.docs_count && item.docs_count > 0)}
+                <a href={`/catalog/${item.id}?tab=docs`} class="btn btn-sm">
                   <BookOpen class="w-3 h-3" />
-                  {$t("card.docs")}
+                  {$t("card.docs", { count: item.docs_count ?? 0 })}
                 </a>
               {/if}
 
