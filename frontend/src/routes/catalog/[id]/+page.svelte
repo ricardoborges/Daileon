@@ -349,7 +349,7 @@
             <Server class="w-8 h-8 mx-auto t-faint" />
             <h4 class="font-medium t-txt text-base">{$t('catalog.deployments_none')}</h4>
             <p class="t-dim text-xs max-w-md mx-auto">
-              Declare a seção <code class="text-xs font-mono bg-line px-1.5 py-0.5 rounded">deployments</code> no seu arquivo <code class="text-xs font-mono bg-line px-1.5 py-0.5 rounded">project-info.yml</code> para registrar os servidores e ambientes deste projeto.
+              Declare a seção <code class="text-xs font-mono bg-surface-3 border border-line px-1.5 py-0.5 rounded t-crest">deployments</code> no seu arquivo <code class="text-xs font-mono bg-surface-3 border border-line px-1.5 py-0.5 rounded t-crest">project-info.yml</code> para registrar os servidores e ambientes deste projeto.
             </p>
           </div>
         {:else if deploymentViewMode === 'cards'}
@@ -398,7 +398,7 @@
                       <span class="t-faint text-xs">Endereço IP:</span>
                       <a
                         href={`/servers/${encodeURIComponent(dep.server_name || dep.server_ip)}`}
-                        class="font-mono text-xs text-emerald-400 font-semibold hover:underline"
+                        class="font-mono text-xs t-ok font-semibold hover:underline"
                         title="Ver detalhamento do servidor"
                       >
                         {dep.server_ip}
@@ -463,7 +463,7 @@
               </thead>
               <tbody class="divide-y divide-line">
                 {#each component.deployments as dep}
-                  <tr class="hover:bg-surface-2/50 transition-colors">
+                  <tr class="hover:bg-surface-2 transition-colors">
                     <td class="p-3.5">
                       <span class="chip {envBadgeClass(dep.environment)} uppercase text-[10px] tracking-wider font-bold">
                         {dep.environment}
@@ -490,7 +490,7 @@
                         <span class="t-faint">—</span>
                       {/if}
                     </td>
-                    <td class="p-3.5 font-mono text-emerald-400 font-semibold">
+                    <td class="p-3.5 font-mono t-ok font-semibold">
                       {#if dep.server_ip}
                         <a
                           href={`/servers/${encodeURIComponent(dep.server_name || dep.server_ip)}`}
@@ -599,7 +599,7 @@
             <Activity class="w-8 h-8 mx-auto t-faint" />
             <h4 class="font-medium t-txt text-base">Nenhuma pipeline cadastrada</h4>
             <p class="t-dim text-xs max-w-md mx-auto">
-              Para visualizar os builds do Jenkins aqui, declare a seção <code class="text-xs font-mono bg-line px-1.5 py-0.5 rounded">jenkins</code> no seu arquivo <code class="text-xs font-mono bg-line px-1.5 py-0.5 rounded">project-info.yml</code>.
+              Para visualizar os builds do Jenkins aqui, declare a seção <code class="text-xs font-mono bg-surface-3 border border-line px-1.5 py-0.5 rounded t-crest">jenkins</code> no seu arquivo <code class="text-xs font-mono bg-surface-3 border border-line px-1.5 py-0.5 rounded t-crest">project-info.yml</code>.
             </p>
           </div>
         {:else}
@@ -626,19 +626,19 @@
                     <!-- Badge de Status -->
                     <div class="shrink-0">
                       {#if status === 'SUCCESS'}
-                        <span class="chip chip-visor flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
-                          <CheckCircle2 class="w-4 h-4 text-emerald-400" /> SUCESSO
+                        <span class="chip chip-ok flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
+                          <CheckCircle2 class="w-4 h-4" /> SUCESSO
                         </span>
                       {:else if status === 'FAILURE'}
                         <span class="chip chip-alert flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
-                          <XCircle class="w-4 h-4 text-rose-400" /> FALHA
+                          <XCircle class="w-4 h-4" /> FALHA
                         </span>
                       {:else if status === 'BUILDING'}
-                        <span class="chip chip-crest flex items-center gap-1.5 px-3 py-1 font-semibold text-xs animate-pulse">
-                          <PlayCircle class="w-4 h-4 animate-spin text-cyan-400" /> EXECUTANDO
+                        <span class="chip chip-visor flex items-center gap-1.5 px-3 py-1 font-semibold text-xs animate-pulse">
+                          <PlayCircle class="w-4 h-4 animate-spin" /> EXECUTANDO
                         </span>
                       {:else if status === 'UNSTABLE'}
-                        <span class="chip flex items-center gap-1.5 px-3 py-1 font-semibold text-xs text-amber-400 border-amber-500/30">
+                        <span class="chip chip-crest flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
                           <AlertTriangle class="w-4 h-4" /> INSTÁVEL
                         </span>
                       {:else}
@@ -679,7 +679,7 @@
                       {/if}
                     </div>
                   {:else if pipe.status_info.message}
-                    <div class="text-xs t-alert bg-rose-500/10 border border-rose-500/20 rounded p-3">
+                    <div class="text-xs t-alert bg-alert-wash border border-line rounded p-3">
                       {pipe.status_info.message}
                     </div>
                   {/if}

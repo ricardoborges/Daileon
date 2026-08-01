@@ -32,39 +32,68 @@
     /* Texto */
     --txt: #131c20;
     --txt-dim: #4f6069;
-    --txt-faint: #7b8b93;
+    /* Escurecido até 4.5:1 sobre --surface-3, o fundo mais denso onde
+       rótulos e legendas aparecem. */
+    --txt-faint: #5d696f;
 
-    /* Acentos */
-    --visor: #0a7f99;
-    --visor-bright: #0aa0c0;
+    /* Acentos — calibrados para 4.5:1 sobre o próprio wash. No claro
+       "bright" significa mais profundo, não mais luminoso: o texto sobre
+       o preenchimento é branco e precisa continuar legível no hover. */
+    --visor: #09748c;
+    --visor-bright: #086478;
     --visor-ink: #ffffff;
-    --visor-wash: rgba(10, 127, 153, 0.1);
-    --crest: #9a6f06;
-    --crest-wash: rgba(154, 111, 6, 0.12);
-    --alert: #c53a24;
-    --alert-wash: rgba(197, 58, 36, 0.1);
-    --ok: #0f7a55;
-    --ok-wash: rgba(15, 122, 85, 0.1);
+    --visor-wash: rgba(9, 116, 140, 0.1);
+    --crest: #886205;
+    --crest-wash: rgba(136, 98, 5, 0.12);
+    --alert: #c03923;
+    --alert-wash: rgba(192, 57, 35, 0.1);
+    --ok: #0f7954;
+    --ok-wash: rgba(15, 121, 84, 0.1);
+    --iris: #5b45a6;
+    --iris-wash: rgba(91, 69, 166, 0.1);
 
-    --glow: 0 0 0 1px rgba(10, 127, 153, 0.25), 0 8px 24px -12px rgba(10, 127, 153, 0.5);
+    /* Apelidos usados pelos componentes */
+    --card: var(--surface);
+    --bg-shallow: var(--surface-2);
+    --bg-hover: rgba(22, 46, 55, 0.05);
+    --line-soft: rgba(22, 46, 55, 0.09);
+    --line-bright: var(--line-strong);
+
+    /* Slab de código: no claro é papel, não terminal */
+    --code-bg: #f6f4ee;
+    --code-txt: #232f35;
+
+    /* Escala do heatmap — claro escurece conforme a intensidade */
+    --heat-1: #a8ddc0;
+    --heat-2: #57b98a;
+    --heat-3: #23905f;
+    --heat-4: #0d6640;
+    --heat-ink: #ffffff;
+
+    --glow: 0 0 0 1px rgba(9, 116, 140, 0.25), 0 8px 24px -12px rgba(9, 116, 140, 0.5);
     --chamfer: 10px;
   }
 
   :root.dark {
     color-scheme: dark;
 
-    --bg: #080c0f;
-    --grid: rgba(126, 176, 192, 0.055);
-    --surface: #0f1519;
-    --surface-2: #141c21;
-    --surface-3: #1b252b;
+    /* Escala de superfícies: cada degrau dobra a luminância do anterior,
+       partindo do aço em vez do preto. O contraste vizinho fica em ~1.1,
+       o suficiente para separar painel de fundo sem virar cinza chapado. */
+    --bg: #0f1519;
+    --grid: rgba(126, 176, 192, 0.07);
+    --surface: #161f24;
+    --surface-2: #1d272d;
+    --surface-3: #26323a;
 
-    --line: rgba(150, 184, 198, 0.14);
-    --line-strong: rgba(150, 184, 198, 0.32);
+    /* Traços acompanham o clareamento das superfícies para não sumirem. */
+    --line: rgba(158, 190, 203, 0.17);
+    --line-strong: rgba(158, 190, 203, 0.36);
 
     --txt: #e4edf1;
     --txt-dim: #94a7b1;
-    --txt-faint: #64777f;
+    /* Clareado até 4.5:1 sobre --surface-3, mesmo critério do tema claro. */
+    --txt-faint: #849da7;
 
     --visor: #2ed3ec;
     --visor-bright: #7ce9fb;
@@ -76,6 +105,26 @@
     --alert-wash: rgba(244, 99, 74, 0.12);
     --ok: #3ddc97;
     --ok-wash: rgba(61, 220, 151, 0.12);
+    --iris: #b49bf5;
+    --iris-wash: rgba(180, 155, 245, 0.14);
+
+    --card: var(--surface);
+    --bg-shallow: var(--surface-2);
+    --bg-hover: rgba(158, 190, 203, 0.07);
+    --line-soft: rgba(158, 190, 203, 0.09);
+    --line-bright: var(--line-strong);
+
+    /* O slab de código fica um degrau abaixo do fundo para continuar
+       lendo como "terminal" mesmo com a escala mais clara. */
+    --code-bg: #0c1216;
+    --code-txt: #c6d5db;
+
+    /* Escala do heatmap — no escuro clareia conforme a intensidade */
+    --heat-1: #0e4a34;
+    --heat-2: #1b8256;
+    --heat-3: #2fbc7c;
+    --heat-4: #5fe5a8;
+    --heat-ink: #03171d;
 
     --glow: 0 0 0 1px rgba(46, 211, 236, 0.35), 0 10px 30px -14px rgba(46, 211, 236, 0.55);
   }
@@ -156,14 +205,22 @@
   .t-crest { color: var(--crest); }
   .t-alert { color: var(--alert); }
   .t-ok { color: var(--ok); }
+  .t-iris { color: var(--iris); }
+  .t-muted { color: var(--txt-dim); }
 
   .bg-surface { background: var(--surface); }
   .bg-surface-2 { background: var(--surface-2); }
   .bg-surface-3 { background: var(--surface-3); }
+  .bg-card { background: var(--card); }
   .bg-visor-wash { background: var(--visor-wash); }
   .bg-crest-wash { background: var(--crest-wash); }
+  .bg-ok-wash { background: var(--ok-wash); }
+  .bg-alert-wash { background: var(--alert-wash); }
+  .bg-iris-wash { background: var(--iris-wash); }
+  .bg-line-soft { background: var(--line-soft); }
 
   .border-line { border-color: var(--line); }
+  .border-line-soft { border-color: var(--line-soft); }
   .border-line-strong { border-color: var(--line-strong); }
   .border-visor { border-color: var(--visor); }
   .border-crest { border-color: var(--crest); }
@@ -363,6 +420,17 @@
     color: var(--crest);
   }
 
+  /* Botão discreto: sem moldura até ser tocado */
+  .btn-ghost {
+    border-color: transparent;
+    color: var(--txt-dim);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    border-color: var(--line);
+    background: var(--surface-2);
+    color: var(--txt);
+  }
+
   .btn-sm {
     padding: 0.3rem 0.6rem;
     font-size: 0.625rem;
@@ -370,14 +438,18 @@
   }
 
   /* --------------------------------------------------------------- Campos */
+  /* Controle único de formulário. Todo input/select/textarea do portal usa
+     `.field` — não replique estes valores em style inline, senão as telas
+     divergem (foi o que aconteceu entre o builder e as configurações).    */
   .field {
     width: 100%;
     background: var(--surface-2);
     border: 1px solid var(--line);
     border-bottom: 2px solid var(--line-strong);
     border-radius: 2px;
-    padding: 0.55rem 0.8rem;
-    font-size: 0.8125rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.35;
     color: var(--txt);
     transition: border-color 0.16s ease, background 0.16s ease;
   }
@@ -389,6 +461,97 @@
     background: var(--surface);
     border-color: var(--line);
     border-bottom-color: var(--visor);
+  }
+  .field:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  textarea.field {
+    resize: vertical;
+    min-height: 4.5rem;
+  }
+  .field-mono {
+    font-family: theme('fontFamily.mono');
+    font-size: 0.8125rem;
+  }
+
+  /* Rótulo do campo: mesma régua das configurações — mono, caixa alta,
+     porém no tom cheio do texto para não sumir sobre o painel.           */
+  .field-label {
+    display: block;
+    font-family: theme('fontFamily.mono');
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--txt);
+  }
+  /* Marca de obrigatório */
+  .field-req::after {
+    content: ' *';
+    color: var(--alert);
+  }
+  /* Texto de apoio sob o campo */
+  .field-help {
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    color: var(--txt-dim);
+  }
+
+  /* Grade padrão de formulário e barra de ações — a mesma das configurações */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+  @media (min-width: 640px) {
+    .form-grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .form-grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
+  /* Cabeçalho de seção de formulário — título + subtítulo + ação à direita */
+  .form-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .form-head h2,
+  .form-head h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--txt);
+  }
+  .form-head h3 {
+    font-size: 0.875rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: theme('fontFamily.mono');
+    color: var(--visor);
   }
 
   select.field {
@@ -471,6 +634,21 @@
     border-color: color-mix(in srgb, var(--alert) 45%, transparent);
     background: var(--alert-wash);
     color: var(--alert);
+  }
+  .chip-iris {
+    border-color: color-mix(in srgb, var(--iris) 45%, transparent);
+    background: var(--iris-wash);
+    color: var(--iris);
+  }
+
+  /* Leitura de rede: endereço IP, porta — sempre em mono, sem caixa alta */
+  .chip-net {
+    border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+    background: var(--ok-wash);
+    color: var(--ok);
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0.02em;
   }
 
   /* Tag de conteúdo: entalhe à esquerda em vez de pílula */
@@ -637,6 +815,50 @@
   .console-ok { color: var(--ok); }
   .console-warn { color: var(--crest); }
   .console-error { color: var(--alert); }
+
+  /* Bloco de código bruto (YAML do manifesto) — segue o tema, não é fixo */
+  .code-slab {
+    background: var(--code-bg);
+    color: var(--code-txt);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  /* ------------------------------------------------- Heatmap de commits */
+  /* Cinco degraus; a escala inverte de sentido entre claro e escuro para
+     que "mais commits" seja sempre o degrau de maior contraste.          */
+  .heat {
+    border: 1px solid var(--line-soft);
+    background: var(--surface-2);
+    transition: filter 0.15s ease, border-color 0.15s ease;
+  }
+  .heat-1 {
+    background: var(--heat-1);
+    border-color: color-mix(in srgb, var(--heat-1) 70%, var(--txt));
+  }
+  .heat-2 {
+    background: var(--heat-2);
+    border-color: color-mix(in srgb, var(--heat-2) 70%, var(--txt));
+  }
+  .heat-3 {
+    background: var(--heat-3);
+    border-color: color-mix(in srgb, var(--heat-3) 70%, var(--txt));
+  }
+  .heat-4 {
+    background: var(--heat-4);
+    border-color: color-mix(in srgb, var(--heat-4) 65%, var(--txt));
+    box-shadow: 0 0 6px color-mix(in srgb, var(--heat-4) 60%, transparent);
+  }
+  .heat-0:hover {
+    border-color: var(--line-strong);
+  }
+  .heat-1:hover,
+  .heat-2:hover,
+  .heat-3:hover,
+  .heat-4:hover {
+    filter: brightness(1.15);
+  }
 
   /* --------------------------------------------------------- Carregamento */
   .skeleton {

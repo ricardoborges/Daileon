@@ -47,7 +47,7 @@
   <table class="w-full text-left border-collapse min-w-[800px]">
     <thead>
       <tr
-        class="border-b border-line bg-surface-2/60 text-[11px] font-mono uppercase tracking-wider t-faint"
+        class="border-b border-line bg-surface-2 text-[11px] font-mono uppercase tracking-wider t-faint"
       >
         <th class="py-3 px-4">{$t("catalog.colName")}</th>
         <th class="py-3 px-4">{$t("catalog.colType")}</th>
@@ -66,7 +66,7 @@
           $locale,
         )}
         {@const createdDate = formatDate(item.gitlab_created_at, $locale)}
-        <tr class="hover:bg-surface-2/50 transition-colors">
+        <tr class="hover:bg-surface-2 transition-colors">
           <!-- Nome e Descrição -->
           <td class="py-3.5 px-4 max-w-xs">
             <div class="flex items-center gap-2">

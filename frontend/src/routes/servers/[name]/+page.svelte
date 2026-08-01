@@ -152,16 +152,16 @@
             </h1>
 
             {#if server.server_ip}
-              <div class="flex items-center gap-1.5 bg-emerald-950/50 border border-emerald-500/30 rounded-lg px-3 py-1 text-xs font-mono text-emerald-400">
+              <div class="chip chip-net gap-1.5 px-3 py-1 text-xs">
                 <span class="t-faint font-sans">IP:</span>
                 <span class="font-bold">{server.server_ip}</span>
                 <button
                   on:click={() => copyToClipboard(server?.server_ip || '')}
-                  class="ml-1 p-1 hover:text-white transition-colors"
+                  class="ml-1 p-1 hover:t-txt transition-colors"
                   title={$t('serverDetail.copyIp')}
                 >
                   {#if copiedIp}
-                    <Check class="w-3.5 h-3.5 text-emerald-400" />
+                    <Check class="w-3.5 h-3.5" />
                   {:else}
                     <Copy class="w-3.5 h-3.5" />
                   {/if}
@@ -196,7 +196,7 @@
         </div>
 
         <div class="plate p-4 space-y-1 text-center" style="--chamfer: 10px;">
-          <Terminal class="w-4 h-4 mx-auto text-sky-400" />
+          <Terminal class="w-4 h-4 mx-auto t-ok" />
           <span class="t-faint text-xs block font-medium">{$t('serverDetail.execModes')}</span>
           <span class="text-2xl font-bold t-txt font-mono">
             {executionModes.length > 0 ? executionModes.join(', ') : '-'}
@@ -204,7 +204,7 @@
         </div>
 
         <div class="plate p-4 space-y-1 text-center" style="--chamfer: 10px;">
-          <Hash class="w-4 h-4 mx-auto text-purple-400" />
+          <Hash class="w-4 h-4 mx-auto t-iris" />
           <span class="t-faint text-xs block font-medium">{$t('serverDetail.portsAllocated')}</span>
           <span class="text-2xl font-bold t-txt font-mono">
             {portsList.length > 0 ? portsList.length : 0}
@@ -327,7 +327,7 @@
                     <!-- Porta -->
                     <td class="py-3.5 px-4 font-mono">
                       {#if comp.port}
-                        <span class="font-bold text-emerald-400">:{comp.port}</span>
+                        <span class="font-bold t-ok">:{comp.port}</span>
                       {:else}
                         <span class="t-faint">-</span>
                       {/if}
@@ -405,7 +405,7 @@
                 {#if comp.port}
                   <div>
                     <span class="t-faint font-sans">Porta:</span>
-                    <strong class="text-emerald-400">:{comp.port}</strong>
+                    <strong class="t-ok">:{comp.port}</strong>
                   </div>
                 {/if}
                 {#if comp.os}

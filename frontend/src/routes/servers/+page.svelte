@@ -205,7 +205,7 @@
                 {#if server.server_ip}
                   <div class="flex items-center gap-2 text-xs">
                     <span class="t-faint">IP:</span>
-                    <span class="font-mono font-semibold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <span class="chip chip-net text-[11px] px-2 py-0.5">
                       {server.server_ip}
                     </span>
                   </div>
@@ -309,7 +309,7 @@
                       {server.server_name}
                     </div>
                     {#if server.server_ip}
-                      <span class="inline-block font-mono text-[11px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">
+                      <span class="chip chip-net text-[11px] px-2 py-0.5">
                         {server.server_ip}
                       </span>
                     {/if}
@@ -337,7 +337,7 @@
                       {#each server.components.slice(0, 4) as comp}
                         <a
                           href={`/catalog/${comp.component_id}`}
-                          class="text-[10px] bg-line/60 hover:bg-line px-1.5 py-0.5 rounded font-medium t-txt hover:t-visor transition-colors truncate max-w-[120px]"
+                          class="text-[10px] bg-line-soft hover:bg-surface-3 px-1.5 py-0.5 rounded font-medium t-txt hover:t-visor transition-colors truncate max-w-[120px]"
                           title={`${comp.component_name} (${comp.environment})`}
                         >
                           {comp.component_name}

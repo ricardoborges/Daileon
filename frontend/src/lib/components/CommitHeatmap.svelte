@@ -97,15 +97,15 @@
   function getLevelClass(level: number): string {
     switch (level) {
       case 1:
-        return 'bg-emerald-900/60 border-emerald-700/50 hover:bg-emerald-800';
+        return 'heat heat-1';
       case 2:
-        return 'bg-emerald-700 border-emerald-500/60 hover:bg-emerald-600';
+        return 'heat heat-2';
       case 3:
-        return 'bg-emerald-500 border-emerald-400 hover:bg-emerald-400';
+        return 'heat heat-3';
       case 4:
-        return 'bg-emerald-400 border-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.7)] hover:bg-emerald-300';
+        return 'heat heat-4';
       default:
-        return 'bg-surface-2 border-line/40 hover:border-line';
+        return 'heat heat-0';
     }
   }
 </script>
@@ -167,14 +167,14 @@
               <div class="grid grid-rows-7 gap-[3px]">
                 {#each week as day}
                   <div
-                    class="w-[11px] h-[11px] rounded-[2px] border transition-all duration-150 relative group cursor-pointer {getLevelClass(day.level)}"
+                    class="w-[11px] h-[11px] rounded-[2px] relative group cursor-pointer {getLevelClass(day.level)}"
                   >
                     <!-- Tooltip customizado -->
                     <div
                       class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center z-30 min-w-[130px]"
                     >
-                      <div class="bg-surface-3 border border-line text-t-txt text-[11px] rounded py-1 px-2.5 shadow-xl text-center whitespace-nowrap">
-                        <div class="font-bold text-emerald-400">
+                      <div class="bg-surface-3 border border-line t-txt text-[11px] rounded py-1 px-2.5 shadow-xl text-center whitespace-nowrap">
+                        <div class="font-bold t-ok">
                           {day.count === 0 ? 'Nenhum commit' : `${day.count} commit${day.count > 1 ? 's' : ''}`}
                         </div>
                         <div class="text-[10px] opacity-75 font-mono">{day.displayDate}</div>
@@ -189,7 +189,7 @@
         </div>
 
         <!-- Legenda -->
-        <div class="flex items-center justify-between pt-3 text-[11px] t-faint border-t border-line/40">
+        <div class="flex items-center justify-between pt-3 text-[11px] t-faint border-t border-line-soft">
           <span class="flex items-center gap-1.5">
             <Calendar class="w-3.5 h-3.5 opacity-60" />
             <span>Últimos 12 meses</span>
@@ -198,11 +198,11 @@
           <div class="flex items-center gap-2">
             <span>{$t('catalog.commits_less')}</span>
             <div class="flex items-center gap-[3px]">
-              <div class="w-[11px] h-[11px] rounded-[2px] bg-surface-2 border border-line/40" title="0 commits"></div>
-              <div class="w-[11px] h-[11px] rounded-[2px] bg-emerald-900/60 border border-emerald-700/50" title="1-2 commits"></div>
-              <div class="w-[11px] h-[11px] rounded-[2px] bg-emerald-700 border border-emerald-500/60" title="3-5 commits"></div>
-              <div class="w-[11px] h-[11px] rounded-[2px] bg-emerald-500 border border-emerald-400" title="6-9 commits"></div>
-              <div class="w-[11px] h-[11px] rounded-[2px] bg-emerald-400 border border-emerald-300 shadow-[0_0_6px_rgba(52,211,153,0.7)]" title="10+ commits"></div>
+              <div class="w-[11px] h-[11px] rounded-[2px] heat heat-0" title="0 commits"></div>
+              <div class="w-[11px] h-[11px] rounded-[2px] heat heat-1" title="1-2 commits"></div>
+              <div class="w-[11px] h-[11px] rounded-[2px] heat heat-2" title="3-5 commits"></div>
+              <div class="w-[11px] h-[11px] rounded-[2px] heat heat-3" title="6-9 commits"></div>
+              <div class="w-[11px] h-[11px] rounded-[2px] heat heat-4" title="10+ commits"></div>
             </div>
             <span>{$t('catalog.commits_more')}</span>
           </div>

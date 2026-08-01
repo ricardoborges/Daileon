@@ -535,7 +535,7 @@
     <!-- ABA 2: LDAP -->
     <section class="plate p-6 space-y-6" style="--chamfer: 16px;">
       <div
-        class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] pb-4"
+        class="form-head"
       >
         <div class="space-y-1">
           <h2 class="text-lg font-bold t-txt flex items-center gap-2">
@@ -577,10 +577,10 @@
         </div>
       {/if}
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div class="form-grid form-grid-3">
         <!-- Servidor Host -->
-        <div class="space-y-1.5">
-          <label for="ldap_host" class="label text-xs font-semibold t-txt"
+        <div class="form-row">
+          <label for="ldap_host" class="field-label"
             >{$t("config.ldapHost")}</label
           >
           <input
@@ -588,14 +588,13 @@
             type="text"
             bind:value={ldapConfig.server_host}
             placeholder={$t("config.ldapHostPlaceholder")}
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field"
           />
         </div>
 
         <!-- Porta -->
-        <div class="space-y-1.5">
-          <label for="ldap_port" class="label text-xs font-semibold t-txt"
+        <div class="form-row">
+          <label for="ldap_port" class="field-label"
             >{$t("config.ldapPort")}</label
           >
           <input
@@ -603,13 +602,12 @@
             type="number"
             bind:value={ldapConfig.server_port}
             placeholder="389"
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field"
           />
         </div>
 
         <!-- Checkbox SSL -->
-        <div class="space-y-1.5 flex flex-col justify-end">
+        <div class="form-row justify-end">
           <label
             class="flex items-center gap-2 text-xs font-semibold t-txt cursor-pointer py-2.5"
           >
@@ -623,8 +621,8 @@
         </div>
 
         <!-- Bind DN -->
-        <div class="space-y-1.5 lg:col-span-2">
-          <label for="bind_dn" class="label text-xs font-semibold t-txt"
+        <div class="form-row lg:col-span-2">
+          <label for="bind_dn" class="field-label"
             >{$t("config.ldapBindDn")}</label
           >
           <input
@@ -632,14 +630,13 @@
             type="text"
             bind:value={ldapConfig.bind_dn}
             placeholder={$t("config.ldapBindDnPlaceholder")}
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field"
           />
         </div>
 
         <!-- Bind Password -->
-        <div class="space-y-1.5">
-          <label for="bind_password" class="label text-xs font-semibold t-txt"
+        <div class="form-row">
+          <label for="bind_password" class="field-label"
             >{$t("config.ldapBindPass")}</label
           >
           <input
@@ -647,14 +644,13 @@
             type="password"
             bind:value={ldapConfig.bind_password}
             placeholder={$t("config.ldapBindPassPlaceholder")}
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field"
           />
         </div>
 
         <!-- Base DN -->
-        <div class="space-y-1.5 lg:col-span-2">
-          <label for="base_dn" class="label text-xs font-semibold t-txt"
+        <div class="form-row lg:col-span-2">
+          <label for="base_dn" class="field-label"
             >{$t("config.ldapBaseDn")}</label
           >
           <input
@@ -662,14 +658,13 @@
             type="text"
             bind:value={ldapConfig.base_dn}
             placeholder={$t("config.ldapBaseDnPlaceholder")}
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field"
           />
         </div>
 
         <!-- Atributo do Usuário -->
-        <div class="space-y-1.5">
-          <label for="user_attr" class="label text-xs font-semibold t-txt"
+        <div class="form-row">
+          <label for="user_attr" class="field-label"
             >{$t("config.ldapUserAttr")}</label
           >
           <input
@@ -677,15 +672,14 @@
             type="text"
             bind:value={ldapConfig.user_attribute}
             placeholder="uid ou sAMAccountName"
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field"
           />
         </div>
       </div>
 
       <!-- Botões de Ação -->
       <div
-        class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-[var(--line)]"
+        class="form-actions"
       >
         <button
           type="button"
@@ -726,7 +720,7 @@
     <!-- ABA 3: Organização -->
     <section class="plate p-6 space-y-6" style="--chamfer: 16px;">
       <div
-        class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] pb-4"
+        class="form-head"
       >
         <div class="space-y-1">
           <h2 class="text-lg font-bold t-txt flex items-center gap-2">
@@ -753,10 +747,10 @@
         </div>
       {/if}
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div class="form-grid form-grid-2">
         <!-- Nome da Organização -->
-        <div class="space-y-1.5">
-          <label for="org_name" class="label text-xs font-semibold t-txt"
+        <div class="form-row">
+          <label for="org_name" class="field-label"
             >{$t("config.orgName")}</label
           >
           <input
@@ -764,14 +758,13 @@
             type="text"
             bind:value={orgConfig.name}
             placeholder={$t("config.orgNamePlaceholder")}
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field"
           />
         </div>
 
         <!-- Sigla da Organização -->
-        <div class="space-y-1.5">
-          <label for="org_acronym" class="label text-xs font-semibold t-txt"
+        <div class="form-row">
+          <label for="org_acronym" class="field-label"
             >{$t("config.orgAcronym")}</label
           >
           <input
@@ -779,15 +772,14 @@
             type="text"
             bind:value={orgConfig.acronym}
             placeholder={$t("config.orgAcronymPlaceholder")}
-            class="w-full px-3 py-2 rounded text-sm t-txt outline-none font-mono"
-            style="background: var(--surface-2); border: 1px solid var(--line);"
+            class="field field-mono"
           />
         </div>
       </div>
 
       <!-- Botões de Ação -->
       <div
-        class="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-[var(--line)]"
+        class="form-actions"
       >
         <button
           type="button"

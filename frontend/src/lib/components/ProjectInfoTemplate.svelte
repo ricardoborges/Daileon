@@ -104,8 +104,8 @@ spec:
               class="btn btn-sm btn-ghost flex items-center gap-1.5 text-xs font-mono border border-[var(--line)]"
             >
               {#if copied}
-                <Check class="w-3.5 h-3.5 text-emerald-400" />
-                <span class="text-emerald-400 font-bold">{$t('tools.template.copied')}</span>
+                <Check class="w-3.5 h-3.5 t-ok" />
+                <span class="t-ok font-bold">{$t('tools.template.copied')}</span>
               {:else}
                 <Copy class="w-3.5 h-3.5" />
                 <span>{$t('tools.template.copyTemplate')}</span>
@@ -122,8 +122,8 @@ spec:
           </div>
         </div>
 
-        <div class="rounded border border-[var(--line)] bg-[#0d1117] overflow-hidden">
-          <pre class="p-5 font-mono text-xs text-gray-200 overflow-x-auto max-h-[580px] leading-relaxed select-all"><code>{defaultTemplateYaml}</code></pre>
+        <div class="rounded border border-[var(--line)] code-slab overflow-hidden">
+          <pre class="p-5 font-mono text-xs t-txt overflow-x-auto max-h-[580px] leading-relaxed select-all"><code>{defaultTemplateYaml}</code></pre>
         </div>
       </div>
     </div>
@@ -143,8 +143,8 @@ spec:
           <!-- Kind -->
           <div class="plate plate-deep p-3 space-y-1">
             <div class="flex items-center justify-between">
-              <span class="font-mono text-xs font-bold text-emerald-400">kind</span>
-              <span class="text-[10px] font-mono uppercase bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">Component | API | Library | Resource</span>
+              <span class="font-mono text-xs font-bold t-ok">kind</span>
+              <span class="text-[10px] font-mono uppercase chip chip-ok px-1.5 py-0.5">Component | API | Library | Resource</span>
             </div>
             <p class="text-[11px] t-muted">{$t('tools.template.kindDesc')}</p>
           </div>
@@ -152,8 +152,8 @@ spec:
           <!-- Type -->
           <div class="plate plate-deep p-3 space-y-1">
             <div class="flex items-center justify-between">
-              <span class="font-mono text-xs font-bold text-sky-400">spec.type</span>
-              <span class="text-[10px] font-mono uppercase bg-sky-500/10 text-sky-400 px-1.5 py-0.5 rounded border border-sky-500/20">service | website | library | cronjob</span>
+              <span class="font-mono text-xs font-bold t-visor">spec.type</span>
+              <span class="text-[10px] font-mono uppercase chip chip-visor px-1.5 py-0.5">service | website | library | cronjob</span>
             </div>
             <p class="text-[11px] t-muted">{$t('tools.template.typeDesc')}</p>
           </div>
@@ -161,8 +161,8 @@ spec:
           <!-- Lifecycle -->
           <div class="plate plate-deep p-3 space-y-1">
             <div class="flex items-center justify-between">
-              <span class="font-mono text-xs font-bold text-amber-400">spec.lifecycle</span>
-              <span class="text-[10px] font-mono uppercase bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20">production | experimental | deprecated</span>
+              <span class="font-mono text-xs font-bold t-crest">spec.lifecycle</span>
+              <span class="text-[10px] font-mono uppercase chip chip-crest px-1.5 py-0.5">production | experimental | deprecated</span>
             </div>
             <p class="text-[11px] t-muted">{$t('tools.template.lifecycleDesc')}</p>
           </div>
@@ -170,8 +170,8 @@ spec:
           <!-- Execution Type -->
           <div class="plate plate-deep p-3 space-y-1">
             <div class="flex items-center justify-between">
-              <span class="font-mono text-xs font-bold text-purple-400">deployments[].execution_type</span>
-              <span class="text-[10px] font-mono uppercase bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded border border-purple-500/20">Docker | VM | Bare-Metal | Serverless</span>
+              <span class="font-mono text-xs font-bold t-iris">deployments[].execution_type</span>
+              <span class="text-[10px] font-mono uppercase chip chip-iris px-1.5 py-0.5">Docker | VM | Bare-Metal | Serverless</span>
             </div>
             <p class="text-[11px] t-muted">{$t('tools.template.execDesc')}</p>
           </div>
@@ -196,7 +196,7 @@ spec:
           <Shield class="w-4 h-4" />
           <span>metadata</span>
         </div>
-        <ul class="text-xs space-y-1.5 text-gray-300 font-mono">
+        <ul class="text-xs space-y-1.5 t-dim font-mono">
           <li><b class="t-txt font-sans">name:</b> Nome único do repositório/serviço.</li>
           <li><b class="t-txt font-sans">description:</b> Explicação técnica do projeto.</li>
           <li><b class="t-txt font-sans">tags:</b> Lista de tecnologias e tags.</li>
@@ -211,7 +211,7 @@ spec:
           <Terminal class="w-4 h-4" />
           <span>spec & docs</span>
         </div>
-        <ul class="text-xs space-y-1.5 text-gray-300 font-mono">
+        <ul class="text-xs space-y-1.5 t-dim font-mono">
           <li><b class="t-txt font-sans">type:</b> Tipo da aplicação (service/website/etc).</li>
           <li><b class="t-txt font-sans">lifecycle:</b> Fase do ciclo (production/etc).</li>
           <li><b class="t-txt font-sans">system:</b> Agrupador do sistema pai.</li>
@@ -226,7 +226,7 @@ spec:
           <Server class="w-4 h-4" />
           <span>deployments</span>
         </div>
-        <ul class="text-xs space-y-1.5 text-gray-300 font-mono">
+        <ul class="text-xs space-y-1.5 t-dim font-mono">
           <li><b class="t-txt font-sans">environment:</b> production, staging, test, dev.</li>
           <li><b class="t-txt font-sans">server_name:</b> Nome de host do servidor.</li>
           <li><b class="t-txt font-sans">server_ip:</b> IP de rede do servidor.</li>
@@ -242,7 +242,7 @@ spec:
           <Workflow class="w-4 h-4" />
           <span>jenkins</span>
         </div>
-        <ul class="text-xs space-y-1.5 text-gray-300 font-mono">
+        <ul class="text-xs space-y-1.5 t-dim font-mono">
           <li><b class="t-txt font-sans">pipelines[].name:</b> Nome legível da pipeline.</li>
           <li><b class="t-txt font-sans">pipelines[].environment:</b> Ambiente associado.</li>
           <li><b class="t-txt font-sans">pipelines[].job:</b> Caminho do Job no Jenkins.</li>
@@ -255,7 +255,7 @@ spec:
           <LinkIcon class="w-4 h-4" />
           <span>links & dependencies</span>
         </div>
-        <ul class="text-xs space-y-1.5 text-gray-300 font-mono">
+        <ul class="text-xs space-y-1.5 t-dim font-mono">
           <li><b class="t-txt font-sans">links[].url:</b> Endereço web externo/interno.</li>
           <li><b class="t-txt font-sans">links[].title:</b> Título exibido no card.</li>
           <li><b class="t-txt font-sans">links[].icon:</b> api, docs, dashboard, etc.</li>

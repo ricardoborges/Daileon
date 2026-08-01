@@ -123,7 +123,7 @@
 
     <!-- Datas com labels -->
     <div
-      class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-2 border-t border-line/40 text-[0.6875rem] font-mono"
+      class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pt-2 border-t border-line-soft text-[0.6875rem] font-mono"
     >
       <div class="flex items-center gap-1.5">
         <span class="t-faint">{$t("card.lastCommit")}</span>

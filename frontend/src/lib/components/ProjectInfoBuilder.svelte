@@ -522,114 +522,118 @@
 
       <!-- Sec 1: Identificação & Metadados -->
       <div class="plate p-6 space-y-4">
-        <h3 class="text-sm font-bold uppercase tracking-wider t-visor flex items-center gap-2">
-          {$t('tools.builder.secMetadata')}
-        </h3>
+        <div class="form-head">
+          <h3>
+            {$t('tools.builder.secMetadata')}
+          </h3>
+        </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label for="builder-name" class="label">{$t('tools.builder.name')} *</label>
+        <div class="form-grid form-grid-2">
+          <div class="form-row">
+            <label for="builder-name" class="field-label">{$t('tools.builder.name')} <span class="t-alert">*</span></label>
             <input
               id="builder-name"
               type="text"
               bind:value={name}
               placeholder={$t('tools.builder.namePlaceholder')}
-              class="input text-sm"
+              class="field"
             />
-            <p class="text-[11px] t-muted">{$t('tools.builder.nameHelp')}</p>
+            <p class="field-help">{$t('tools.builder.nameHelp')}</p>
           </div>
 
-          <div class="space-y-1">
-            <label for="builder-kind" class="label">{$t('tools.builder.kind')} *</label>
-            <select id="builder-kind" bind:value={kind} class="input text-sm">
+          <div class="form-row">
+            <label for="builder-kind" class="field-label">{$t('tools.builder.kind')} <span class="t-alert">*</span></label>
+            <select id="builder-kind" bind:value={kind} class="field">
               {#each kindOptions as opt}
                 <option value={opt}>{opt}</option>
               {/each}
             </select>
-            <p class="text-[11px] t-muted">{$t('tools.builder.kindHelp')}</p>
+            <p class="field-help">{$t('tools.builder.kindHelp')}</p>
           </div>
 
-          <div class="space-y-1">
-            <label for="builder-owner" class="label">{$t('tools.builder.owner')} *</label>
+          <div class="form-row">
+            <label for="builder-owner" class="field-label">{$t('tools.builder.owner')} <span class="t-alert">*</span></label>
             <input
               id="builder-owner"
               type="text"
               bind:value={owner}
               placeholder={$t('tools.builder.ownerPlaceholder')}
-              class="input text-sm"
+              class="field"
             />
           </div>
 
-          <div class="space-y-1">
-            <label for="builder-domain" class="label">{$t('tools.builder.domain')}</label>
+          <div class="form-row">
+            <label for="builder-domain" class="field-label">{$t('tools.builder.domain')}</label>
             <input
               id="builder-domain"
               type="text"
               bind:value={domain}
               placeholder={$t('tools.builder.domainPlaceholder')}
-              class="input text-sm"
+              class="field"
             />
           </div>
         </div>
 
-        <div class="space-y-1">
-          <label for="builder-tags" class="label">{$t('tools.builder.tags')}</label>
+        <div class="form-row">
+          <label for="builder-tags" class="field-label">{$t('tools.builder.tags')}</label>
           <input
             id="builder-tags"
             type="text"
             bind:value={tags}
             placeholder={$t('tools.builder.tagsPlaceholder')}
-            class="input text-sm"
+            class="field"
           />
         </div>
 
-        <div class="space-y-1">
-          <label for="builder-description" class="label">{$t('tools.builder.description')}</label>
+        <div class="form-row">
+          <label for="builder-description" class="field-label">{$t('tools.builder.description')}</label>
           <textarea
             id="builder-description"
             bind:value={description}
             rows="2"
             placeholder={$t('tools.builder.descriptionPlaceholder')}
-            class="input text-sm resize-y"
+            class="field"
           ></textarea>
         </div>
       </div>
 
       <!-- Sec 2: Especificação & Ciclo de Vida -->
       <div class="plate p-6 space-y-4">
-        <h3 class="text-sm font-bold uppercase tracking-wider t-visor flex items-center gap-2">
+        <div class="form-head">
+          <h3>
           {$t('tools.builder.secSpec')}
-        </h3>
+          </h3>
+        </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div class="space-y-1">
-            <label for="builder-type" class="label">{$t('tools.builder.type')} *</label>
-            <select id="builder-type" bind:value={type} class="input text-sm">
+        <div class="form-grid form-grid-3">
+          <div class="form-row">
+            <label for="builder-type" class="field-label">{$t('tools.builder.type')} <span class="t-alert">*</span></label>
+            <select id="builder-type" bind:value={type} class="field">
               {#each typeOptions as opt}
                 <option value={opt}>{opt}</option>
               {/each}
             </select>
-            <p class="text-[11px] t-muted">{$t('tools.builder.typeHelp')}</p>
+            <p class="field-help">{$t('tools.builder.typeHelp')}</p>
           </div>
 
-          <div class="space-y-1">
-            <label for="builder-lifecycle" class="label">{$t('tools.builder.lifecycle')} *</label>
-            <select id="builder-lifecycle" bind:value={lifecycle} class="input text-sm">
+          <div class="form-row">
+            <label for="builder-lifecycle" class="field-label">{$t('tools.builder.lifecycle')} <span class="t-alert">*</span></label>
+            <select id="builder-lifecycle" bind:value={lifecycle} class="field">
               {#each lifecycleOptions as opt}
                 <option value={opt}>{opt}</option>
               {/each}
             </select>
-            <p class="text-[11px] t-muted">{$t('tools.builder.lifecycleHelp')}</p>
+            <p class="field-help">{$t('tools.builder.lifecycleHelp')}</p>
           </div>
 
-          <div class="space-y-1">
-            <label for="builder-system" class="label">{$t('tools.builder.system')}</label>
+          <div class="form-row">
+            <label for="builder-system" class="field-label">{$t('tools.builder.system')}</label>
             <input
               id="builder-system"
               type="text"
               bind:value={system}
               placeholder={$t('tools.builder.systemPlaceholder')}
-              class="input text-sm"
+              class="field"
             />
           </div>
         </div>
@@ -637,30 +641,32 @@
 
       <!-- Sec 3: Documentação Técnica (TechDocs) -->
       <div class="plate p-6 space-y-4">
-        <h3 class="text-sm font-bold uppercase tracking-wider t-visor flex items-center gap-2">
+        <div class="form-head">
+          <h3>
           {$t('tools.builder.secDocs')}
-        </h3>
+          </h3>
+        </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label for="builder-docsdir" class="label">{$t('tools.builder.docsDir')}</label>
+        <div class="form-grid form-grid-2">
+          <div class="form-row">
+            <label for="builder-docsdir" class="field-label">{$t('tools.builder.docsDir')}</label>
             <input
               id="builder-docsdir"
               type="text"
               bind:value={docsDir}
               placeholder="/docs"
-              class="input text-sm font-mono"
+              class="field field-mono"
             />
           </div>
 
-          <div class="space-y-1">
-            <label for="builder-docsindex" class="label">{$t('tools.builder.docsIndex')}</label>
+          <div class="form-row">
+            <label for="builder-docsindex" class="field-label">{$t('tools.builder.docsIndex')}</label>
             <input
               id="builder-docsindex"
               type="text"
               bind:value={docsIndex}
               placeholder="index.md"
-              class="input text-sm font-mono"
+              class="field field-mono"
             />
           </div>
         </div>
@@ -668,8 +674,8 @@
 
       <!-- Sec 4: Deployments -->
       <div class="plate p-6 space-y-4">
-        <div class="flex items-center justify-between gap-4">
-          <h3 class="text-sm font-bold uppercase tracking-wider t-visor">
+        <div class="form-head">
+          <h3>
             {$t('tools.builder.secDeployments')}
           </h3>
           <button on:click={addDeployment} class="btn btn-sm btn-ghost text-xs flex items-center gap-1">
@@ -679,7 +685,7 @@
         </div>
 
         {#if deployments.length === 0}
-          <p class="text-xs t-muted italic">{ $t('tools.builder.noDeployments') }</p>
+          <p class="field-help italic">{ $t('tools.builder.noDeployments') }</p>
         {:else}
           <div class="space-y-4">
             {#each deployments as dep, i}
@@ -688,7 +694,7 @@
                   on:click={() => removeDeployment(i)}
                   title="Remover Ambiente"
                   aria-label="Remover Ambiente"
-                  class="absolute top-3 right-3 text-red-400 hover:text-red-300 p-1 transition-colors"
+                  class="absolute top-3 right-3 t-alert hover:opacity-70 p-1 transition-colors"
                 >
                   <Trash2 class="w-4 h-4" />
                 </button>
@@ -697,90 +703,90 @@
                   # {i + 1} - {dep.environment || 'production'}
                 </span>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  <div class="space-y-1">
-                    <label for={`dep-env-${i}`} class="label text-[11px]">{$t('tools.builder.envName')}</label>
-                    <select id={`dep-env-${i}`} bind:value={dep.environment} class="input text-xs">
+                <div class="form-grid form-grid-3">
+                  <div class="form-row">
+                    <label for={`dep-env-${i}`} class="field-label">{$t('tools.builder.envName')}</label>
+                    <select id={`dep-env-${i}`} bind:value={dep.environment} class="field">
                       {#each environmentOptions as envOpt}
                         <option value={envOpt}>{envOpt}</option>
                       {/each}
                     </select>
                   </div>
 
-                  <div class="space-y-1">
-                    <label for={`dep-server-${i}`} class="label text-[11px]">{$t('tools.builder.serverName')}</label>
+                  <div class="form-row">
+                    <label for={`dep-server-${i}`} class="field-label">{$t('tools.builder.serverName')}</label>
                     <input
                       id={`dep-server-${i}`}
                       type="text"
                       bind:value={dep.server_name}
                       placeholder="ex: srv-prod-01"
-                      class="input text-xs font-mono"
+                      class="field field-mono"
                     />
                   </div>
 
-                  <div class="space-y-1">
-                    <label for={`dep-ip-${i}`} class="label text-[11px]">{$t('tools.builder.serverIp')}</label>
+                  <div class="form-row">
+                    <label for={`dep-ip-${i}`} class="field-label">{$t('tools.builder.serverIp')}</label>
                     <input
                       id={`dep-ip-${i}`}
                       type="text"
                       bind:value={dep.server_ip}
                       placeholder="ex: 192.168.1.50"
-                      class="input text-xs font-mono"
+                      class="field field-mono"
                     />
                   </div>
 
-                  <div class="space-y-1">
-                    <label for={`dep-[exec]-${i}`} class="label text-[11px]">{$t('tools.builder.executionType')}</label>
-                    <select id={`dep-[exec]-${i}`} bind:value={dep.execution_type} class="input text-xs">
+                  <div class="form-row">
+                    <label for={`dep-[exec]-${i}`} class="field-label">{$t('tools.builder.executionType')}</label>
+                    <select id={`dep-[exec]-${i}`} bind:value={dep.execution_type} class="field">
                       {#each executionTypeOptions as execOpt}
                         <option value={execOpt}>{execOpt}</option>
                       {/each}
                     </select>
                   </div>
 
-                  <div class="space-y-1">
-                    <label for={`dep-os-${i}`} class="label text-[11px]">{$t('tools.builder.os')}</label>
+                  <div class="form-row">
+                    <label for={`dep-os-${i}`} class="field-label">{$t('tools.builder.os')}</label>
                     <input
                       id={`dep-os-${i}`}
                       type="text"
                       bind:value={dep.os}
                       placeholder="ex: Ubuntu 22.04 LTS"
-                      class="input text-xs"
+                      class="field"
                     />
                   </div>
 
-                  <div class="space-y-1">
-                    <label for={`dep-port-${i}`} class="label text-[11px]">{$t('tools.builder.port')}</label>
+                  <div class="form-row">
+                    <label for={`dep-port-${i}`} class="field-label">{$t('tools.builder.port')}</label>
                     <input
                       id={`dep-port-${i}`}
                       type="text"
                       bind:value={dep.port}
                       placeholder="ex: 8080"
-                      class="input text-xs font-mono"
+                      class="field field-mono"
                     />
                   </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div class="space-y-1">
-                    <label for={`dep-url-${i}`} class="label text-[11px]">{$t('tools.builder.url')}</label>
+                <div class="form-grid form-grid-2">
+                  <div class="form-row">
+                    <label for={`dep-url-${i}`} class="field-label">{$t('tools.builder.url')}</label>
                     <input
                       id={`dep-url-${i}`}
                       type="text"
                       bind:value={dep.url}
                       placeholder="ex: http://srv-prod-01:8080"
-                      class="input text-xs font-mono"
+                      class="field field-mono"
                     />
                   </div>
 
-                  <div class="space-y-1">
-                    <label for={`dep-notes-${i}`} class="label text-[11px]">{$t('tools.builder.notes')}</label>
+                  <div class="form-row">
+                    <label for={`dep-notes-${i}`} class="field-label">{$t('tools.builder.notes')}</label>
                     <input
                       id={`dep-notes-${i}`}
                       type="text"
                       bind:value={dep.notes}
                       placeholder="ex: Cluster principal com backup automático"
-                      class="input text-xs"
+                      class="field"
                     />
                   </div>
                 </div>
@@ -792,8 +798,8 @@
 
       <!-- Sec 5: Jenkins Pipelines -->
       <div class="plate p-6 space-y-4">
-        <div class="flex items-center justify-between gap-4">
-          <h3 class="text-sm font-bold uppercase tracking-wider t-visor">
+        <div class="form-head">
+          <h3>
             {$t('tools.builder.secJenkins')}
           </h3>
           <button on:click={addJenkinsPipeline} class="btn btn-sm btn-ghost text-xs flex items-center gap-1">
@@ -803,19 +809,19 @@
         </div>
 
         {#if jenkinsPipelines.length === 0}
-          <p class="text-xs t-muted italic">{$t('tools.builder.noPipelines')}</p>
+          <p class="field-help italic">{$t('tools.builder.noPipelines')}</p>
         {:else}
           <div class="space-y-3">
             {#each jenkinsPipelines as pipe, j}
               <div class="plate plate-deep p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 relative group">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                <div class="form-grid form-grid-3 flex-1">
                   <input
                     type="text"
                     bind:value={pipe.name}
                     placeholder={$t('tools.builder.pipelineName')}
-                    class="input text-xs"
+                    class="field"
                   />
-                  <select bind:value={pipe.environment} class="input text-xs">
+                  <select bind:value={pipe.environment} class="field">
                     {#each environmentOptions as envOpt}
                       <option value={envOpt}>{envOpt}</option>
                     {/each}
@@ -824,14 +830,14 @@
                     type="text"
                     bind:value={pipe.job}
                     placeholder={$t('tools.builder.jobPath')}
-                    class="input text-xs font-mono"
+                    class="field field-mono"
                   />
                 </div>
                 <button
                   on:click={() => removeJenkinsPipeline(j)}
                   title="Remover Pipeline"
                   aria-label="Remover Pipeline"
-                  class="text-red-400 hover:text-red-300 p-1 transition-colors self-end sm:self-center"
+                  class="t-alert hover:opacity-70 p-1 transition-colors self-end sm:self-center"
                 >
                   <Trash2 class="w-4 h-4" />
                 </button>
@@ -845,8 +851,8 @@
       <div class="plate p-6 space-y-6">
         <!-- Useful Links -->
         <div class="space-y-4">
-          <div class="flex items-center justify-between gap-4">
-            <h3 class="text-sm font-bold uppercase tracking-wider t-visor">
+          <div class="form-head">
+            <h3>
               {$t('tools.builder.secLinks')}
             </h3>
             <button on:click={addLink} class="btn btn-sm btn-ghost text-xs flex items-center gap-1">
@@ -856,7 +862,7 @@
           </div>
 
           {#if links.length === 0}
-            <p class="text-xs t-muted italic">{$t('tools.builder.noLinks')}</p>
+            <p class="field-help italic">{$t('tools.builder.noLinks')}</p>
           {:else}
             <div class="space-y-3">
               {#each links as link, l}
@@ -865,15 +871,15 @@
                     type="text"
                     bind:value={link.title}
                     placeholder={$t('tools.builder.linkTitle')}
-                    class="input text-xs flex-1"
+                    class="field flex-1"
                   />
                   <input
                     type="text"
                     bind:value={link.url}
                     placeholder={$t('tools.builder.linkUrl')}
-                    class="input text-xs font-mono flex-1"
+                    class="field field-mono flex-1"
                   />
-                  <select bind:value={link.icon} class="input text-xs w-28">
+                  <select bind:value={link.icon} class="field w-full sm:w-36">
                     {#each iconOptions as ico}
                       <option value={ico}>{ico}</option>
                     {/each}
@@ -882,7 +888,7 @@
                     on:click={() => removeLink(l)}
                     title="Remover Link"
                     aria-label="Remover Link"
-                    class="text-red-400 hover:text-red-300 p-1 transition-colors self-end sm:self-center"
+                    class="t-alert hover:opacity-70 p-1 transition-colors self-end sm:self-center"
                   >
                     <Trash2 class="w-4 h-4" />
                   </button>
@@ -893,10 +899,10 @@
         </div>
 
         <div class="border-t border-[var(--line)] pt-4 space-y-4">
-          <div class="flex items-center justify-between gap-4">
-            <h4 class="text-xs font-bold uppercase tracking-wider t-muted">
+          <div class="form-head">
+            <h3>
               Dependências de Software
-            </h4>
+            </h3>
             <button on:click={addDependency} class="btn btn-sm btn-ghost text-xs flex items-center gap-1">
               <Plus class="w-3.5 h-3.5" />
               <span>{$t('tools.builder.addDependency')}</span>
@@ -904,7 +910,7 @@
           </div>
 
           {#if dependencies.length === 0}
-            <p class="text-xs t-muted italic">{$t('tools.builder.noDependencies')}</p>
+            <p class="field-help italic">{$t('tools.builder.noDependencies')}</p>
           {:else}
             <div class="space-y-2">
               {#each dependencies as dep, d}
@@ -913,13 +919,13 @@
                     type="text"
                     bind:value={dep.component}
                     placeholder={$t('tools.builder.depComponent')}
-                    class="input text-xs font-mono flex-1"
+                    class="field field-mono flex-1"
                   />
                   <button
                     on:click={() => removeDependency(d)}
                     title="Remover Dependência"
                     aria-label="Remover Dependência"
-                    class="text-red-400 hover:text-red-300 p-1 transition-colors"
+                    class="t-alert hover:opacity-70 p-1 transition-colors"
                   >
                     <Trash2 class="w-4 h-4" />
                   </button>
@@ -944,15 +950,15 @@
                   {$t('tools.builder.livePreview')}
                 </span>
               </div>
-              <span class="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span class="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded chip chip-ok">
                 <CheckCircle2 class="w-3 h-3" />
                 {$t('tools.builder.validYaml')}
               </span>
             </div>
 
             <!-- Code View Area -->
-            <div class="relative rounded overflow-hidden border border-[var(--line)] bg-[#0d1117]">
-              <pre class="p-4 font-mono text-xs text-gray-200 overflow-x-auto {layoutMode === 'cols' ? 'max-h-[600px]' : 'max-h-[500px]'} leading-relaxed select-all"><code>{yamlOutput}</code></pre>
+            <div class="relative rounded overflow-hidden border border-[var(--line)] code-slab">
+              <pre class="p-4 font-mono text-xs t-txt overflow-x-auto {layoutMode === 'cols' ? 'max-h-[600px]' : 'max-h-[500px]'} leading-relaxed select-all"><code>{yamlOutput}</code></pre>
             </div>
 
             <!-- Action Buttons -->
@@ -962,8 +968,8 @@
                 class="btn btn-sm btn-ghost flex items-center justify-center gap-2 font-mono text-xs border border-[var(--line)]"
               >
                 {#if copied}
-                  <Check class="w-4 h-4 text-emerald-400" />
-                  <span class="text-emerald-400 font-bold">{$t('tools.builder.copied')}</span>
+                  <Check class="w-4 h-4 t-ok" />
+                  <span class="t-ok font-bold">{$t('tools.builder.copied')}</span>
                 {:else}
                   <Copy class="w-4 h-4" />
                   <span>{$t('tools.builder.copyYaml')}</span>
@@ -986,7 +992,7 @@
               <span>Onde salvar este arquivo?</span>
             </div>
             <p>
-              Salve o arquivo gerado exatamente como <code class="font-mono text-emerald-400">project-info.yml</code> na raiz do repositório no GitLab. O Daileon irá indexá-lo na próxima sincronização.
+              Salve o arquivo gerado exatamente como <code class="font-mono t-ok">project-info.yml</code> na raiz do repositório no GitLab. O Daileon irá indexá-lo na próxima sincronização.
             </p>
           </div>
         </div>
@@ -1015,7 +1021,7 @@
               {/if}
             </button>
 
-            <span class="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span class="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded chip chip-ok">
               <CheckCircle2 class="w-3 h-3" />
               Válido
             </span>
@@ -1027,8 +1033,8 @@
               class="btn btn-sm btn-ghost px-2.5 text-xs font-mono border border-[var(--line)]"
             >
               {#if copied}
-                <Check class="w-3.5 h-3.5 text-emerald-400" />
-                <span class="text-emerald-400 font-bold">{$t('tools.builder.copied')}</span>
+                <Check class="w-3.5 h-3.5 t-ok" />
+                <span class="t-ok font-bold">{$t('tools.builder.copied')}</span>
               {:else}
                 <Copy class="w-3.5 h-3.5" />
                 <span>{$t('tools.builder.copyYaml')}</span>
@@ -1047,8 +1053,8 @@
 
         <!-- Conteúdo Expansível da Gaveta -->
         {#if drawerOpen}
-          <div class="p-4 bg-[#0d1117] max-h-72 overflow-y-auto">
-            <pre class="font-mono text-xs text-gray-200 leading-relaxed select-all"><code>{yamlOutput}</code></pre>
+          <div class="p-4 code-slab max-h-72 overflow-y-auto">
+            <pre class="font-mono text-xs t-txt leading-relaxed select-all"><code>{yamlOutput}</code></pre>
           </div>
         {/if}
       </div>
