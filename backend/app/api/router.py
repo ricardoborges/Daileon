@@ -1,5 +1,6 @@
 from typing import List, Optional
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from urllib.parse import quote
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
@@ -9,7 +10,13 @@ from app.api.aggregations import build_group_detail, group_components
 from app.api.graph import build_graph
 from app.db.session import get_db
 from app.db.models import Component, DocFile, Tag, ComponentDeployment
-from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode
+from app.gitlab.gitlab_crawler import (
+    BINARY_DOC_TYPES,
+    GitLabCrawlerService,
+    ProjectListError,
+    SyncMode,
+    doc_media_type,
+)
 from app.sync.jobs import SyncAlreadyRunning, sync_jobs
 from app.api.auth import auth_router, get_current_user, get_system_setting, set_system_setting
 from app.jenkins.jenkins_service import fetch_jenkins_job_status
@@ -378,30 +385,88 @@ async def list_component_docs(component_id: int, db: AsyncSession = Depends(get_
             "id": d.id,
             "relative_path": d.relative_path,
             "title": d.title,
+            "doc_type": d.doc_type or "markdown",
+            "size_bytes": d.size_bytes,
             "updated_at": d.updated_at.isoformat() if d.updated_at else None
         }
         for d in docs
     ]
 
-@protected_router.get("/catalog/{component_id}/docs/{doc_path:path}")
-async def get_component_doc_content(component_id: int, doc_path: str, db: AsyncSession = Depends(get_db)):
+
+async def _load_doc(component_id: int, doc_path: str, db: AsyncSession) -> DocFile:
     result = await db.execute(
         select(DocFile).where(DocFile.component_id == component_id, DocFile.relative_path == doc_path)
     )
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document file not found")
-    
+    return doc
+
+
+@protected_router.get("/catalog/{component_id}/docs-raw/{doc_path:path}")
+async def get_component_doc_raw(component_id: int, doc_path: str, db: AsyncSession = Depends(get_db)):
+    """Bytes originais de um documento binário (PDF ou imagem), para o navegador."""
+    doc = await _load_doc(component_id, doc_path, db)
+    if doc.doc_type not in BINARY_DOC_TYPES or doc.content_binary is None:
+        raise HTTPException(status_code=404, detail="Document has no binary content")
+
+    filename = doc.relative_path.split("/")[-1]
+    return Response(
+        content=doc.content_binary,
+        media_type=doc_media_type(doc.relative_path),
+        headers={"Content-Disposition": f'inline; filename="{quote(filename)}"'}
+    )
+
+
+@protected_router.get("/catalog/{component_id}/docs/{doc_path:path}")
+async def get_component_doc_content(component_id: int, doc_path: str, db: AsyncSession = Depends(get_db)):
+    doc = await _load_doc(component_id, doc_path, db)
+
     return {
         "id": doc.id,
         "relative_path": doc.relative_path,
         "title": doc.title,
-        "content_markdown": doc.content_markdown,
+        "doc_type": doc.doc_type or "markdown",
+        "size_bytes": doc.size_bytes,
+        # Binário não tem texto para devolver aqui; o cliente busca `docs-raw`.
+        "content_markdown": doc.content_markdown if doc.doc_type not in BINARY_DOC_TYPES else None,
         "updated_at": doc.updated_at.isoformat() if doc.updated_at else None
     }
 
 class SyncRequest(BaseModel):
     mode: SyncMode = SyncMode.UPDATE
+    #: Vazio ou ausente = catálogo inteiro.
+    project_ids: Optional[List[int]] = None
+
+
+@protected_router.get("/sync/projects")
+async def list_syncable_projects(db: AsyncSession = Depends(get_db)):
+    """Projetos do GitLab que podem ser sincronizados individualmente.
+
+    Vem do GitLab, e não do catálogo, para que um projeto ainda não importado
+    também possa ser escolhido. `in_catalog` diz quais já estão no catálogo.
+    """
+    crawler = GitLabCrawlerService()
+    try:
+        projects = await crawler.fetch_projects()
+    except ProjectListError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    known = set((await db.execute(select(Component.gitlab_project_id))).scalars().all())
+    return sorted(
+        (
+            {
+                "id": p.get("id"),
+                "name": p.get("name") or "",
+                "path": p.get("path_with_namespace") or "",
+                "web_url": p.get("web_url"),
+                "in_catalog": p.get("id") in known,
+            }
+            for p in projects
+            if p.get("id") is not None
+        ),
+        key=lambda p: (p["path"] or p["name"]).lower(),
+    )
 
 
 @protected_router.post("/sync", status_code=202)
@@ -410,9 +475,20 @@ async def trigger_sync(payload: Optional[SyncRequest] = Body(default=None)):
 
     O crawl leva minutos; o acompanhamento é por `GET /sync/status`.
     """
-    mode = (payload or SyncRequest()).mode
+    request = payload or SyncRequest()
+    project_ids = request.project_ids or None
+
+    # `rebuild` apaga o catálogo antes de importar e `prune` decide o que
+    # remover comparando com a lista inteira do GitLab: restringir qualquer uma
+    # das duas a alguns projetos apagaria todo o resto.
+    if project_ids and request.mode != SyncMode.UPDATE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A seleção de projetos só vale para o modo '{SyncMode.UPDATE.value}'.",
+        )
+
     try:
-        job = await sync_jobs.start(mode)
+        job = await sync_jobs.start(request.mode, project_ids=project_ids)
     except SyncAlreadyRunning as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -469,7 +545,8 @@ async def global_search(q: str = Query(..., min_length=1), db: AsyncSession = De
                 "id": d.id,
                 "component_id": d.component_id,
                 "relative_path": d.relative_path,
-                "title": d.title
+                "title": d.title,
+                "doc_type": d.doc_type or "markdown"
             }
             for d in docs
         ]

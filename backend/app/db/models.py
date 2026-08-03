@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Table, Column
+from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Table, Column, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
@@ -80,7 +80,13 @@ class DocFile(Base):
     component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
     relative_path: Mapped[str] = mapped_column(String(300), index=True) # e.g. "index.md", "architecture/setup.md"
     title: Mapped[str] = mapped_column(String(200))
-    content_markdown: Mapped[str] = mapped_column(Text)
+    # "markdown" ou "pdf". Documentos binários guardam string vazia aqui e o
+    # conteúdo em `content_binary`: bancos criados antes desta coluna existir
+    # têm `content_markdown` NOT NULL e o auto-migrate do SQLite não relaxa isso.
+    doc_type: Mapped[str] = mapped_column(String(20), default="markdown")
+    content_markdown: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content_binary: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     component: Mapped["Component"] = relationship("Component", back_populates="docs", lazy="selectin")

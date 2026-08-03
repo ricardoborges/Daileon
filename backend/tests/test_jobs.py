@@ -20,6 +20,12 @@ def test_snapshot_inicial():
     assert snap["processed"] == 0
     assert snap["logs"] == []
     assert snap["cursor"] == 0
+    assert snap["scoped_project_count"] == 0, "sem recorte, a UI não anuncia seleção"
+
+
+def test_snapshot_anuncia_o_recorte_de_projetos():
+    job = SyncJob(id="abc123", mode="update", project_ids=[10, 20])
+    assert job.snapshot()["scoped_project_count"] == 2
 
 
 def test_cursor_entrega_cada_linha_uma_vez():

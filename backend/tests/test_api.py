@@ -58,6 +58,24 @@ def component(client):
                 title="Visão Geral",
                 content_markdown="# Visão Geral\n\n```mermaid\nsequenceDiagram\n    A->>B: ping\n```",
             ))
+            db.add(DocFile(
+                component_id=c.id,
+                relative_path="NTI-001 SIMBA/Relatorio Tecnico.pdf",
+                title="Relatorio Tecnico",
+                doc_type="pdf",
+                content_markdown="",
+                content_binary=b"%PDF-1.4 fake",
+                size_bytes=13,
+            ))
+            db.add(DocFile(
+                component_id=c.id,
+                relative_path="NTI-001 SIMBA/topologia.png",
+                title="Topologia",
+                doc_type="image",
+                content_markdown="",
+                content_binary=b"\x89PNG fake",
+                size_bytes=9,
+            ))
             db.add(ComponentDeployment(
                 component_id=c.id,
                 environment="production",
@@ -84,14 +102,14 @@ def test_list_catalog(client, component):
     data = response.json()
     assert isinstance(data, list)
     assert [c["name"] for c in data] == [component["name"]]
-    assert data[0]["docs_count"] == 2
+    assert data[0]["docs_count"] == 4
 
 def test_get_component_detail(client, component):
     response = client.get(f"/api/catalog/{component['id']}")
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == component["name"]
-    assert data["docs_count"] == 2
+    assert data["docs_count"] == 4
     assert "python" in data["tags"]
     assert data["dependencies"] == ["outro-componente"]
 
@@ -102,7 +120,17 @@ def test_get_component_docs(client, component):
     response = client.get(f"/api/catalog/{component['id']}/docs")
     assert response.status_code == 200
     docs = response.json()
-    assert sorted(d["relative_path"] for d in docs) == ["README.md", "index.md"]
+    assert sorted(d["relative_path"] for d in docs) == [
+        "NTI-001 SIMBA/Relatorio Tecnico.pdf",
+        "NTI-001 SIMBA/topologia.png",
+        "README.md",
+        "index.md",
+    ]
+    by_path = {d["relative_path"]: d for d in docs}
+    assert by_path["index.md"]["doc_type"] == "markdown"
+    assert by_path["NTI-001 SIMBA/Relatorio Tecnico.pdf"]["doc_type"] == "pdf"
+    assert by_path["NTI-001 SIMBA/Relatorio Tecnico.pdf"]["size_bytes"] == 13
+    assert by_path["NTI-001 SIMBA/topologia.png"]["doc_type"] == "image"
 
 def test_get_doc_content(client, component):
     response = client.get(f"/api/catalog/{component['id']}/docs/index.md")
@@ -110,6 +138,71 @@ def test_get_doc_content(client, component):
     doc = response.json()
     assert doc["title"] == "Visão Geral"
     assert "sequenceDiagram" in doc["content_markdown"]
+    assert doc["doc_type"] == "markdown"
+
+def test_get_doc_content_em_subpasta(client, component):
+    """O caminho aninhado precisa sobreviver ao roteamento e à codificação da URL."""
+    response = client.get(f"/api/catalog/{component['id']}/docs/NTI-001%20SIMBA/Relatorio%20Tecnico.pdf")
+    assert response.status_code == 200
+    doc = response.json()
+    assert doc["doc_type"] == "pdf"
+    # O texto não vem por aqui; o cliente busca os bytes em `docs-raw`.
+    assert doc["content_markdown"] is None
+
+def test_get_doc_raw_pdf(client, component):
+    response = client.get(f"/api/catalog/{component['id']}/docs-raw/NTI-001%20SIMBA/Relatorio%20Tecnico.pdf")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content == b"%PDF-1.4 fake"
+
+def test_get_doc_raw_imagem(client, component):
+    response = client.get(f"/api/catalog/{component['id']}/docs-raw/NTI-001%20SIMBA/topologia.png")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content == b"\x89PNG fake"
+
+def test_get_doc_raw_de_markdown_nao_existe(client, component):
+    response = client.get(f"/api/catalog/{component['id']}/docs-raw/index.md")
+    assert response.status_code == 404
+
+@pytest.mark.parametrize("mode", ["rebuild", "prune"])
+def test_sync_recusa_recorte_em_modo_destrutivo(client, mode):
+    """Restringir rebuild/prune a alguns projetos apagaria todo o resto."""
+    response = client.post("/api/sync", json={"mode": mode, "project_ids": [1, 2]})
+    assert response.status_code == 400
+    assert "update" in response.json()["detail"]
+
+
+def test_sync_projects_reporta_falha_do_gitlab(client, monkeypatch):
+    """Sem GitLab acessível, a lista tem que falhar em vez de vir vazia."""
+    from app.gitlab.gitlab_crawler import GitLabCrawlerService, ProjectListError
+
+    async def explode(self, group_id=None):
+        raise ProjectListError("GitLab respondeu 401 ao listar projetos")
+
+    monkeypatch.setattr(GitLabCrawlerService, "fetch_projects", explode)
+    response = client.get("/api/sync/projects")
+    assert response.status_code == 502
+    assert "401" in response.json()["detail"]
+
+
+def test_sync_projects_marca_o_que_ja_esta_no_catalogo(client, component, monkeypatch):
+    from app.gitlab.gitlab_crawler import GitLabCrawlerService
+
+    async def projetos(self, group_id=None):
+        return [
+            {"id": 1, "name": "componente-de-teste", "path_with_namespace": "empresa/componente-de-teste"},
+            {"id": 77, "name": "projeto-novo", "path_with_namespace": "empresa/projeto-novo"},
+        ]
+
+    monkeypatch.setattr(GitLabCrawlerService, "fetch_projects", projetos)
+    response = client.get("/api/sync/projects")
+    assert response.status_code == 200
+
+    por_id = {p["id"]: p for p in response.json()}
+    assert por_id[1]["in_catalog"] is True
+    assert por_id[77]["in_catalog"] is False
+
 
 def test_search(client, component):
     response = client.get("/api/search?q=teste")

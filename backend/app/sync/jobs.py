@@ -50,6 +50,8 @@ class SyncJob:
     id: str
     mode: str
     state: str = "running"  # running | success | partial | error
+    #: Projetos aos quais a operação foi restringida; vazio = catálogo inteiro.
+    project_ids: List[int] = field(default_factory=list)
     # `None` enquanto a contagem de passos é desconhecida — a UI mostra a barra
     # em modo indeterminado até a listagem de projetos voltar.
     total: Optional[int] = None
@@ -88,6 +90,7 @@ class SyncJob:
             "job_id": self.id,
             "mode": self.mode,
             "state": self.state,
+            "scoped_project_count": len(self.project_ids),
             "total": self.total,
             "processed": self.processed,
             "started_at": self.started_at,
@@ -117,13 +120,15 @@ class SyncJobRegistry:
     def current(self) -> Optional[SyncJob]:
         return self._job
 
-    async def start(self, mode: SyncMode) -> SyncJob:
+    async def start(self, mode: SyncMode, project_ids: Optional[List[int]] = None) -> SyncJob:
         async with self._lock:
             if self._job and self._job.state == "running":
                 raise SyncAlreadyRunning(self._job.mode)
 
-            job = SyncJob(id=uuid.uuid4().hex[:12], mode=mode.value)
+            job = SyncJob(id=uuid.uuid4().hex[:12], mode=mode.value, project_ids=list(project_ids or []))
             job.log("info", f"Operação iniciada: {mode.value}")
+            if job.project_ids:
+                job.log("info", f"Restrita a {len(job.project_ids)} projeto(s) selecionado(s).")
             self._job = job
             self._task = asyncio.create_task(self._run(job, mode))
             return job
@@ -133,7 +138,9 @@ class SyncJobRegistry:
         try:
             # Sessão própria: a do request morre assim que o endpoint responde.
             async with AsyncSessionLocal() as db:
-                result = await crawler.run(db, mode=mode, progress=job)
+                result = await crawler.run(
+                    db, mode=mode, progress=job, project_ids=job.project_ids or None
+                )
 
             job.synced = result.synced
             job.removed = result.removed

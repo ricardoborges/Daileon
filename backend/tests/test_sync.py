@@ -16,10 +16,14 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from app.db.session import Base
 from app.db.models import Component
 from app.gitlab.gitlab_crawler import (
+    MAX_BINARY_DOC_BYTES,
     GitLabCrawlerService,
     ProjectListError,
     SyncMode,
     SyncProgress,
+    doc_media_type,
+    doc_title_from_path,
+    doc_type_for,
     is_hidden_path,
     is_vendor_path,
     nested_sub_dirs,
@@ -259,6 +263,55 @@ class RegistroDeProgresso(SyncProgress):
         self.passos += 1
 
 
+async def _sync_com_recorte(db_path: Path, project_ids):
+    crawler = DoisProjetosCrawler(gitlab_url="https://gitlab.local", token="x")
+    progresso = RegistroDeProgresso()
+    async with _session(db_path) as db:
+        result = await crawler.run(
+            db, mode=SyncMode.UPDATE, progress=progresso, project_ids=project_ids
+        )
+        nomes = sorted(
+            c.name for c in (await db.execute(select(Component))).scalars().all()
+        )
+        return result, nomes, progresso
+
+
+def test_sync_restrito_a_um_projeto():
+    """Com recorte, os demais projetos nem são visitados."""
+    with tempfile.TemporaryDirectory() as tmp:
+        result, nomes, progresso = asyncio.run(
+            _sync_com_recorte(Path(tmp) / "test.db", [SEGUNDO_PROJETO["id"]])
+        )
+
+    assert result.synced == ["usuario-service"]
+    assert nomes == ["usuario-service"], "pedido-service estava fora do recorte"
+    # O total da barra tem que refletir o recorte, não a lista inteira.
+    assert progresso.total == 1
+    assert progresso.passos == 1
+
+
+def test_sync_restrito_avisa_sobre_projeto_inexistente():
+    with tempfile.TemporaryDirectory() as tmp:
+        result, nomes, progresso = asyncio.run(
+            _sync_com_recorte(Path(tmp) / "test.db", [PROJECT["id"], 999999])
+        )
+
+    assert result.synced == ["pedido-service"]
+    assert nomes == ["pedido-service"]
+    assert any(
+        nivel == "warn" and "999999" in mensagem for nivel, mensagem in progresso.linhas
+    )
+
+
+def test_sync_sem_recorte_percorre_tudo():
+    """`project_ids=None` continua sendo o caminho do catálogo inteiro."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _, nomes, progresso = asyncio.run(_sync_com_recorte(Path(tmp) / "test.db", None))
+
+    assert nomes == ["pedido-service", "usuario-service"]
+    assert progresso.total == 2
+
+
 async def _rebuild(db_path: Path):
     async with _session(db_path) as db:
         # Popula com dois projetos...
@@ -370,6 +423,107 @@ def test_sync_fallback_docs_sem_pasta_docs():
         component = asyncio.run(_sync_fallback_docs(Path(tmp) / "test.db"))
 
     assert sorted(d.relative_path for d in component.docs) == ["CHANGELOG.md", "README.md"]
+
+
+class DocsEmSubpastasCrawler(FakeCrawler):
+    """Documentação organizada em subpastas, misturando Markdown e PDF."""
+
+    async def fetch_docs_tree(self, project_id, docs_dir, ref="main"):
+        if docs_dir.strip("/") != "docs":
+            return []
+        return [
+            {"path": "docs/index.md", "name": "index.md", "type": "blob"},
+            {"path": "docs/NTI-001 SIMBA/Troubleshooting.md", "name": "Troubleshooting.md", "type": "blob"},
+            {"path": "docs/NTI-001 SIMBA/Relatorio_Tecnico.pdf", "name": "Relatorio_Tecnico.pdf", "type": "blob"},
+            {"path": "docs/NTI-001 SIMBA/topologia.PNG", "name": "topologia.PNG", "type": "blob"},
+            {"path": "docs/NTI-002 Gitlab/tela.jpeg", "name": "tela.jpeg", "type": "blob"},
+            {"path": "docs/NTI-002 Gitlab/Thumbs.db", "name": "Thumbs.db", "type": "blob"},
+            {"path": "docs/NTI-002 Gitlab/logo.svg", "name": "logo.svg", "type": "blob"},
+            {"path": "docs/NTI-003 Airflow/Manual Enorme.pdf", "name": "Manual Enorme.pdf", "type": "blob"},
+        ]
+
+    async def fetch_file_content(self, project_id, file_path, ref="main"):
+        if file_path == "docs/NTI-001 SIMBA/Troubleshooting.md":
+            return "# Troubleshooting do SIMBA"
+        return await super().fetch_file_content(project_id, file_path, ref=ref)
+
+    async def fetch_file_bytes(self, project_id, file_path, ref="main"):
+        if file_path == "docs/NTI-003 Airflow/Manual Enorme.pdf":
+            return b"x" * (MAX_BINARY_DOC_BYTES + 1)
+        if file_path.lower().endswith((".png", ".jpeg")):
+            return b"\x89PNG bytes"
+        return b"%PDF-1.7 conteudo"
+
+
+async def _sync_docs_em_subpastas(db_path: Path):
+    crawler = DocsEmSubpastasCrawler(gitlab_url="https://gitlab.local", token="fake")
+    async with _session(db_path) as db:
+        await crawler.sync_all(db)
+        component = (await db.execute(select(Component))).scalars().first()
+        _ = component.docs
+        return component
+
+
+def test_sync_preserva_subpastas_e_indexa_pdf():
+    with tempfile.TemporaryDirectory() as tmp:
+        component = asyncio.run(_sync_docs_em_subpastas(Path(tmp) / "test.db"))
+
+    por_caminho = {d.relative_path: d for d in component.docs}
+    # O caminho relativo mantém a subpasta: é isso que a árvore do frontend usa.
+    # `Thumbs.db` e `logo.svg` não têm extensão indexada e o PDF acima do limite
+    # é descartado.
+    assert sorted(por_caminho) == [
+        "NTI-001 SIMBA/Relatorio_Tecnico.pdf",
+        "NTI-001 SIMBA/Troubleshooting.md",
+        "NTI-001 SIMBA/topologia.PNG",
+        "NTI-002 Gitlab/tela.jpeg",
+        "README.md",
+        "index.md",
+    ]
+
+    pdf = por_caminho["NTI-001 SIMBA/Relatorio_Tecnico.pdf"]
+    assert pdf.doc_type == "pdf"
+    assert pdf.content_binary == b"%PDF-1.7 conteudo"
+    assert pdf.size_bytes == len(b"%PDF-1.7 conteudo")
+    assert pdf.title == "Relatorio Tecnico"
+
+    imagem = por_caminho["NTI-001 SIMBA/topologia.PNG"]
+    assert imagem.doc_type == "image"
+    assert imagem.content_binary == b"\x89PNG bytes"
+    assert imagem.title == "Topologia"
+
+    markdown = por_caminho["NTI-001 SIMBA/Troubleshooting.md"]
+    assert markdown.doc_type == "markdown"
+    assert markdown.content_binary is None
+    assert markdown.content_markdown == "# Troubleshooting do SIMBA"
+
+
+def test_doc_type_for_reconhece_extensoes():
+    assert doc_type_for("guia.md") == "markdown"
+    assert doc_type_for("GUIA.MD") == "markdown"
+    assert doc_type_for("notas.markdown") == "markdown"
+    assert doc_type_for("relatorio.pdf") == "pdf"
+    assert doc_type_for("diagrama.png") == "image"
+    assert doc_type_for("foto.JPG") == "image"
+    assert doc_type_for("captura.jpeg") == "image"
+    assert doc_type_for("Thumbs.db") is None
+    # SVG fica fora por ser executável dentro do navegador.
+    assert doc_type_for("logo.svg") is None
+
+
+def test_doc_media_type_por_extensao():
+    assert doc_media_type("NTI-001/relatorio.pdf") == "application/pdf"
+    assert doc_media_type("NTI-001/topologia.PNG") == "image/png"
+    # `.jpeg` não pode ser resolvido pelo sufixo mais curto `.jpg`.
+    assert doc_media_type("captura.jpeg") == "image/jpeg"
+    assert doc_media_type("foto.jpg") == "image/jpeg"
+
+
+def test_doc_title_from_path_usa_apenas_o_nome_do_arquivo():
+    assert doc_title_from_path("NTI-001 SIMBA/relatorio_tecnico.pdf") == "Relatorio Tecnico"
+    assert doc_title_from_path("guia-de-uso.md") == "Guia De Uso"
+    # `.md` no meio do nome não pode ser removido, só o sufixo.
+    assert doc_title_from_path("modelo.md") == "Modelo"
 
 
 class SemManifestCrawler(FakeCrawler):

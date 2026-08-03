@@ -3,6 +3,7 @@
   import {
     startSync,
     fetchSyncStatus,
+    fetchSyncableProjects,
     fetchLDAPConfig,
     saveLDAPConfig,
     testLDAPConfig,
@@ -11,6 +12,7 @@
     type SyncLogLine,
     type SyncMode,
     type SyncStatus,
+    type SyncableProject,
     type LDAPConfig,
     type OrganizationConfig,
   } from "$lib/api";
@@ -25,6 +27,9 @@
     ShieldCheck,
     CheckCircle2,
     Building2,
+    Search,
+    FolderGit2,
+    RotateCw,
   } from "lucide-svelte";
   import { t } from "$lib/i18n";
 
@@ -79,8 +84,60 @@
   let consoleEl: HTMLDivElement | null = null;
   let stuckToBottom = true;
 
+  // -- Escopo da sincronização ------------------------------------------
+  let scope: "all" | "selected" = "all";
+  let projects: SyncableProject[] = [];
+  let projectsLoaded = false;
+  let projectsLoading = false;
+  let projectsError = "";
+  let projectQuery = "";
+  let selectedIds = new Set<number>();
+
+  $: scoped = scope === "selected";
+  $: selectedProjectIds = [...selectedIds];
+  $: visibleProjects = filterProjects(projects, projectQuery);
+
+  function filterProjects(list: SyncableProject[], query: string) {
+    const q = query.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) || p.path.toLowerCase().includes(q),
+    );
+  }
+
+  async function loadProjects(force = false) {
+    if (projectsLoading || (projectsLoaded && !force)) return;
+    projectsLoading = true;
+    projectsError = "";
+    try {
+      projects = await fetchSyncableProjects();
+      projectsLoaded = true;
+    } catch (e: any) {
+      projectsError = e.message || "Falha ao listar os projetos";
+    } finally {
+      projectsLoading = false;
+    }
+  }
+
+  function setScope(next: "all" | "selected") {
+    scope = next;
+    confirming = null;
+    uiError = "";
+    if (next === "selected") loadProjects();
+  }
+
+  function toggleProject(id: number) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selectedIds = next;
+  }
+
   $: running = status?.state === "running" || starting;
   $: busy = running;
+  /** Reconstruir e remover órfãos raciocinam sobre o catálogo inteiro. */
+  $: blockedByScope = (mode: SyncMode) => scoped && mode !== "update";
 
   // A barra só vira percentual depois que o backend sabe quantos passos são.
   $: total = status?.total ?? null;
@@ -272,6 +329,10 @@
 
   function request(op: Operation) {
     uiError = "";
+    if (scoped && selectedIds.size === 0) {
+      uiError = $t("config.scopeNeedsSelection");
+      return;
+    }
     if (op.destructive && confirming !== op.mode) {
       confirming = op.mode;
       return;
@@ -284,7 +345,10 @@
     starting = true;
     uiError = "";
     try {
-      const started = await startSync(mode);
+      const started = await startSync(
+        mode,
+        scoped && mode === "update" ? selectedProjectIds : undefined,
+      );
       logs = [];
       cursor = 0;
       status = started;
@@ -360,6 +424,134 @@
   {#if activeTab === "sync"}
     <!-- ABA 1: Sincronização -->
     <div class="space-y-8">
+      <!-- Escopo -->
+      <section class="plate plate-deep p-5 space-y-4" style="--chamfer: 14px;">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <h2 class="text-sm font-bold t-txt flex items-center gap-2">
+            <FolderGit2 class="w-4 h-4 t-visor" />
+            {$t("config.scopeTitle")}
+          </h2>
+
+          <div class="seg" role="radiogroup">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!scoped}
+              class="seg-item cursor-pointer {!scoped ? 'is-active' : ''}"
+              disabled={busy}
+              on:click={() => setScope("all")}
+            >
+              <Database class="w-3.5 h-3.5" />
+              <span>{$t("config.scopeAll")}</span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={scoped}
+              class="seg-item cursor-pointer {scoped ? 'is-active' : ''}"
+              disabled={busy}
+              on:click={() => setScope("selected")}
+            >
+              <FolderGit2 class="w-3.5 h-3.5" />
+              <span>{$t("config.scopeSelected")}</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="t-dim text-xs leading-relaxed">
+          {scoped ? $t("config.scopeSelectedHint") : $t("config.scopeAllHint")}
+        </p>
+
+        {#if scoped}
+          <div class="space-y-3 pt-1">
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="relative flex-1 min-w-[16rem]">
+                <Search
+                  class="w-3.5 h-3.5 t-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                />
+                <input
+                  class="field pl-9"
+                  type="search"
+                  bind:value={projectQuery}
+                  placeholder={$t("config.scopeSearchPlaceholder")}
+                  disabled={projectsLoading}
+                />
+              </div>
+              <span class="label">
+                {$t("config.scopeSelectedCount", { count: selectedIds.size })}
+              </span>
+              {#if selectedIds.size > 0}
+                <button
+                  class="btn btn-sm btn-ghost"
+                  disabled={busy}
+                  on:click={() => (selectedIds = new Set())}
+                >
+                  {$t("config.scopeClear")}
+                </button>
+              {/if}
+              <button
+                class="btn btn-sm btn-ghost"
+                disabled={projectsLoading || busy}
+                title={$t("config.scopeReload")}
+                on:click={() => loadProjects(true)}
+              >
+                <RotateCw
+                  class="w-3.5 h-3.5 {projectsLoading ? 'animate-spin' : ''}"
+                />
+              </button>
+            </div>
+
+            {#if projectsLoading && projects.length === 0}
+              <p class="t-faint text-xs">{$t("config.scopeLoading")}</p>
+            {:else if projectsError}
+              <p class="chip chip-alert !normal-case !tracking-normal">
+                <AlertTriangle class="w-3.5 h-3.5 flex-none" />
+                {projectsError}
+              </p>
+            {:else if projects.length === 0}
+              <p class="t-faint text-xs">{$t("config.scopeEmpty")}</p>
+            {:else if visibleProjects.length === 0}
+              <p class="t-faint text-xs">{$t("config.scopeNoMatch")}</p>
+            {:else}
+              <div
+                class="max-h-72 overflow-y-auto border border-line divide-y divide-[var(--line-soft)]"
+              >
+                {#each visibleProjects as project (project.id)}
+                  <label
+                    class="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-2 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      class="shrink-0"
+                      checked={selectedIds.has(project.id)}
+                      disabled={busy}
+                      on:change={() => toggleProject(project.id)}
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span class="block text-xs t-txt truncate"
+                        >{project.name}</span
+                      >
+                      <span class="block text-[11px] t-faint font-mono truncate"
+                        >{project.path}</span
+                      >
+                    </span>
+                    <span
+                      class="label shrink-0 {project.in_catalog
+                        ? 't-visor'
+                        : 't-crest'}"
+                    >
+                      {project.in_catalog
+                        ? $t("config.scopeInCatalog")
+                        : $t("config.scopeNew")}
+                    </span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </section>
+
       <!-- Operações -->
       <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {#each operations as op}
@@ -409,7 +601,10 @@
                 class="btn btn-sm w-full {op.destructive
                   ? 'btn-crest'
                   : 'btn-primary'}"
-                disabled={busy}
+                disabled={busy || blockedByScope(op.mode)}
+                title={blockedByScope(op.mode)
+                  ? $t("config.scopeOnlyUpdate")
+                  : undefined}
                 on:click={() => request(op)}
               >
                 <svelte:component
@@ -420,6 +615,11 @@
                 />
                 {op.label}
               </button>
+              {#if blockedByScope(op.mode)}
+                <p class="label t-faint !normal-case !tracking-normal">
+                  {$t("config.scopeOnlyUpdate")}
+                </p>
+              {/if}
             {/if}
           </div>
         {/each}
@@ -433,6 +633,13 @@
             {stateLabel}
             {#if status?.mode && status.state !== "idle"}
               <span class="t-faint">&middot; {status.mode}</span>
+            {/if}
+            {#if (status?.scoped_project_count ?? 0) > 0}
+              <span class="t-faint">
+                &middot; {$t("config.scopeSelectedCount", {
+                  count: status?.scoped_project_count,
+                })}
+              </span>
             {/if}
           </span>
 

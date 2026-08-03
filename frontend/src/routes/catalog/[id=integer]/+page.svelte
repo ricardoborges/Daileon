@@ -15,6 +15,8 @@
   } from '$lib/api';
   import CommitHeatmap from '$lib/components/CommitHeatmap.svelte';
   import DependencyGraphView from '$lib/components/DependencyGraph.svelte';
+  import DocsTree from '$lib/components/DocsTree.svelte';
+  import { buildDocsTree, allFolderPaths } from '$lib/docsTree';
   import { domainHref, solutionHref } from '$lib/catalogView';
   import { t } from '$lib/i18n';
   import {
@@ -43,6 +45,8 @@
 
   let component: ComponentItem | null = null;
   let docs: DocFileItem[] = [];
+  let docsExpanded = new Set<string>();
+  let docsExpandInitialized = false;
   let jenkinsData: JenkinsComponentResponse | null = null;
   let commitsData: ComponentCommitsResponse | null = null;
   let graph: DependencyGraph | null = null;
@@ -57,6 +61,21 @@
   let deploymentViewMode: 'cards' | 'table' = 'cards';
 
   $: componentId = parseInt($page.params.id);
+
+  // Na aba TechDocs a lista nasce com as pastas abertas: aqui não há documento
+  // selecionado para servir de pista do que vale expandir.
+  $: docsTree = buildDocsTree(docs);
+  $: if (docs.length > 0 && !docsExpandInitialized) {
+    docsExpandInitialized = true;
+    docsExpanded = new Set(allFolderPaths(docsTree));
+  }
+
+  function toggleDocsFolder(path: string) {
+    const next = new Set(docsExpanded);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    docsExpanded = next;
+  }
 
   $: {
     const tabParam = $page.url.searchParams.get('tab');
@@ -631,18 +650,17 @@
     {:else if activeTab === 'docs'}
       <section class="plate p-6" style="--chamfer: 16px;">
         {#if docs.length === 0}
-          <p class="t-faint text-[13px]">Nenhum documento encontrado neste repositório.</p>
+          <p class="t-faint text-[13px]">{$t('techdocs.noDocuments')}</p>
         {:else}
-          <ul class="space-y-1">
-            {#each docs as doc}
-              <li>
-                <a href={`/catalog/${component.id}/docs/${doc.relative_path}`} class="toc-link">
-                  <span class="truncate">{doc.title}</span>
-                  <span class="label truncate">{doc.relative_path}</span>
-                </a>
-              </li>
-            {/each}
-          </ul>
+          <nav class="space-y-0.5">
+            <DocsTree
+              nodes={docsTree}
+              currentDocPath=""
+              componentId={component.id}
+              expanded={docsExpanded}
+              onToggle={toggleDocsFolder}
+            />
+          </nav>
         {/if}
       </section>
 

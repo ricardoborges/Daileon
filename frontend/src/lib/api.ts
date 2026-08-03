@@ -175,15 +175,20 @@ export async function fetchDependencyGraph(query: GraphQuery = {}): Promise<Depe
   return res.json();
 }
 
+export type DocType = 'markdown' | 'pdf' | 'image';
+
 export interface DocFileItem {
   id: number;
   relative_path: string;
   title: string;
+  doc_type: DocType;
+  size_bytes?: number | null;
   updated_at?: string;
 }
 
 export interface DocFileDetail extends DocFileItem {
-  content_markdown: string;
+  /** Nulo para documentos binários — use `fetchDocRaw` nesses casos. */
+  content_markdown: string | null;
 }
 
 export interface SearchResults {
@@ -244,10 +249,25 @@ export async function fetchComponentDocs(id: number): Promise<DocFileItem[]> {
   return res.json();
 }
 
+/** Codifica cada segmento, preservando as barras que separam os diretórios. */
+function encodeDocPath(docPath: string): string {
+  return docPath.split('/').map(encodeURIComponent).join('/');
+}
+
 export async function fetchDocContent(id: number, docPath: string): Promise<DocFileDetail> {
-  const res = await authFetch(`${API_BASE}/catalog/${id}/docs/${encodeURIComponent(docPath)}`);
+  const res = await authFetch(`${API_BASE}/catalog/${id}/docs/${encodeDocPath(docPath)}`);
   if (!res.ok) throw new Error('Conteúdo do documento não encontrado');
   return res.json();
+}
+
+/**
+ * Baixa os bytes de um documento binário (PDF). O endpoint exige o header de
+ * autenticação, que um `<iframe src>` não consegue enviar — daí o blob.
+ */
+export async function fetchDocRaw(id: number, docPath: string): Promise<Blob> {
+  const res = await authFetch(`${API_BASE}/catalog/${id}/docs-raw/${encodeDocPath(docPath)}`);
+  if (!res.ok) throw new Error('Arquivo do documento não encontrado');
+  return res.blob();
 }
 
 export type SyncMode = 'update' | 'rebuild' | 'prune';
@@ -274,15 +294,35 @@ export interface SyncStatus {
   failed_count?: number;
   failures?: Array<{ project_id: number | null; name: string; error: string }>;
   error?: string | null;
+  /** 0 quando a operação abrange o catálogo inteiro. */
+  scoped_project_count?: number;
   cursor: number;
   logs: SyncLogLine[];
 }
 
-export async function startSync(mode: SyncMode): Promise<SyncStatus> {
+export interface SyncableProject {
+  id: number;
+  name: string;
+  path: string;
+  web_url?: string | null;
+  in_catalog: boolean;
+}
+
+/** Projetos do GitLab elegíveis para uma sincronização individual. */
+export async function fetchSyncableProjects(): Promise<SyncableProject[]> {
+  const res = await authFetch(`${API_BASE}/sync/projects`);
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || `Falha ao listar os projetos (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+export async function startSync(mode: SyncMode, projectIds?: number[]): Promise<SyncStatus> {
   const res = await authFetch(`${API_BASE}/sync`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ mode })
+    body: JSON.stringify({ mode, project_ids: projectIds?.length ? projectIds : null })
   });
   if (!res.ok) {
     const detail = await res.json().then(b => b?.detail).catch(() => null);

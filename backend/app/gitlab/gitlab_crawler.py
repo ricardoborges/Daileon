@@ -44,6 +44,75 @@ VENDOR_DIRS = frozenset({
 })
 
 
+#: Extensões indexadas como documentação, mapeadas para o tipo que a API
+#: expõe. O Markdown é lido como texto; PDF e imagem são guardados em bytes e
+#: servidos crus para o visualizador nativo do navegador.
+#:
+#: SVG fica de fora de propósito: é um documento com script embutido em
+#: potencial e, aberto em aba própria a partir de uma blob URL, rodaria na
+#: origem do portal com acesso ao token guardado no navegador.
+DOC_EXTENSIONS = {
+    ".md": "markdown",
+    ".markdown": "markdown",
+    ".pdf": "pdf",
+    ".png": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".gif": "image",
+    ".webp": "image",
+    ".bmp": "image",
+}
+
+#: Tipos cujo conteúdo vive em `DocFile.content_binary`.
+BINARY_DOC_TYPES = frozenset({"pdf", "image"})
+
+#: Content-Type devolvido pelo endpoint de bytes crus.
+DOC_MEDIA_TYPES = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+}
+
+#: Um PDF de manual escaneado passa fácil dos 50 MB. Como o conteúdo vai para
+#: dentro do banco, o que não couber aqui é registrado e ignorado — melhor
+#: perder um documento do que inchar o SQLite a cada sync.
+MAX_BINARY_DOC_BYTES = 25 * 1024 * 1024
+
+
+def _extension_of(path: str) -> Optional[str]:
+    lowered = path.lower()
+    # Do mais longo para o mais curto: `.jpeg` não pode ser decidido por `.jpg`.
+    for ext in sorted(DOC_EXTENSIONS, key=len, reverse=True):
+        if lowered.endswith(ext):
+            return ext
+    return None
+
+
+def doc_type_for(path: str) -> Optional[str]:
+    """Tipo de documento de `path`, ou None se a extensão não for indexada."""
+    ext = _extension_of(path)
+    return DOC_EXTENSIONS[ext] if ext else None
+
+
+def doc_media_type(path: str) -> str:
+    """Content-Type do arquivo binário em `path`."""
+    ext = _extension_of(path)
+    return DOC_MEDIA_TYPES.get(ext or "", "application/octet-stream")
+
+
+def doc_title_from_path(relative_path: str) -> str:
+    """Título legível a partir do nome do arquivo, sem a extensão."""
+    name = relative_path.split("/")[-1]
+    ext = _extension_of(name)
+    if ext:
+        name = name[: -len(ext)]
+    return name.replace("_", " ").replace("-", " ").strip().title() or relative_path
+
+
 def relative_segments(path: str, base: str = "") -> List[str]:
     """Segmentos de `path` abaixo de `base`.
 
@@ -225,6 +294,19 @@ class GitLabCrawlerService:
                 logger.error(f"Error fetching file {file_path} for project {project_id}: {e}")
         return None
 
+    async def fetch_file_bytes(self, project_id: int, file_path: str, ref: str = "main") -> Optional[bytes]:
+        """Conteúdo cru de um arquivo binário (PDF), sem tentar decodificar texto."""
+        encoded_path = file_path.replace("/", "%2F")
+        url = f"{self.base_url}/api/v4/projects/{project_id}/repository/files/{encoded_path}/raw?ref={ref}"
+        async with httpx.AsyncClient(headers=self.headers, timeout=60.0) as client:
+            try:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    return resp.content
+            except Exception as e:
+                logger.error(f"Error fetching binary file {file_path} for project {project_id}: {e}")
+        return None
+
     async def fetch_docs_tree(self, project_id: int, docs_dir: str, ref: str = "main") -> List[Dict[str, Any]]:
         clean_dir = docs_dir.strip("/")
         docs_tree = []
@@ -247,7 +329,7 @@ class GitLabCrawlerService:
                         for item in tree:
                             if item.get("type") != "blob":
                                 continue
-                            if not item.get("name", "").lower().endswith(".md"):
+                            if not doc_type_for(item.get("name", "")):
                                 continue
                             if is_hidden_path(item.get("path", ""), clean_dir):
                                 continue
@@ -657,7 +739,9 @@ class GitLabCrawlerService:
                     component_id=component.id,
                     relative_path="README.md",
                     title="README",
-                    content_markdown=readme_content
+                    doc_type="markdown",
+                    content_markdown=readme_content,
+                    size_bytes=len(readme_content.encode("utf-8"))
                 ))
 
             # Sync docs directory
@@ -678,23 +762,43 @@ class GitLabCrawlerService:
                 if any(file_path.startswith(prefix) for prefix in foreign_prefixes):
                     continue
 
-                doc_content = await self.fetch_file_content(project_id, file_path, ref=default_branch)
-                if doc_content:
-                    clean_dir = component.docs_dir.strip("/")
-                    if is_fallback or not clean_dir or not file_path.startswith(clean_dir):
-                        rel_path = file_path[len(sub_dir):].lstrip("/") if sub_dir and file_path.startswith(sub_dir) else file_path
-                    else:
-                        rel_path = file_path[len(clean_dir):].lstrip("/")
-                        if not rel_path:
-                            rel_path = doc_item["name"]
+                kind = doc_type_for(file_path) or "markdown"
 
-                    title = rel_path.split("/")[-1].replace(".md", "").replace("_", " ").replace("-", " ").title()
-                    db.add(DocFile(
-                        component_id=component.id,
-                        relative_path=rel_path,
-                        title=title,
-                        content_markdown=doc_content
-                    ))
+                if kind in BINARY_DOC_TYPES:
+                    doc_bytes = await self.fetch_file_bytes(project_id, file_path, ref=default_branch)
+                    if not doc_bytes:
+                        continue
+                    if len(doc_bytes) > MAX_BINARY_DOC_BYTES:
+                        logger.warning(
+                            f"Skipping '{file_path}' of project {project_id}: "
+                            f"{len(doc_bytes)} bytes exceeds the {MAX_BINARY_DOC_BYTES} byte limit for binary docs."
+                        )
+                        continue
+                    doc_content = None
+                else:
+                    doc_bytes = None
+                    doc_content = await self.fetch_file_content(project_id, file_path, ref=default_branch)
+                    if not doc_content:
+                        continue
+
+                clean_dir = component.docs_dir.strip("/")
+                if is_fallback or not clean_dir or not file_path.startswith(clean_dir):
+                    rel_path = file_path[len(sub_dir):].lstrip("/") if sub_dir and file_path.startswith(sub_dir) else file_path
+                else:
+                    rel_path = file_path[len(clean_dir):].lstrip("/")
+                    if not rel_path:
+                        rel_path = doc_item["name"]
+
+                db.add(DocFile(
+                    component_id=component.id,
+                    relative_path=rel_path,
+                    title=doc_title_from_path(rel_path),
+                    doc_type=kind,
+                    # Vazio, e não NULL: ver a nota em `DocFile.content_markdown`.
+                    content_markdown=doc_content if doc_content is not None else "",
+                    content_binary=doc_bytes,
+                    size_bytes=len(doc_bytes) if doc_bytes is not None else len(doc_content.encode("utf-8"))
+                ))
 
             await db.commit()
             synced_components.append(component)
@@ -714,24 +818,42 @@ class GitLabCrawlerService:
         db: AsyncSession,
         mode: SyncMode = SyncMode.UPDATE,
         progress: Optional[SyncProgress] = None,
+        project_ids: Optional[Iterable[int]] = None,
     ) -> SyncResult:
-        """Ponto de entrada único das operações do painel de configuração."""
+        """Ponto de entrada único das operações do painel de configuração.
+
+        `project_ids` restringe a atualização a projetos específicos. Não vale
+        para `rebuild` nem para `prune`: as duas raciocinam sobre o catálogo
+        inteiro e apagariam o que ficasse fora do recorte.
+        """
         progress = progress or SyncProgress()
 
         if mode == SyncMode.REBUILD:
             return await self.rebuild(db, progress)
         if mode == SyncMode.PRUNE:
             return await self.prune(db, progress)
-        return await self.sync_all(db, progress)
+        return await self.sync_all(db, progress, project_ids=project_ids)
 
     async def sync_all(
-        self, db: AsyncSession, progress: Optional[SyncProgress] = None
+        self,
+        db: AsyncSession,
+        progress: Optional[SyncProgress] = None,
+        project_ids: Optional[Iterable[int]] = None,
     ) -> SyncResult:
         progress = progress or SyncProgress()
         result = SyncResult(mode=SyncMode.UPDATE.value)
 
         progress.log("info", "Consultando projetos no GitLab...")
         projects = await self.fetch_projects()
+
+        if project_ids is not None:
+            wanted = {int(pid) for pid in project_ids}
+            projects = [p for p in projects if p.get("id") in wanted]
+            missing = wanted - {p.get("id") for p in projects}
+            for pid in sorted(missing):
+                progress.log("warn", f"Projeto {pid} não encontrado no GitLab; ignorado.")
+            progress.log("info", f"Recorte: {len(projects)} de {len(wanted)} projeto(s) selecionado(s).")
+
         progress.set_total(len(projects))
         progress.log("info", f"{len(projects)} projeto(s) para processar.")
 

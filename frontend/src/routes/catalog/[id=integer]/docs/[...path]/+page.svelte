@@ -2,6 +2,8 @@
   import { page } from '$app/stores';
   import { fetchComponent, fetchComponentDocs, fetchDocContent, type ComponentItem, type DocFileItem, type DocFileDetail } from '$lib/api';
   import TechDocsViewer from '$lib/components/TechDocsViewer.svelte';
+  import { buildDocsTree, firstDocPath } from '$lib/docsTree';
+  import { t } from '$lib/i18n';
   import { ArrowLeft, BookOpen } from 'lucide-svelte';
 
   let component: ComponentItem | null = null;
@@ -19,11 +21,24 @@
   async function loadData() {
     loading = true;
     try {
-      [component, docs, currentDoc] = await Promise.all([
+      [component, docs] = await Promise.all([
         fetchComponent(componentId),
-        fetchComponentDocs(componentId),
-        fetchDocContent(componentId, docPath)
+        fetchComponentDocs(componentId)
       ]);
+
+      // Um repositório que guarda tudo em subpastas não tem `index.md` na raiz.
+      // Em vez de deixar a tela vazia, abrimos o primeiro documento da árvore.
+      let path = docPath;
+      if (!docs.some((d) => d.relative_path === path)) {
+        const first = firstDocPath(buildDocsTree(docs));
+        if (!first) {
+          currentDoc = null;
+          return;
+        }
+        path = first;
+      }
+
+      currentDoc = await fetchDocContent(componentId, path);
     } catch (e) {
       console.error('Error loading doc:', e);
     } finally {
@@ -66,9 +81,14 @@
   {:else if currentDoc && component}
     <TechDocsViewer
       {docs}
-      currentDocPath={docPath}
+      currentDocPath={currentDoc.relative_path}
       markdownContent={currentDoc.content_markdown}
+      docType={currentDoc.doc_type}
       {componentId}
     />
+  {:else if component}
+    <div class="plate p-8 text-center" style="--chamfer: 16px;">
+      <p class="t-faint text-[13px]">{$t('techdocs.noDocuments')}</p>
+    </div>
   {/if}
 </main>
