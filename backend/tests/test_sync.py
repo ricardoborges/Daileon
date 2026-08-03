@@ -7,6 +7,7 @@ implícito e quebra a sincronização inteira.
 import asyncio
 import tempfile
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -19,6 +20,9 @@ from app.gitlab.gitlab_crawler import (
     ProjectListError,
     SyncMode,
     SyncProgress,
+    is_hidden_path,
+    is_vendor_path,
+    nested_sub_dirs,
 )
 
 MANIFEST = """
@@ -32,6 +36,7 @@ metadata:
 spec:
   type: service
   lifecycle: production
+  solution: Strix
   docs:
     dir: /docs
   links:
@@ -97,6 +102,12 @@ class FakeCrawler(GitLabCrawlerService):
     async def fetch_projects(self, group_id=None):
         return list(self.projetos)
 
+    async def fetch_manifest_paths(self, project_id: int, ref: str = "main"):
+        return ["project-info.yml"]
+
+    async def fetch_first_commit_date(self, project_id: int, ref: str = "main"):
+        return datetime(2015, 3, 2, 8, 30)
+
 
 @asynccontextmanager
 async def _session(db_path: Path):
@@ -142,6 +153,7 @@ def test_sync_projeto_novo():
     assert component.name == "pedido-service"
     assert component.has_manifest is True
     assert component.owner == "time-pedidos"
+    assert component.solution == "Strix"
     assert sorted(t.name for t in component.tags) == ["java", "spring"]
     assert [l.title for l in component.links] == ["Dashboard"]
     assert [d.target_component_name for d in component.dependencies] == ["usuario-service"]
@@ -152,6 +164,7 @@ def test_sync_projeto_novo():
     assert component.deployments[0].execution_type == "Docker"
     assert component.deployments[0].port == "8080"
     assert sorted(d.relative_path for d in component.docs) == ["README.md", "index.md"]
+    assert component.first_commit_at == datetime(2015, 3, 2, 8, 30)
 
 
 def test_sync_idempotente():
@@ -413,6 +426,298 @@ def test_normalize_owner_e_extract_commit_author():
         "author_name": "Ricardo Borges"
     }
     assert extract_commit_author(commit_nome_completo_sem_email) == "ricardo borges"
+
+
+class MonorepoCrawler(FakeCrawler):
+    """Crawler para simular repositório Monorepo com múltiplos manifestos project-info.yml em subpastas."""
+
+    projetos = [PROJECT]
+
+    async def fetch_manifest_paths(self, project_id: int, ref: str = "main"):
+        return [
+            "apps/strix-web/project-info.yml",
+            "apps/strix-api/project-info.yml",
+        ]
+
+    async def fetch_file_content(self, project_id, file_path, ref="main"):
+        if file_path == "apps/strix-web/project-info.yml":
+            return """
+apiVersion: daileon/v1
+kind: Component
+metadata:
+  name: strix-web
+  description: "Painel Web Strix"
+  tags: [frontend, svelte]
+  owner: team-frontend
+  domain: vendas
+spec:
+  type: website
+  solution: Strix
+"""
+        elif file_path == "apps/strix-api/project-info.yml":
+            return """
+apiVersion: daileon/v1
+kind: Component
+metadata:
+  name: strix-api
+  description: "API Backend Strix"
+  tags: [backend, python]
+  owner: team-backend
+  domain: vendas
+spec:
+  type: service
+  solution: Strix
+"""
+        return None
+
+
+async def _sync_monorepo(db_path: Path):
+    crawler = MonorepoCrawler(gitlab_url="https://gitlab.local", token="fake")
+    async with _session(db_path) as db:
+        await crawler.sync_all(db)
+        components = (await db.execute(select(Component))).scalars().all()
+        return components
+
+
+def test_sync_monorepo_multiples_manifestos():
+    """Testa a sincronização de um Monorepo contendo 2 arquivos project-info.yml em subpastas."""
+    with tempfile.TemporaryDirectory() as tmp:
+        components = asyncio.run(_sync_monorepo(Path(tmp) / "test.db"))
+
+    assert len(components) == 2
+    names = sorted(c.name for c in components)
+    assert names == ["strix-api", "strix-web"]
+
+    web = next(c for c in components if c.name == "strix-web")
+    api = next(c for c in components if c.name == "strix-api")
+
+    assert web.solution == "Strix"
+    assert web.manifest_path == "apps/strix-web/project-info.yml"
+    assert api.solution == "Strix"
+    assert api.manifest_path == "apps/strix-api/project-info.yml"
+
+
+def test_fetch_manifest_paths_paginacao_e_extensoes():
+    """Testa a busca de manifestos com paginação e extensões .yml e .yaml."""
+    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+
+    async def run_test():
+        from unittest.mock import patch, MagicMock
+
+        page1_items = [{"type": "blob", "name": "project-info.yml", "path": "project-info.yml"}] + [
+            {"type": "blob", "name": f"file_{i}.txt", "path": f"src/file_{i}.txt"} for i in range(99)
+        ]
+        page2_items = [
+            {"type": "blob", "name": "project-info.yaml", "path": "subprojects/service-a/project-info.yaml"},
+            {"type": "blob", "name": "PROJECT-INFO.YML", "path": "subprojects/service-b/PROJECT-INFO.YML"},
+        ]
+
+        async def mock_get(*args, **kwargs):
+            url_arg = kwargs.get("url") or (args[1] if len(args) > 1 else args[0])
+            target_url = str(url_arg)
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            if "page=1&" in target_url:
+                mock_resp.json.return_value = page1_items
+            elif "page=2&" in target_url:
+                mock_resp.json.return_value = page2_items
+            else:
+                mock_resp.json.return_value = []
+            return mock_resp
+
+        with patch("httpx.AsyncClient.get", side_effect=mock_get):
+            return await crawler.fetch_manifest_paths(100, ref="main")
+
+    paths = asyncio.run(run_test())
+    assert paths == [
+        "project-info.yml",
+        "subprojects/service-a/project-info.yaml",
+        "subprojects/service-b/PROJECT-INFO.YML",
+    ]
+
+
+def test_is_hidden_path_ignora_diretorios_com_ponto():
+    """Diretórios ocultos não guardam documentação técnica do projeto."""
+    assert is_hidden_path(".github/CONTRIBUTING.md")
+    assert is_hidden_path("docs/.drafts/rascunho.md")
+    assert is_hidden_path(".git/refs/notes.md")
+
+    assert not is_hidden_path("docs/index.md")
+    assert not is_hidden_path("README.md")
+    # O ponto é no arquivo, não num diretório do caminho.
+    assert not is_hidden_path("docs/.hidden.md")
+
+    # Um ponto no próprio diretório consultado foi escolha explícita de quem
+    # configurou `docs.dir` — não pode descartar o conteúdo inteiro.
+    assert not is_hidden_path(".config/docs/index.md", base=".config/docs")
+    assert is_hidden_path(".config/docs/.old/index.md", base=".config/docs")
+
+
+def test_is_vendor_path_ignora_dependencias_e_build():
+    assert is_vendor_path("node_modules/lib/project-info.yml")
+    assert is_vendor_path("frontend/node_modules/x/project-info.yml")
+    assert is_vendor_path("target/classes/project-info.yml")
+
+    assert not is_vendor_path("project-info.yml")
+    assert not is_vendor_path("apps/strix-api/project-info.yml")
+
+
+def test_nested_sub_dirs_so_exclui_o_que_esta_abaixo():
+    todos = {"", "apps/web", "apps/web/lib", "apps/api"}
+
+    # Da raiz, todo subprojeto é de outro componente.
+    assert nested_sub_dirs("", todos) == ["apps/api", "apps/web", "apps/web/lib"]
+    # De `apps/web`, só o que está dentro dele; `apps/api` é irmão e nunca
+    # aparece na varredura, e a raiz é ascendente — excluí-la zeraria tudo.
+    assert nested_sub_dirs("apps/web", todos) == ["apps/web/lib"]
+    assert nested_sub_dirs("apps/web/lib", todos) == []
+
+
+def test_fetch_docs_tree_descarta_diretorios_ocultos():
+    """A varredura da raiz alcança `.github`, `.gitlab` e afins."""
+    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+
+    async def run_test():
+        from unittest.mock import patch, MagicMock
+
+        itens = [
+            {"type": "blob", "name": "README.md", "path": "README.md"},
+            {"type": "blob", "name": "index.md", "path": "docs/index.md"},
+            {"type": "blob", "name": "CONTRIBUTING.md", "path": ".github/CONTRIBUTING.md"},
+            {"type": "blob", "name": "notas.md", "path": ".gitlab/notas.md"},
+            {"type": "blob", "name": "rascunho.md", "path": "docs/.drafts/rascunho.md"},
+            {"type": "tree", "name": "docs", "path": "docs"},
+        ]
+
+        async def mock_get(*args, **kwargs):
+            url_arg = kwargs.get("url") or (args[1] if len(args) > 1 else args[0])
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = itens if "page=1&" in str(url_arg) else []
+            return mock_resp
+
+        with patch("httpx.AsyncClient.get", side_effect=mock_get):
+            return await crawler.fetch_docs_tree(100, "/", ref="main")
+
+    docs = asyncio.run(run_test())
+    assert sorted(d["path"] for d in docs) == ["README.md", "docs/index.md"]
+
+
+def _fetch_first_commit(headers, paginas):
+    """Executa `fetch_first_commit_date` contra uma API do GitLab simulada."""
+    from unittest.mock import patch, MagicMock
+
+    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+
+    async def run_test():
+        async def mock_get(*args, **kwargs):
+            url_arg = kwargs.get("url") or (args[1] if len(args) > 1 else args[0])
+            url = str(url_arg)
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.headers = headers
+            # Cuidado: `per_page=` também contém "page=".
+            pagina = "page=" + url.split("&page=")[1] if "&page=" in url else "page=1"
+            resp.json.return_value = paginas.get(pagina, [])
+            return resp
+
+        with patch("httpx.AsyncClient.get", side_effect=mock_get):
+            return await crawler.fetch_first_commit_date(100, ref="main")
+
+    return asyncio.run(run_test())
+
+
+def test_fetch_first_commit_date_vai_ate_a_ultima_pagina():
+    """Com `per_page=1`, a última página guarda o commit mais antigo."""
+    resultado = _fetch_first_commit(
+        headers={"x-total-pages": "42"},
+        paginas={
+            "page=1": [{"committed_date": "2026-07-30T10:00:00.000Z"}],
+            "page=42": [{"committed_date": "2015-03-02T08:30:00.000Z"}],
+        },
+    )
+    assert resultado is not None
+    assert resultado.year == 2015 and resultado.month == 3 and resultado.day == 2
+
+
+def test_fetch_first_commit_date_com_commit_unico():
+    """Uma página só: o commit mais novo também é o mais antigo."""
+    resultado = _fetch_first_commit(
+        headers={"x-total-pages": "1"},
+        paginas={"page=1": [{"committed_date": "2020-01-15T12:00:00.000Z"}]},
+    )
+    assert resultado is not None
+    assert resultado.year == 2020
+
+
+def test_fetch_first_commit_date_sem_cabecalho_de_paginacao():
+    """Sem `x-total-pages` não dá para saber qual é a última página.
+
+    Devolver a primeira seria devolver o commit mais *recente* como se fosse o
+    primeiro — pior do que não ter o dado.
+    """
+    resultado = _fetch_first_commit(
+        headers={},
+        paginas={"page=1": [{"committed_date": "2026-07-30T10:00:00.000Z"}]},
+    )
+    assert resultado is None
+
+
+class MonorepoDocsCrawler(FakeCrawler):
+    """Monorepo com manifesto na raiz e em `apps/strix-api`.
+
+    Nenhum dos dois tem pasta `docs/`, então ambos caem no fallback que varre
+    a pasta inteira do componente — é aí que a raiz alcança o subprojeto.
+    """
+
+    projetos = [PROJECT]
+
+    async def fetch_manifest_paths(self, project_id: int, ref: str = "main"):
+        return ["project-info.yml", "apps/strix-api/project-info.yml"]
+
+    async def fetch_file_content(self, project_id, file_path, ref="main"):
+        conteudos = {
+            "project-info.yml": _manifest_de("monorepo-raiz"),
+            "apps/strix-api/project-info.yml": _manifest_de("strix-api"),
+            "GUIA.md": "# Guia da raiz",
+            "apps/strix-api/API.md": "# Guia da API",
+        }
+        return conteudos.get(file_path)
+
+    async def fetch_docs_tree(self, project_id, docs_dir, ref="main"):
+        clean = docs_dir.strip("/")
+        arvore = [
+            {"path": "GUIA.md", "name": "GUIA.md", "type": "blob"},
+            {"path": "apps/strix-api/API.md", "name": "API.md", "type": "blob"},
+        ]
+        if clean == "docs" or clean == "apps/strix-api/docs":
+            return []
+        if not clean:
+            return arvore
+        return [i for i in arvore if i["path"].startswith(f"{clean}/")]
+
+
+def test_sync_monorepo_nao_rouba_docs_do_subprojeto():
+    """A documentação de `apps/strix-api` pertence a ele, não ao componente-raiz."""
+    async def run_test(db_path):
+        crawler = MonorepoDocsCrawler(gitlab_url="https://gitlab.local", token="fake")
+        async with _session(db_path) as db:
+            await crawler.sync_all(db)
+            components = (await db.execute(select(Component))).scalars().all()
+            for c in components:
+                _ = c.docs
+            return components
+
+    with tempfile.TemporaryDirectory() as tmp:
+        components = asyncio.run(run_test(Path(tmp) / "test.db"))
+
+    raiz = next(c for c in components if c.name == "monorepo-raiz")
+    api = next(c for c in components if c.name == "strix-api")
+
+    assert sorted(d.relative_path for d in raiz.docs) == ["GUIA.md"]
+    assert sorted(d.relative_path for d in api.docs) == ["API.md"]
+
+
 
 
 

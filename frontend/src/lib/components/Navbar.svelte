@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import DaileonLogo from './DaileonLogo.svelte';
-  import { Search, Layers, Server, FolderGit2, Home, Sun, Moon, Settings, LogIn, LogOut, Globe, Wrench } from 'lucide-svelte';
+  import { Search, Layers, Server, Home, Sun, Moon, Settings, LogIn, LogOut, Globe, Wrench } from 'lucide-svelte';
   import { theme, toggleTheme } from '$lib/theme';
   import { auth } from '$lib/auth';
   import { t, locale, setLocale } from '$lib/i18n';
@@ -10,7 +10,6 @@
     { href: '/', label: $t('nav.home'), icon: Home },
     { href: '/catalog', label: $t('nav.catalog'), icon: Layers },
     { href: '/servers', label: $t('nav.servers'), icon: Server },
-    { href: '/domains', label: $t('nav.domains'), icon: FolderGit2 },
     { href: '/tools', label: $t('nav.tools'), icon: Wrench },
     { href: '/search', label: $t('nav.search'), icon: Search }
   ];

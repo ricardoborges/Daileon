@@ -34,7 +34,8 @@ export interface ServerItem {
   components: ServerComponentItem[];
 }
 
-export interface DomainComponentItem {
+/** Componente como ele aparece dentro de um grupo (domínio ou solução). */
+export interface GroupedComponentItem {
   id: number;
   gitlab_project_id: number;
   name: string;
@@ -43,20 +44,38 @@ export interface DomainComponentItem {
   type: string;
   lifecycle: string;
   owner: string;
+  domain?: string | null;
+  solution?: string | null;
+  /** @deprecated alias de `solution`, mantido só para compatibilidade. */
   system?: string | null;
   gitlab_url: string;
   has_manifest: boolean;
   docs_count?: number;
+  /** Só vem no detalhe do grupo. */
   tags?: string[];
+  /** Só vem no detalhe do grupo. */
   deployments_count?: number;
 }
 
+/** @deprecated use `GroupedComponentItem`. */
+export type DomainComponentItem = GroupedComponentItem;
+
 export interface DomainItem {
   domain: string;
+  solutions: string[];
+  /** @deprecated alias de `solutions`. */
   systems: string[];
   owners: string[];
   components_count: number;
-  components: DomainComponentItem[];
+  components: GroupedComponentItem[];
+}
+
+export interface SolutionItem {
+  solution: string;
+  domains: string[];
+  owners: string[];
+  components_count: number;
+  components: GroupedComponentItem[];
 }
 
 export interface ComponentItem {
@@ -69,6 +88,7 @@ export interface ComponentItem {
   lifecycle: string;
   owner: string;
   domain?: string;
+  solution?: string;
   system?: string;
   gitlab_url: string;
   default_branch?: string;
@@ -81,6 +101,8 @@ export interface ComponentItem {
   dependencies: string[];
   deployments?: DeploymentItem[];
   gitlab_created_at?: string;
+  /** Commit mais antigo do repositório; preserva a idade de projetos migrados. */
+  first_commit_at?: string;
   last_activity_at?: string;
   updated_at?: string;
 }
@@ -367,6 +389,21 @@ export async function fetchDomainDetail(domainName: string): Promise<DomainItem>
   if (!res.ok) {
     if (res.status === 404) throw new Error('Domínio não encontrado');
     throw new Error('Falha ao carregar detalhes do domínio');
+  }
+  return res.json();
+}
+
+export async function fetchSolutions(): Promise<SolutionItem[]> {
+  const res = await authFetch(`${API_BASE}/solutions`);
+  if (!res.ok) throw new Error('Falha ao carregar lista de soluções');
+  return res.json();
+}
+
+export async function fetchSolutionDetail(solutionName: string): Promise<SolutionItem> {
+  const res = await authFetch(`${API_BASE}/solutions/${encodeURIComponent(solutionName)}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('Solução não encontrada');
+    throw new Error('Falha ao carregar detalhes da solução');
   }
   return res.json();
 }

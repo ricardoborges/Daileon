@@ -9,9 +9,11 @@
 | Item | Valor |
 | --- | --- |
 | **Nome do arquivo** | `project-info.yml` (exatamente assim — não há fallback para `.yaml` ou outros nomes) |
-| **Local** | Raiz do repositório |
+| **Local** | Raiz do repositório ou em subpastas de **Monorepos** (ex: `apps/strix-web/project-info.yml`, `apps/strix-api/project-info.yml`) |
 | **Branch lida** | A `default_branch` do projeto no GitLab (normalmente `main`) |
 | **Quando é lido** | A cada sincronização (botão de Sync no portal ou crawler agendado) |
+
+💡 **Suporte a Monorepos:** O Daileon varre recursivamente todo o repositório GitLab. Caso o repositório possua múltiplos arquivos `project-info.yml` em subpastas, cada manifesto gerará um componente independente no catálogo, todos podendo ser agrupados na mesma `solution`!
 
 Se o arquivo **não existir** — ou existir mas **falhar no parse** — o Daileon não quebra: ele cria um **registro sintético** com os dados nativos do GitLab (nome do repositório, descrição, tags do projeto) e marca o componente com `has_manifest = false`. Na interface isso aparece como *"Fallback sintético"* no lugar do selo `project-info.yml`.
 
@@ -33,7 +35,7 @@ metadata:
 spec:
   type: service
   lifecycle: production
-  system: e-commerce-core
+  solution: Strix
 
   docs:
     dir: /docs
@@ -99,7 +101,7 @@ Esse arquivo é válido e produz um componente `Component` / `service` / `produc
 | --- | --- | --- | --- | --- |
 | `type` | string | Não | `service` | **Conjunto aberto** — veja a seção 4. Alimenta o filtro "Tipo". |
 | `lifecycle` | string | Não | `production` | **Conjunto aberto, mas com 3 valores privilegiados** — veja a seção 4. |
-| `system` | string | Não | `null` | Sistema maior ao qual o componente pertence. |
+| `solution` | string | Não | `null` | Solução à qual o componente pertence (agrupador de projetos). |
 | `docs` | objeto | Não | `{dir: /docs, index: index.md}` | Ver 3.4. |
 | `links` | lista | Não | `[]` | Ver 3.5. |
 | `dependencies` | lista | Não | `[]` | Ver 3.6. |
@@ -298,7 +300,7 @@ O banco define limites por coluna. Em SQLite (padrão de desenvolvimento) eles *
 | `metadata.owner` | 100 |
 | `metadata.domain` | 100 |
 | `kind`, `type`, `lifecycle` | 50 cada |
-| `spec.system` | 100 |
+| `spec.solution` | 100 |
 | `spec.docs.dir`, `spec.docs.index` | 100 cada |
 | `links[].title` | 100 |
 | `links[].url` | 500 |
@@ -329,7 +331,7 @@ metadata:
 spec:
   type: service
   lifecycle: production
-  system: e-commerce-core
+  solution: Strix
 
   docs:
     dir: /docs

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.orm import joinedload
 
+from app.api.aggregations import build_group_detail, group_components
 from app.db.session import get_db
 from app.db.models import Component, DocFile, Tag, ComponentDeployment
 from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode
@@ -55,8 +56,10 @@ async def list_components(
             "lifecycle": c.lifecycle,
             "owner": c.owner,
             "domain": c.domain,
+            "solution": c.solution,
             "system": c.system,
             "gitlab_url": c.gitlab_url,
+            "manifest_path": c.manifest_path,
             "has_manifest": c.has_manifest,
             "docs_count": len(c.docs),
             "tags": [t.name for t in c.tags],
@@ -77,6 +80,7 @@ async def list_components(
                 for dep in c.deployments
             ],
             "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
+            "first_commit_at": c.first_commit_at.isoformat() if c.first_commit_at else None,
             "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
             "updated_at": c.updated_at.isoformat() if c.updated_at else None
         }
@@ -100,12 +104,14 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "lifecycle": c.lifecycle,
         "owner": c.owner,
         "domain": c.domain,
+        "solution": c.solution,
         "system": c.system,
         "gitlab_url": c.gitlab_url,
         "default_branch": c.default_branch,
         "docs_dir": c.docs_dir,
         "docs_index": c.docs_index,
         "has_manifest": c.has_manifest,
+        "manifest_path": c.manifest_path,
         "docs_count": len(c.docs),
         "tags": [t.name for t in c.tags],
         "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
@@ -135,6 +141,7 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
             for dep in c.deployments
         ],
         "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
+        "first_commit_at": c.first_commit_at.isoformat() if c.first_commit_at else None,
         "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None
     }
@@ -257,106 +264,31 @@ async def get_server_detail(server_name: str, db: AsyncSession = Depends(get_db)
 @protected_router.get("/domains")
 async def list_domains(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Component))
-    components = result.scalars().all()
-
-    domains_map = {}
-    for c in components:
-        if not c.domain or not c.domain.strip():
-            continue
-
-        domain_key = c.domain.strip()
-        if domain_key not in domains_map:
-            domains_map[domain_key] = {
-                "domain": domain_key,
-                "systems": set(),
-                "owners": set(),
-                "components": []
-            }
-
-        d = domains_map[domain_key]
-        if c.system:
-            d["systems"].add(c.system)
-        if c.owner:
-            d["owners"].add(c.owner)
-
-        d["components"].append({
-            "id": c.id,
-            "gitlab_project_id": c.gitlab_project_id,
-            "name": c.name,
-            "description": c.description,
-            "kind": c.kind,
-            "type": c.type,
-            "lifecycle": c.lifecycle,
-            "owner": c.owner,
-            "system": c.system,
-            "gitlab_url": c.gitlab_url,
-            "has_manifest": c.has_manifest,
-            "docs_count": len(c.docs)
-        })
-
-    domains_list = []
-    for d_name, data in domains_map.items():
-        domains_list.append({
-            "domain": data["domain"],
-            "systems": sorted(list(data["systems"])),
-            "owners": sorted(list(data["owners"])),
-            "components_count": len(data["components"]),
-            "components": data["components"]
-        })
-
-    domains_list.sort(key=lambda x: str(x["domain"]).lower())
-    return domains_list
+    return group_components(result.scalars().all(), "domain")
 
 
 @protected_router.get("/domains/{domain_name}")
 async def get_domain_detail(domain_name: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Component))
-    components = result.scalars().all()
-
-    target_components = []
-    systems = set()
-    owners = set()
-    canonical_domain = None
-
-    for c in components:
-        if not c.domain or not c.domain.strip():
-            continue
-
-        if c.domain.strip().lower() == domain_name.strip().lower():
-            if not canonical_domain:
-                canonical_domain = c.domain.strip()
-            if c.system:
-                systems.add(c.system)
-            if c.owner:
-                owners.add(c.owner)
-
-            target_components.append({
-                "id": c.id,
-                "gitlab_project_id": c.gitlab_project_id,
-                "name": c.name,
-                "description": c.description,
-                "kind": c.kind,
-                "type": c.type,
-                "lifecycle": c.lifecycle,
-                "owner": c.owner,
-                "system": c.system,
-                "gitlab_url": c.gitlab_url,
-                "has_manifest": c.has_manifest,
-                "docs_count": len(c.docs),
-                "tags": [t.name for t in c.tags],
-                "deployments_count": len(c.deployments)
-            })
-
-    if not target_components:
+    detail = build_group_detail(result.scalars().all(), "domain", domain_name)
+    if not detail:
         raise HTTPException(status_code=404, detail="Domínio não encontrado")
+    return detail
 
-    return {
-        "domain": canonical_domain or domain_name,
-        "systems": sorted(list(systems)),
-        "owners": sorted(list(owners)),
-        "components_count": len(target_components),
-        "components": target_components
-    }
+
+@protected_router.get("/solutions")
+async def list_solutions(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Component))
+    return group_components(result.scalars().all(), "solution")
+
+
+@protected_router.get("/solutions/{solution_name}")
+async def get_solution_detail(solution_name: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Component))
+    detail = build_group_detail(result.scalars().all(), "solution", solution_name)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Solução não encontrada")
+    return detail
 
 
 

@@ -54,7 +54,7 @@
         <th class="py-3 px-4">{$t("catalog.colLifecycle")}</th>
         <th class="py-3 px-4">{$t("catalog.colOwner")}</th>
         <th class="py-3 px-4">{$t("catalog.colLastCommit")}</th>
-        <th class="py-3 px-4">{$t("catalog.colCreated")}</th>
+        <th class="py-3 px-4">{$t("catalog.colFirstCommit")}</th>
         <th class="py-3 px-4 text-right">{$t("catalog.colActions")}</th>
       </tr>
     </thead>
@@ -65,7 +65,9 @@
           item.last_activity_at || item.updated_at,
           $locale,
         )}
-        {@const createdDate = formatDate(item.gitlab_created_at, $locale)}
+        <!-- O primeiro commit preserva a idade de projetos migrados de outra
+             instância do GitLab; `gitlab_created_at` é só o fallback. -->
+        {@const createdDate = formatDate(item.first_commit_at || item.gitlab_created_at, $locale)}
         <tr class="hover:bg-surface-2 transition-colors">
           <!-- Nome e Descrição -->
           <td class="py-3.5 px-4 max-w-xs">

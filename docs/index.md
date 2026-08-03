@@ -47,7 +47,7 @@ metadata:
 spec:
   type: service # service, website, library, cronjob
   lifecycle: production # production, experimental, deprecated
-  system: e-commerce-core
+  solution: Strix
   
   docs:
     dir: /docs

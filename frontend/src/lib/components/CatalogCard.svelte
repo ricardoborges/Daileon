@@ -47,7 +47,11 @@
     item.last_activity_at || item.updated_at,
     $locale,
   );
-  $: createdDate = formatDate(item.gitlab_created_at, $locale);
+  // Projetos migrados de outra instância do GitLab têm `gitlab_created_at`
+  // igual à data da migração. O primeiro commit é a idade real do código;
+  // a data de criação do repositório só entra quando ele não está disponível.
+  $: createdDate = formatDate(item.first_commit_at || item.gitlab_created_at, $locale);
+  $: createdLabel = item.first_commit_at ? $t("card.firstCommit") : $t("card.created");
 </script>
 
 <article class="plate plate-link flex flex-col p-5" style="--chamfer: 14px;">
@@ -130,7 +134,7 @@
         <span class="t-dim">{lastCommitDate || "—"}</span>
       </div>
       <div class="flex items-center gap-1.5">
-        <span class="t-faint">{$t("card.created")}</span>
+        <span class="t-faint">{createdLabel}</span>
         <span class="t-dim">{createdDate || "—"}</span>
       </div>
     </div>

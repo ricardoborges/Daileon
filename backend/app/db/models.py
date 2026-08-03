@@ -89,7 +89,8 @@ class Component(Base):
     __tablename__ = "components"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    gitlab_project_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    gitlab_project_id: Mapped[int] = mapped_column(Integer, index=True)
+    manifest_path: Mapped[Optional[str]] = mapped_column(String(300), nullable=True) # e.g. "project-info.yml" or "apps/strix-web/project-info.yml"
     name: Mapped[str] = mapped_column(String(100), index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     kind: Mapped[str] = mapped_column(String(50), default="Component") # Component, API, Library
@@ -97,13 +98,25 @@ class Component(Base):
     lifecycle: Mapped[str] = mapped_column(String(50), default="production") # production, experimental, deprecated
     owner: Mapped[str] = mapped_column(String(100), default="unassigned", index=True)
     domain: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    system: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    solution: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    @property
+    def system(self) -> Optional[str]:
+        return self.solution
+
+    @system.setter
+    def system(self, value: Optional[str]):
+        self.solution = value
     gitlab_url: Mapped[str] = mapped_column(String(500))
     default_branch: Mapped[str] = mapped_column(String(100), default="main")
     docs_dir: Mapped[str] = mapped_column(String(100), default="/docs")
     docs_index: Mapped[str] = mapped_column(String(100), default="index.md")
     has_manifest: Mapped[bool] = mapped_column(default=False)
     gitlab_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    #: Data do commit mais antigo do repositório. Projetos migrados para esta
+    #: instância do GitLab têm `gitlab_created_at` igual à data da migração, o
+    #: que os faz parecer novos; o primeiro commit preserva a idade real.
+    first_commit_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     last_activity_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

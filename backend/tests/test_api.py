@@ -36,7 +36,7 @@ def component(client):
                 description="Componente usado apenas pela suíte de testes.",
                 owner="time-de-teste",
                 domain="internal-tooling",
-                system="platform-engineering",
+                solution="Strix",
                 gitlab_url="https://gitlab.local/teste/componente-de-teste",
                 has_manifest=True,
                 tags=[Tag(name="python")],
@@ -166,7 +166,7 @@ def test_list_domains(client, component):
     dom = next(d for d in domains if d["domain"] == "internal-tooling")
     assert dom["components_count"] == 1
     assert "time-de-teste" in dom["owners"]
-    assert "platform-engineering" in dom["systems"]
+    assert "Strix" in dom["solutions"]
     assert dom["components"][0]["name"] == component["name"]
 
 
@@ -176,12 +176,49 @@ def test_get_domain_detail(client, component):
     data = response.json()
     assert data["domain"] == "internal-tooling"
     assert data["components_count"] == 1
-    assert "platform-engineering" in data["systems"]
+    assert "Strix" in data["solutions"]
     assert data["components"][0]["name"] == component["name"]
 
 
 def test_get_domain_detail_inexistente(client):
     response = client.get("/api/domains/dominio-inexistente-999")
+    assert response.status_code == 404
+
+
+def test_get_domain_detail_ignora_caixa(client, component):
+    """A URL vem do usuário; o agrupamento não pode depender da grafia."""
+    response = client.get("/api/domains/INTERNAL-TOOLING")
+    assert response.status_code == 200
+    assert response.json()["domain"] == "internal-tooling"
+
+
+def test_list_solutions(client, component):
+    response = client.get("/api/solutions")
+    assert response.status_code == 200
+    solutions = response.json()
+    assert isinstance(solutions, list)
+    sol = next(s for s in solutions if s["solution"] == "Strix")
+    assert sol["components_count"] == 1
+    assert "time-de-teste" in sol["owners"]
+    assert "internal-tooling" in sol["domains"]
+    assert sol["components"][0]["name"] == component["name"]
+
+
+def test_get_solution_detail(client, component):
+    response = client.get("/api/solutions/Strix")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["solution"] == "Strix"
+    assert data["components_count"] == 1
+    assert "internal-tooling" in data["domains"]
+    assert data["components"][0]["name"] == component["name"]
+    # Só o detalhe carrega tags e contagem de deployments.
+    assert "python" in data["components"][0]["tags"]
+    assert data["components"][0]["deployments_count"] == 1
+
+
+def test_get_solution_detail_inexistente(client):
+    response = client.get("/api/solutions/solucao-inexistente-999")
     assert response.status_code == 404
 
 

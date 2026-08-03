@@ -62,7 +62,7 @@
   
   let type = 'website';
   let lifecycle = 'production';
-  let system = 'platform-engineering';
+  let solution = 'Strix';
   
   let docsDir = '/docs';
   let docsIndex = 'index.md';
@@ -143,7 +143,7 @@
     tags,
     type,
     lifecycle,
-    system,
+    solution,
     docsDir,
     docsIndex,
     deployments,
@@ -181,8 +181,8 @@
     lines.push('spec:');
     lines.push(`  type: ${data.type || 'service'}`);
     lines.push(`  lifecycle: ${data.lifecycle || 'production'}`);
-    if (data.system) {
-      lines.push(`  system: ${data.system}`);
+    if (data.solution) {
+      lines.push(`  solution: ${data.solution}`);
     }
 
     lines.push('  ');
@@ -277,7 +277,7 @@
       tags = '';
       type = 'service';
       lifecycle = 'production';
-      system = '';
+      solution = '';
       docsDir = '/docs';
       docsIndex = 'index.md';
       deployments = [];
@@ -296,7 +296,7 @@
       tags = 'frontend, svelte, web, user-interface';
       type = 'website';
       lifecycle = 'production';
-      system = 'customer-portal';
+      solution = 'customer-portal';
       docsDir = '/docs';
       docsIndex = 'index.md';
       deployments = [
@@ -334,7 +334,7 @@
       tags = 'python, fastapi, postgresql, rest-api';
       type = 'service';
       lifecycle = 'production';
-      system = 'payment-gateway';
+      solution = 'payment-gateway';
       docsDir = '/docs';
       docsIndex = 'index.md';
       deployments = [
@@ -372,7 +372,7 @@
       tags = 'cronjob, python, batch, worker';
       type = 'cronjob';
       lifecycle = 'production';
-      system = 'data-lake';
+      solution = 'data-lake';
       docsDir = '/docs';
       docsIndex = 'index.md';
       deployments = [
@@ -627,12 +627,12 @@
           </div>
 
           <div class="form-row">
-            <label for="builder-system" class="field-label">{$t('tools.builder.system')}</label>
+            <label for="builder-solution" class="field-label">{$t('tools.builder.solution')}</label>
             <input
-              id="builder-system"
+              id="builder-solution"
               type="text"
-              bind:value={system}
-              placeholder={$t('tools.builder.systemPlaceholder')}
+              bind:value={solution}
+              placeholder={$t('tools.builder.solutionPlaceholder')}
               class="field"
             />
           </div>

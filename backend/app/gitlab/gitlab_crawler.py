@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import Iterable, List, Dict, Any, Optional
 import httpx
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +31,75 @@ def normalize_owner(raw: Optional[str]) -> str:
     if "@" in val:
         val = val.split("@")[0].strip()
     return val.lower() if val else "unassigned"
+
+
+#: Diretórios de dependência e artefato de build. Um `project-info.yml`
+#: vendorizado aqui dentro descreve o projeto de outra pessoa, não este —
+#: sem o filtro, cada dependência com manifesto viraria um componente no
+#: catálogo. Só vale para a descoberta de manifestos: docs gerados em
+#: `build/` ou `dist/` continuam sendo indexados.
+VENDOR_DIRS = frozenset({
+    "node_modules", "bower_components", "vendor", "site-packages",
+    "__pycache__", "dist", "build", "target", "out",
+})
+
+
+def relative_segments(path: str, base: str = "") -> List[str]:
+    """Segmentos de `path` abaixo de `base`.
+
+    O que interessa filtrar é o que está *dentro* do diretório consultado. Se
+    alguém apontou `docs.dir` para `.config/docs`, o ponto no próprio `base`
+    foi uma escolha explícita e não deve descartar o conteúdo inteiro.
+    """
+    clean_path = path.strip("/")
+    clean_base = base.strip("/")
+    if clean_base and clean_path.startswith(f"{clean_base}/"):
+        clean_path = clean_path[len(clean_base) + 1:]
+    elif clean_base and clean_path == clean_base:
+        return []
+    return [seg for seg in clean_path.split("/") if seg]
+
+
+def is_hidden_path(path: str, base: str = "") -> bool:
+    """True se algum diretório de `path` abaixo de `base` começar com ponto.
+
+    Cobre `.git`, `.github`, `.gitlab`, `.venv`, `.claude` e afins: nenhum
+    deles guarda documentação técnica do projeto, e varrer `.git` chega a
+    devolver milhares de blobs.
+    """
+    return any(seg.startswith(".") for seg in relative_segments(path, base)[:-1])
+
+
+def is_vendor_path(path: str) -> bool:
+    """True se `path` passar por um diretório de dependência ou de build."""
+    segments = [seg for seg in path.strip("/").split("/") if seg]
+    return any(seg.lower() in VENDOR_DIRS for seg in segments[:-1])
+
+
+def nested_sub_dirs(own_sub_dir: str, all_sub_dirs: Iterable[str]) -> List[str]:
+    """Sub-diretórios de outros componentes que caem dentro do escopo deste.
+
+    Num monorepo com manifesto na raiz e em `svc-a/`, a varredura de docs do
+    componente-raiz alcança `svc-a/docs/` e roubaria a documentação do vizinho.
+    Só entram na lista os que estão estritamente *abaixo* de `own_sub_dir`: um
+    sub-diretório pai não pode ser excluído, ou o componente perderia tudo.
+    """
+    own = own_sub_dir.strip("/")
+    prefix = f"{own}/" if own else ""
+    return sorted(
+        d for d in {s.strip("/") for s in all_sub_dirs}
+        if d and d != own and d.startswith(prefix)
+    )
+
+
+def parse_gitlab_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Converte um timestamp ISO-8601 do GitLab, tolerando o sufixo `Z`."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
 
 
 def extract_commit_author(commit: Dict[str, Any]) -> Optional[str]:
@@ -158,19 +227,45 @@ class GitLabCrawlerService:
 
     async def fetch_docs_tree(self, project_id: int, docs_dir: str, ref: str = "main") -> List[Dict[str, Any]]:
         clean_dir = docs_dir.strip("/")
-        if clean_dir:
-            url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={clean_dir}&recursive=true&ref={ref}"
-        else:
-            url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?recursive=true&ref={ref}"
+        docs_tree = []
+        page = 1
+        per_page = 100
+        max_pages = 20
+
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
-            try:
-                resp = await client.get(url)
-                if resp.status_code == 200:
-                    tree = resp.json()
-                    return [item for item in tree if item.get("type") == "blob" and item.get("name", "").endswith(".md")]
-            except Exception as e:
-                logger.error(f"Error fetching docs tree for project {project_id}: {e}")
-        return []
+            while page <= max_pages:
+                if clean_dir:
+                    url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={clean_dir}&recursive=true&ref={ref}&page={page}&per_page={per_page}"
+                else:
+                    url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?recursive=true&ref={ref}&page={page}&per_page={per_page}"
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code == 200:
+                        tree = resp.json()
+                        if not tree or not isinstance(tree, list):
+                            break
+                        for item in tree:
+                            if item.get("type") != "blob":
+                                continue
+                            if not item.get("name", "").lower().endswith(".md"):
+                                continue
+                            if is_hidden_path(item.get("path", ""), clean_dir):
+                                continue
+                            docs_tree.append(item)
+                        page += 1
+                        if len(tree) < per_page:
+                            break
+                    else:
+                        break
+                except Exception as e:
+                    logger.error(f"Error fetching docs tree for project {project_id}: {e}")
+                    break
+            else:
+                logger.warning(
+                    f"Docs tree for project {project_id} truncated at {max_pages * per_page} entries "
+                    f"(path={clean_dir or '/'}); some documents may be missing."
+                )
+        return docs_tree
 
     async def fetch_project_commits(self, project_id: int, days: int = 365) -> Dict[str, Any]:
         """Busca os commits do projeto nos últimos `days` dias e agrega a contagem por data (YYYY-MM-DD)."""
@@ -233,6 +328,61 @@ class GitLabCrawlerService:
             "daily_counts": daily_counts
         }
 
+    async def fetch_first_commit_date(self, project_id: int, ref: str = "main") -> Optional[datetime]:
+        """Data do commit mais antigo do repositório.
+
+        A API do GitLab devolve commits do mais novo para o mais antigo e não
+        aceita inverter a ordem, então o caminho é ir direto à última página:
+        com `per_page=1`, o cabeçalho `x-total-pages` é o número de commits e a
+        última página contém o primeiro deles. Custa duas requisições.
+
+        Devolve `None` quando o GitLab omite o cabeçalho (ele o suprime em
+        repositórios muito grandes) — melhor não ter o dado do que devolver o
+        commit mais *recente* achando que é o primeiro.
+        """
+        base = (
+            f"{self.base_url}/api/v4/projects/{project_id}/repository/commits"
+            f"?ref_name={ref}&per_page=1"
+        )
+        async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
+            try:
+                resp = await client.get(base)
+                if resp.status_code != 200:
+                    logger.warning(
+                        f"GitLab returned {resp.status_code} fetching first commit for project {project_id}"
+                    )
+                    return None
+
+                data = resp.json()
+                if not isinstance(data, list) or not data:
+                    return None
+
+                total_pages = resp.headers.get("x-total-pages")
+                if not total_pages or not str(total_pages).isdigit():
+                    logger.debug(
+                        f"Project {project_id} did not report x-total-pages; skipping first commit date."
+                    )
+                    return None
+
+                # Um único commit: a primeira página já é a última.
+                if int(total_pages) <= 1:
+                    return parse_gitlab_datetime(
+                        data[0].get("committed_date") or data[0].get("created_at")
+                    )
+
+                last = await client.get(f"{base}&page={total_pages}")
+                if last.status_code != 200:
+                    return None
+                last_data = last.json()
+                if not isinstance(last_data, list) or not last_data:
+                    return None
+                return parse_gitlab_datetime(
+                    last_data[0].get("committed_date") or last_data[0].get("created_at")
+                )
+            except Exception as e:
+                logger.error(f"Error fetching first commit for project {project_id}: {e}")
+                return None
+
     async def fetch_top_committer(self, project_id: int) -> Optional[str]:
         """Consulta os commits recentes do repositório para inferir o usuário/autor com maior número de commits."""
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
@@ -253,195 +403,311 @@ class GitLabCrawlerService:
                 logger.error(f"Error fetching top committer for project {project_id}: {e}")
         return None
 
+    async def fetch_manifest_paths(self, project_id: int, ref: str = "main") -> List[str]:
+        """Busca recursivamente todos os arquivos 'project-info.yml' ou 'project-info.yaml' no repositório (suporta Monorepo e paginação)."""
+        manifest_paths = []
+        page = 1
+        per_page = 100
+        max_pages = 50
 
-    async def sync_project(self, db: AsyncSession, project_data: Dict[str, Any]) -> Component:
+        async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
+            while page <= max_pages:
+                url = (
+                    f"{self.base_url}/api/v4/projects/{project_id}/repository/tree"
+                    f"?recursive=true&ref={ref}&page={page}&per_page={per_page}"
+                )
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code != 200:
+                        logger.warning(
+                            f"GitLab API returned status {resp.status_code} fetching tree page {page} for project {project_id}"
+                        )
+                        break
+
+                    tree = resp.json()
+                    if not tree or not isinstance(tree, list):
+                        break
+
+                    for item in tree:
+                        if item.get("type") != "blob":
+                            continue
+                        if item.get("name", "").lower() not in ("project-info.yml", "project-info.yaml"):
+                            continue
+                        path = item.get("path")
+                        if not path or path in manifest_paths:
+                            continue
+                        if is_hidden_path(path) or is_vendor_path(path):
+                            logger.debug(f"Ignoring manifest outside the source tree: {path}")
+                            continue
+                        manifest_paths.append(path)
+
+                    page += 1
+                    if len(tree) < per_page:
+                        break
+                except Exception as e:
+                    logger.error(f"Error fetching tree page {page} for project {project_id}: {e}")
+                    break
+            else:
+                logger.warning(
+                    f"Repository tree for project {project_id} truncated at {max_pages * per_page} entries; "
+                    f"manifests below that point were not discovered."
+                )
+
+        manifest_paths.sort(key=lambda p: (p.count("/"), p))
+        return manifest_paths
+
+    async def sync_project(self, db: AsyncSession, project_data: Dict[str, Any]) -> List[Component]:
         project_id = project_data["id"]
         project_name = project_data["name"]
         default_branch = project_data.get("default_branch", "main")
         web_url = project_data.get("web_url", "")
         description = project_data.get("description", "")
 
-        # Try to fetch project-info.yml
-        raw_manifest = await self.fetch_file_content(project_id, "project-info.yml", ref=default_branch)
-        manifest: Optional[DaileonManifest] = None
-        has_manifest = False
+        manifest_paths = await self.fetch_manifest_paths(project_id, ref=default_branch)
+        if not manifest_paths:
+            manifest_paths = ["project-info.yml"]
 
-        if raw_manifest:
-            try:
-                manifest = DaileonManifest.parse_yaml(raw_manifest)
-                has_manifest = True
-            except Exception as e:
-                logger.warning(f"Could not parse project-info.yml in project {project_name}: {e}")
+        # Cada manifesto define um componente cujo escopo é a pasta que o
+        # contém. Guardar todas as pastas de antemão permite, ao varrer a
+        # documentação de um deles, excluir o que pertence aos vizinhos.
+        all_sub_dirs = {
+            "/".join(p.split("/")[:-1]) if "/" in p else ""
+            for p in manifest_paths
+        }
 
-        # Check existing component in DB
-        result = await db.execute(select(Component).where(Component.gitlab_project_id == project_id))
-        component = result.scalar_one_or_none()
+        # O repositório é o mesmo para todos os manifestos de um monorepo:
+        # buscar a data do primeiro commit uma vez só evita repetir a consulta
+        # por componente.
+        first_commit_at = await self.fetch_first_commit_date(project_id, ref=default_branch)
 
-        if not component:
-            component = Component(gitlab_project_id=project_id, name=project_name, gitlab_url=web_url)
-            # As coleções precisam ser inicializadas enquanto o objeto ainda é
-            # transiente. Depois do flush() ele se torna persistente e atribuir
-            # a uma coleção nunca carregada dispara um lazy load para calcular o
-            # delta — I/O implícito, proibido em contexto async (greenlet_spawn).
-            component.tags = []
-            component.links = []
-            component.dependencies = []
-            component.jenkins_pipelines = []
-            component.deployments = []
-            component.docs = []
-            db.add(component)
+        synced_components: List[Component] = []
+        synced_ids: set = set()
+        top_committer: Optional[str] = None
 
-        component.gitlab_url = web_url
-        component.default_branch = default_branch
-        component.has_manifest = has_manifest
+        for manifest_path in manifest_paths:
+            raw_manifest = await self.fetch_file_content(project_id, manifest_path, ref=default_branch)
+            manifest: Optional[DaileonManifest] = None
+            has_manifest = False
 
-        created_at_str = project_data.get("created_at")
-        last_activity_str = project_data.get("last_activity_at")
-        
-        def parse_dt(dt_str: Optional[str]) -> Optional[datetime]:
-            if not dt_str:
-                return None
-            try:
-                clean_str = dt_str.replace("Z", "+00:00")
-                return datetime.fromisoformat(clean_str)
-            except Exception:
-                return None
+            if raw_manifest:
+                try:
+                    manifest = DaileonManifest.parse_yaml(raw_manifest)
+                    has_manifest = True
+                except Exception as e:
+                    logger.warning(f"Could not parse {manifest_path} in project {project_name}: {e}")
 
-        component.gitlab_created_at = parse_dt(created_at_str)
-        component.last_activity_at = parse_dt(last_activity_str)
+            component: Optional[Component] = None
+            res = await db.execute(
+                select(Component).where(
+                    Component.gitlab_project_id == project_id,
+                    Component.manifest_path == manifest_path
+                )
+            )
+            component = res.scalar_one_or_none()
 
-        if manifest:
-            component.name = manifest.metadata.name
-            component.description = manifest.metadata.description or description
-            component.kind = manifest.kind
-            component.type = manifest.spec.type
-            component.lifecycle = manifest.spec.lifecycle
-            component.owner = normalize_owner(manifest.metadata.owner)
-            component.domain = manifest.metadata.domain
-            component.system = manifest.spec.system
-            component.docs_dir = manifest.spec.docs.dir
-            component.docs_index = manifest.spec.docs.index
-        else:
-            component.name = project_name
-            component.description = description
-            component.kind = "Component"
-            component.type = "service"
-            component.lifecycle = "production"
-            component.owner = "unassigned"
-            component.docs_dir = "/docs"
-            component.docs_index = "index.md"
+            # Casar pelo nome recupera o componente quando o manifesto mudou de
+            # lugar no repositório. O `synced_ids` evita o efeito colateral:
+            # dois manifestos que declaram o mesmo `metadata.name` disputariam
+            # a mesma linha e um deles sumiria do catálogo.
+            if not component and manifest:
+                res_name = await db.execute(
+                    select(Component).where(
+                        Component.gitlab_project_id == project_id,
+                        Component.name == manifest.metadata.name
+                    )
+                )
+                candidate = res_name.scalar_one_or_none()
+                if candidate and candidate.id not in synced_ids:
+                    component = candidate
 
-        # Se o owner estiver indefinido ("unassigned" ou vazio), infere pelo maior número de commits
-        if not component.owner or component.owner == "unassigned":
-            top_committer = await self.fetch_top_committer(project_id)
-            if top_committer:
-                component.owner = normalize_owner(top_committer)
+            if not component:
+                res_any = await db.execute(
+                    select(Component).where(Component.gitlab_project_id == project_id)
+                )
+                existing = res_any.scalars().all()
+                if len(existing) == 1 and not existing[0].manifest_path and existing[0].id not in synced_ids:
+                    component = existing[0]
 
-        await db.flush()
+            if not component:
+                component = Component(
+                    gitlab_project_id=project_id,
+                    manifest_path=manifest_path,
+                    name=manifest.metadata.name if manifest else project_name,
+                    gitlab_url=web_url
+                )
+                component.tags = []
+                component.links = []
+                component.dependencies = []
+                component.jenkins_pipelines = []
+                component.deployments = []
+                component.docs = []
+                db.add(component)
 
-        # Update Tags
-        tag_names = manifest.metadata.tags if manifest else project_data.get("tag_list", [])
-        tag_objects = []
-        for t_name in tag_names:
-            t_res = await db.execute(select(Tag).where(Tag.name == t_name))
-            tag_obj = t_res.scalar_one_or_none()
-            if not tag_obj:
-                tag_obj = Tag(name=t_name)
-                db.add(tag_obj)
-                await db.flush()
-            tag_objects.append(tag_obj)
-        component.tags = tag_objects
+            component.manifest_path = manifest_path
+            component.gitlab_url = web_url
+            component.default_branch = default_branch
+            component.has_manifest = has_manifest
 
-        # Clear & Update Links
-        await db.execute(delete(ComponentLink).where(ComponentLink.component_id == component.id))
-        if manifest and manifest.spec.links:
-            for link in manifest.spec.links:
-                db.add(ComponentLink(component_id=component.id, title=link.title, url=link.url, icon=link.icon))
+            component.gitlab_created_at = parse_gitlab_datetime(project_data.get("created_at"))
+            component.last_activity_at = parse_gitlab_datetime(project_data.get("last_activity_at"))
+            component.first_commit_at = first_commit_at
 
-        # Clear & Update Dependencies
-        await db.execute(delete(ComponentDependency).where(ComponentDependency.source_component_id == component.id))
-        if manifest and manifest.spec.dependencies:
-            for dep in manifest.spec.dependencies:
-                db.add(ComponentDependency(source_component_id=component.id, target_component_name=dep.component))
+            sub_dir = "/".join(manifest_path.split("/")[:-1]) if "/" in manifest_path else ""
 
-        # Clear & Update Jenkins Pipelines
-        await db.execute(delete(ComponentJenkinsPipeline).where(ComponentJenkinsPipeline.component_id == component.id))
-        if manifest:
-            jenkins_pipelines = manifest.spec.get_jenkins_pipelines()
-            for pipe in jenkins_pipelines:
-                db.add(ComponentJenkinsPipeline(
-                    component_id=component.id,
-                    name=pipe.name,
-                    environment=pipe.environment,
-                    job=pipe.job,
-                    server_url=pipe.server_url
-                ))
+            if manifest:
+                component.name = manifest.metadata.name
+                component.description = manifest.metadata.description or description
+                component.kind = manifest.kind
+                component.type = manifest.spec.type
+                component.lifecycle = manifest.spec.lifecycle
+                component.owner = normalize_owner(manifest.metadata.owner)
+                component.domain = manifest.metadata.domain
+                component.solution = manifest.spec.get_solution()
 
-        # Clear & Update Deployments
-        await db.execute(delete(ComponentDeployment).where(ComponentDeployment.component_id == component.id))
-        if manifest and manifest.spec.deployments:
-            for dep in manifest.spec.deployments:
-                db.add(ComponentDeployment(
-                    component_id=component.id,
-                    environment=dep.environment,
-                    url=dep.url,
-                    server_name=dep.server_name,
-                    server_ip=dep.server_ip,
-                    os=dep.os,
-                    execution_type=dep.execution_type,
-                    port=str(dep.port) if dep.port is not None else None,
-                    notes=dep.notes
-                ))
-
-        # Fetch and sync Documentation Files
-
-        await db.execute(delete(DocFile).where(DocFile.component_id == component.id))
-        
-        # Also include README.md if present
-        readme_content = await self.fetch_file_content(project_id, "README.md", ref=default_branch)
-        if readme_content:
-            db.add(DocFile(
-                component_id=component.id,
-                relative_path="README.md",
-                title="README",
-                content_markdown=readme_content
-            ))
-
-        # Sync docs directory
-        docs_tree = await self.fetch_docs_tree(project_id, component.docs_dir, ref=default_branch)
-        is_fallback = False
-        if not docs_tree and component.docs_dir.strip("/"):
-            # Fallback: se a pasta docs_dir (ex: /docs) não retornar nenhum arquivo .md, busca em todo o repositório
-            docs_tree = await self.fetch_docs_tree(project_id, "", ref=default_branch)
-            is_fallback = True
-
-        for doc_item in docs_tree:
-            file_path = doc_item["path"]
-            
-            # Se for o README.md na raiz e já o inserimos acima, evita duplicar no banco
-            if file_path.lower() == "readme.md" and readme_content:
-                continue
-
-            doc_content = await self.fetch_file_content(project_id, file_path, ref=default_branch)
-            if doc_content:
-                clean_dir = component.docs_dir.strip("/")
-                if is_fallback or not clean_dir or not file_path.startswith(clean_dir):
-                    rel_path = file_path
+                if sub_dir:
+                    clean_manifest_docs = manifest.spec.docs.dir.strip("/")
+                    component.docs_dir = f"{sub_dir}/{clean_manifest_docs}" if clean_manifest_docs else f"{sub_dir}/docs"
                 else:
-                    rel_path = file_path[len(clean_dir):].lstrip("/")
-                    if not rel_path:
-                        rel_path = doc_item["name"]
-                
-                title = rel_path.split("/")[-1].replace(".md", "").replace("_", " ").replace("-", " ").title()
+                    component.docs_dir = manifest.spec.docs.dir
+
+                component.docs_index = manifest.spec.docs.index
+            else:
+                component.name = project_name
+                component.description = description
+                component.kind = "Component"
+                component.type = "service"
+                component.lifecycle = "production"
+                component.owner = "unassigned"
+                component.solution = None
+                component.docs_dir = "/docs"
+                component.docs_index = "index.md"
+
+            if not component.owner or component.owner == "unassigned":
+                if not top_committer:
+                    top_committer = await self.fetch_top_committer(project_id)
+                if top_committer:
+                    component.owner = normalize_owner(top_committer)
+
+            await db.flush()
+
+            # Update Tags
+            tag_names = manifest.metadata.tags if manifest else project_data.get("tag_list", [])
+            tag_objects = []
+            for t_name in tag_names:
+                t_res = await db.execute(select(Tag).where(Tag.name == t_name))
+                tag_obj = t_res.scalar_one_or_none()
+                if not tag_obj:
+                    tag_obj = Tag(name=t_name)
+                    db.add(tag_obj)
+                    await db.flush()
+                tag_objects.append(tag_obj)
+            component.tags = tag_objects
+
+            # Clear & Update Links
+            await db.execute(delete(ComponentLink).where(ComponentLink.component_id == component.id))
+            if manifest and manifest.spec.links:
+                for link in manifest.spec.links:
+                    db.add(ComponentLink(component_id=component.id, title=link.title, url=link.url, icon=link.icon))
+
+            # Clear & Update Dependencies
+            await db.execute(delete(ComponentDependency).where(ComponentDependency.source_component_id == component.id))
+            if manifest and manifest.spec.dependencies:
+                for dep in manifest.spec.dependencies:
+                    db.add(ComponentDependency(source_component_id=component.id, target_component_name=dep.component))
+
+            # Clear & Update Jenkins Pipelines
+            await db.execute(delete(ComponentJenkinsPipeline).where(ComponentJenkinsPipeline.component_id == component.id))
+            if manifest:
+                jenkins_pipelines = manifest.spec.get_jenkins_pipelines()
+                for pipe in jenkins_pipelines:
+                    db.add(ComponentJenkinsPipeline(
+                        component_id=component.id,
+                        name=pipe.name,
+                        environment=pipe.environment,
+                        job=pipe.job,
+                        server_url=pipe.server_url
+                    ))
+
+            # Clear & Update Deployments
+            await db.execute(delete(ComponentDeployment).where(ComponentDeployment.component_id == component.id))
+            if manifest and manifest.spec.deployments:
+                for dep in manifest.spec.deployments:
+                    db.add(ComponentDeployment(
+                        component_id=component.id,
+                        environment=dep.environment,
+                        url=dep.url,
+                        server_name=dep.server_name,
+                        server_ip=dep.server_ip,
+                        os=dep.os,
+                        execution_type=dep.execution_type,
+                        port=str(dep.port) if dep.port is not None else None,
+                        notes=dep.notes
+                    ))
+
+            # Fetch and sync Documentation Files
+            await db.execute(delete(DocFile).where(DocFile.component_id == component.id))
+
+            readme_path = f"{sub_dir}/README.md" if sub_dir else "README.md"
+            readme_content = await self.fetch_file_content(project_id, readme_path, ref=default_branch)
+            if not readme_content and sub_dir:
+                readme_content = await self.fetch_file_content(project_id, "README.md", ref=default_branch)
+
+            if readme_content:
                 db.add(DocFile(
                     component_id=component.id,
-                    relative_path=rel_path,
-                    title=title,
-                    content_markdown=doc_content
+                    relative_path="README.md",
+                    title="README",
+                    content_markdown=readme_content
                 ))
 
-        await db.commit()
-        return component
+            # Sync docs directory
+            docs_tree = await self.fetch_docs_tree(project_id, component.docs_dir, ref=default_branch)
+            is_fallback = False
+            if not docs_tree and component.docs_dir.strip("/"):
+                docs_tree = await self.fetch_docs_tree(project_id, sub_dir, ref=default_branch)
+                is_fallback = True
+
+            # O fallback varre a pasta inteira do componente (a raiz, quando
+            # ele não é um subprojeto) e alcançaria os arquivos dos vizinhos.
+            foreign_prefixes = [f"{d}/" for d in nested_sub_dirs(sub_dir, all_sub_dirs)]
+
+            for doc_item in docs_tree:
+                file_path = doc_item["path"]
+                if file_path.lower().endswith("readme.md") and readme_content:
+                    continue
+                if any(file_path.startswith(prefix) for prefix in foreign_prefixes):
+                    continue
+
+                doc_content = await self.fetch_file_content(project_id, file_path, ref=default_branch)
+                if doc_content:
+                    clean_dir = component.docs_dir.strip("/")
+                    if is_fallback or not clean_dir or not file_path.startswith(clean_dir):
+                        rel_path = file_path[len(sub_dir):].lstrip("/") if sub_dir and file_path.startswith(sub_dir) else file_path
+                    else:
+                        rel_path = file_path[len(clean_dir):].lstrip("/")
+                        if not rel_path:
+                            rel_path = doc_item["name"]
+
+                    title = rel_path.split("/")[-1].replace(".md", "").replace("_", " ").replace("-", " ").title()
+                    db.add(DocFile(
+                        component_id=component.id,
+                        relative_path=rel_path,
+                        title=title,
+                        content_markdown=doc_content
+                    ))
+
+            await db.commit()
+            synced_components.append(component)
+            synced_ids.add(component.id)
+
+        # Cleanup: remover componentes antigos do mesmo project_id que não existem mais nos manifestos ativos
+        existing_all = (await db.execute(select(Component).where(Component.gitlab_project_id == project_id))).scalars().all()
+        for c in existing_all:
+            if c.id not in synced_ids:
+                await self._delete_component(db, c.id)
+                await db.commit()
+
+        return synced_components
 
     async def run(
         self,
@@ -471,14 +737,11 @@ class GitLabCrawlerService:
 
         for p in projects:
             try:
-                component = await self.sync_project(db, p)
-                result.synced.append(component.name)
-                progress.log("ok", f"Sincronizado: {component.name}")
+                components = await self.sync_project(db, p)
+                for comp in components:
+                    result.synced.append(comp.name)
+                    progress.log("ok", f"Sincronizado: {comp.name}")
             except Exception as e:
-                # Um projeto quebrado não pode derrubar a sincronização inteira.
-                # O commit é por projeto, então o rollback descarta só o que
-                # ficou pendente deste — os anteriores já estão persistidos e o
-                # próximo começa de uma sessão limpa.
                 await db.rollback()
                 logger.exception(
                     f"Failed to sync project {p.get('name')} ({p.get('id')})"
@@ -497,12 +760,6 @@ class GitLabCrawlerService:
     async def rebuild(
         self, db: AsyncSession, progress: Optional[SyncProgress] = None
     ) -> SyncResult:
-        """Apaga o catálogo e importa tudo do zero.
-
-        A lista de projetos é buscada *antes* do wipe: se o GitLab estiver
-        inacessível, o catálogo atual continua de pé em vez de virar um banco
-        vazio que só a próxima sincronização bem-sucedida repovoaria.
-        """
         progress = progress or SyncProgress()
 
         progress.log("info", "Consultando projetos no GitLab...")
@@ -517,9 +774,10 @@ class GitLabCrawlerService:
         result = SyncResult(mode=SyncMode.REBUILD.value)
         for p in projects:
             try:
-                component = await self.sync_project(db, p)
-                result.synced.append(component.name)
-                progress.log("ok", f"Importado: {component.name}")
+                components = await self.sync_project(db, p)
+                for comp in components:
+                    result.synced.append(comp.name)
+                    progress.log("ok", f"Importado: {comp.name}")
             except Exception as e:
                 await db.rollback()
                 logger.exception(

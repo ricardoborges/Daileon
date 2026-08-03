@@ -52,12 +52,16 @@ class ManifestDeployment(BaseModel):
 class ManifestSpec(BaseModel):
     type: str = "service"
     lifecycle: str = "production"
+    solution: Optional[str] = None
     system: Optional[str] = None
     docs: ManifestDocsConfig = Field(default_factory=ManifestDocsConfig)
     links: List[ManifestLink] = Field(default_factory=list)
     dependencies: List[ManifestDependency] = Field(default_factory=list)
     jenkins: Optional[ManifestJenkinsConfig] = None
     deployments: List[ManifestDeployment] = Field(default_factory=list)
+
+    def get_solution(self) -> Optional[str]:
+        return self.solution or self.system
 
     @field_validator("jenkins", mode="before")
     @classmethod

@@ -12,6 +12,7 @@
     type ComponentCommitsResponse
   } from '$lib/api';
   import CommitHeatmap from '$lib/components/CommitHeatmap.svelte';
+  import { domainHref, solutionHref } from '$lib/catalogView';
   import { t } from '$lib/i18n';
   import {
     BookOpen,
@@ -219,13 +220,23 @@
             <dt>{$t('catalog.domain_solution')}</dt>
             <dd>
               {#if component.domain}
-                <a href={`/domains/${encodeURIComponent(component.domain)}`} class="hover:t-visor underline transition-colors">
+                <a href={domainHref(component.domain)} class="hover:t-visor underline transition-colors">
                   {component.domain}
                 </a>
               {:else}
                 —
               {/if}
-              / {component.system || '—'}
+              /
+              {#if component.solution || component.system}
+                <a
+                  href={solutionHref(component.solution || component.system || '')}
+                  class="hover:t-visor underline transition-colors"
+                >
+                  {component.solution || component.system}
+                </a>
+              {:else}
+                —
+              {/if}
             </dd>
           </div>
           <div class="meta">

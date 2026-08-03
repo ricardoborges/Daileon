@@ -19,7 +19,7 @@ metadata:
 spec:
   type: website
   lifecycle: production
-  system: platform-engineering
+  solution: Strix
   
   docs:
     dir: /docs
@@ -214,7 +214,7 @@ spec:
         <ul class="text-xs space-y-1.5 t-dim font-mono">
           <li><b class="t-txt font-sans">type:</b> Tipo da aplicação (service/website/etc).</li>
           <li><b class="t-txt font-sans">lifecycle:</b> Fase do ciclo (production/etc).</li>
-          <li><b class="t-txt font-sans">system:</b> Agrupador do sistema pai.</li>
+          <li><b class="t-txt font-sans">solution:</b> Solução à qual o componente pertence (ex: Strix).</li>
           <li><b class="t-txt font-sans">docs.dir:</b> Pasta com docs Markdown (/docs).</li>
           <li><b class="t-txt font-sans">docs.index:</b> Arquivo principal de entrada.</li>
         </ul>
