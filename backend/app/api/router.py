@@ -6,6 +6,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.orm import joinedload
 
 from app.api.aggregations import build_group_detail, group_components
+from app.api.graph import build_graph
 from app.db.session import get_db
 from app.db.models import Component, DocFile, Tag, ComponentDeployment
 from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode
@@ -145,6 +146,36 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None
     }
+
+
+@protected_router.get("/graph")
+async def get_dependency_graph(
+    root: Optional[int] = Query(None, description="Recorta na vizinhança deste componente"),
+    depth: int = Query(1, ge=1, le=5, description="Saltos a partir de `root`"),
+    domain: Optional[str] = None,
+    solution: Optional[str] = None,
+    include_isolated: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Grafo de dependências declaradas nos `project-info.yml`.
+
+    Sem parâmetros devolve o catálogo inteiro; `root`, `domain` e `solution`
+    recortam o escopo (o primeiro informado vence, nesta ordem).
+    """
+    result = await db.execute(select(Component))
+    components = result.scalars().all()
+
+    graph = build_graph(
+        components,
+        root_id=root,
+        depth=depth,
+        domain=domain,
+        solution=solution,
+        include_isolated=include_isolated,
+    )
+    if graph is None:
+        raise HTTPException(status_code=404, detail="Escopo não encontrado no catálogo")
+    return graph
 
 
 @protected_router.get("/servers")

@@ -4,7 +4,8 @@
    * e a lista dos projetos que pertencem a ele.
    */
   import type { ComponentType } from 'svelte';
-  import type { GroupedComponentItem } from '$lib/api';
+  import { fetchDependencyGraph, type DependencyGraph, type GroupedComponentItem } from '$lib/api';
+  import DependencyGraphView from '$lib/components/DependencyGraph.svelte';
   import { t } from '$lib/i18n';
   import { domainHref, solutionHref, loadViewMode, saveViewMode, type ViewMode } from '$lib/catalogView';
   import { onMount } from 'svelte';
@@ -35,12 +36,39 @@
 
   let searchQuery = '';
   let viewMode: ViewMode = 'table';
+  let graph: DependencyGraph | null = null;
+  let loadingGraph = false;
+  let graphError: string | null = null;
 
   const backHref = kind === 'domain' ? '/catalog?tab=domains' : '/catalog?tab=solutions';
 
   onMount(() => {
     viewMode = loadViewMode(kind === 'domain' ? 'domains' : 'solutions');
   });
+
+  // O nome chega duas vezes — o da URL e o canônico da API —, e as duas vezes
+  // reativam este bloco; sem a guarda o grafo seria buscado em duplicidade.
+  let loadedGraphFor = '';
+
+  $: if (name) void loadGraph(name);
+
+  async function loadGraph(groupName: string) {
+    if (groupName === loadedGraphFor) return;
+    loadedGraphFor = groupName;
+    loadingGraph = true;
+    graphError = null;
+    try {
+      graph = await fetchDependencyGraph(
+        kind === 'domain' ? { domain: groupName } : { solution: groupName }
+      );
+    } catch (e: any) {
+      console.error('Erro ao carregar o grafo do grupo:', e);
+      graph = null;
+      graphError = e?.message || null;
+    } finally {
+      loadingGraph = false;
+    }
+  }
 
   function setViewMode(mode: ViewMode) {
     viewMode = mode;
@@ -147,6 +175,8 @@
         </div>
       </div>
     </section>
+
+    <DependencyGraphView {graph} loading={loadingGraph} error={graphError} />
 
     <section class="space-y-6">
       <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">

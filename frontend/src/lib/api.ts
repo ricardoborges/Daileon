@@ -107,6 +107,74 @@ export interface ComponentItem {
   updated_at?: string;
 }
 
+/** Nó do grafo de dependências: um componente do catálogo ou um alvo não resolvido. */
+export interface GraphNode {
+  /** `c<id>` para componentes, `u<n>` para alvos que não existem no catálogo. */
+  id: string;
+  component_id: number | null;
+  name: string;
+  kind?: string | null;
+  type?: string | null;
+  lifecycle?: string | null;
+  owner?: string | null;
+  domain?: string | null;
+  solution?: string | null;
+  /** `false` quando o nome declarado não casa com nenhum componente. */
+  resolved: boolean;
+  /** `false` para vizinhos trazidos só como contexto, fora do recorte pedido. */
+  in_scope: boolean;
+  is_root: boolean;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  target_name: string;
+  resolved: boolean;
+  in_cycle: boolean;
+}
+
+export interface GraphCycle {
+  nodes: string[];
+  names: string[];
+}
+
+export interface DependencyGraph {
+  scope: { kind: 'catalog' | 'root' | 'domain' | 'solution'; value: string | null; depth: number | null };
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  cycles: GraphCycle[];
+  /** Nomes declarados em `dependencies` que não existem no catálogo. */
+  unresolved: string[];
+  /** Projetos do escopo sem nenhuma dependência, omitidos do diagrama. */
+  isolated_count: number;
+  stats: { components_total: number; edges_total: number; nodes_shown: number; edges_shown: number };
+}
+
+export interface GraphQuery {
+  root?: number;
+  depth?: number;
+  domain?: string;
+  solution?: string;
+  includeIsolated?: boolean;
+}
+
+export async function fetchDependencyGraph(query: GraphQuery = {}): Promise<DependencyGraph> {
+  const params = new URLSearchParams();
+  if (query.root !== undefined) params.append('root', String(query.root));
+  if (query.depth !== undefined) params.append('depth', String(query.depth));
+  if (query.domain) params.append('domain', query.domain);
+  if (query.solution) params.append('solution', query.solution);
+  if (query.includeIsolated) params.append('include_isolated', 'true');
+
+  const res = await authFetch(`${API_BASE}/graph?${params.toString()}`);
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('Escopo não encontrado no catálogo');
+    throw new Error('Falha ao carregar o grafo de dependências');
+  }
+  return res.json();
+}
+
 export interface DocFileItem {
   id: number;
   relative_path: string;

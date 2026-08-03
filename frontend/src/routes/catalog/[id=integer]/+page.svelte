@@ -6,12 +6,15 @@
     fetchComponentDocs,
     fetchComponentJenkins,
     fetchComponentCommits,
+    fetchDependencyGraph,
     type ComponentItem,
     type DocFileItem,
     type JenkinsComponentResponse,
-    type ComponentCommitsResponse
+    type ComponentCommitsResponse,
+    type DependencyGraph
   } from '$lib/api';
   import CommitHeatmap from '$lib/components/CommitHeatmap.svelte';
+  import DependencyGraphView from '$lib/components/DependencyGraph.svelte';
   import { domainHref, solutionHref } from '$lib/catalogView';
   import { t } from '$lib/i18n';
   import {
@@ -32,17 +35,25 @@
     PlayCircle,
     Server,
     LayoutGrid,
-    Table
+    Table,
+    GitFork
   } from 'lucide-svelte';
+
+  type Tab = 'overview' | 'deployments' | 'dependencies' | 'docs' | 'jenkins';
 
   let component: ComponentItem | null = null;
   let docs: DocFileItem[] = [];
   let jenkinsData: JenkinsComponentResponse | null = null;
   let commitsData: ComponentCommitsResponse | null = null;
+  let graph: DependencyGraph | null = null;
   let loading = true;
   let loadingJenkins = false;
   let loadingCommits = false;
-  let activeTab: 'overview' | 'deployments' | 'docs' | 'jenkins' = 'overview';
+  let loadingGraph = false;
+  let graphError: string | null = null;
+  /** Saltos mostrados no grafo a partir deste projeto. */
+  let graphDepth = 1;
+  let activeTab: Tab = 'overview';
   let deploymentViewMode: 'cards' | 'table' = 'cards';
 
   $: componentId = parseInt($page.params.id);
@@ -51,8 +62,8 @@
     const tabParam = $page.url.searchParams.get('tab');
     if (tabParam === 'docs' || tabParam === 'techdocs') {
       activeTab = 'docs';
-    } else if (tabParam && ['overview', 'deployments', 'jenkins'].includes(tabParam)) {
-      activeTab = tabParam as 'overview' | 'deployments' | 'docs' | 'jenkins';
+    } else if (tabParam && ['overview', 'deployments', 'dependencies', 'jenkins'].includes(tabParam)) {
+      activeTab = tabParam as Tab;
     }
   }
 
@@ -79,6 +90,7 @@
       ]);
       loadJenkinsData();
       loadCommitsData();
+      loadGraph();
     } catch (e) {
       console.error(e);
     } finally {
@@ -106,6 +118,26 @@
     } finally {
       loadingCommits = false;
     }
+  }
+
+  async function loadGraph() {
+    loadingGraph = true;
+    graphError = null;
+    try {
+      graph = await fetchDependencyGraph({ root: componentId, depth: graphDepth });
+    } catch (e: any) {
+      console.error('Erro ao carregar o grafo de dependências:', e);
+      graph = null;
+      graphError = e?.message || null;
+    } finally {
+      loadingGraph = false;
+    }
+  }
+
+  function setGraphDepth(depth: number) {
+    if (depth === graphDepth) return;
+    graphDepth = depth;
+    loadGraph();
   }
 
   function lifecycleLed(lifecycle: string) {
@@ -255,6 +287,9 @@
           <button on:click={() => activeTab = 'deployments'} class="seg-item {activeTab === 'deployments' ? 'is-active' : ''}">
             <Server class="w-3 h-3" /> {$t('catalog.tab_deployments', { count: component.deployments?.length || 0 })}
           </button>
+          <button on:click={() => activeTab = 'dependencies'} class="seg-item {activeTab === 'dependencies' ? 'is-active' : ''}">
+            <GitFork class="w-3 h-3" /> {$t('graph.tabDependencies', { count: graph?.stats.edges_shown ?? component.dependencies.length })}
+          </button>
           <button on:click={() => activeTab = 'docs'} class="seg-item {activeTab === 'docs' ? 'is-active' : ''}">
             <BookOpen class="w-3 h-3" /> {$t('catalog.tab_techdocs', { count: docs.length })}
           </button>
@@ -312,9 +347,18 @@
 
         <!-- Dependências -->
         <section class="plate p-6 space-y-4" style="--chamfer: 16px;">
-          <h3 class="label label-visor flex items-center gap-2">
-            <Box class="w-3.5 h-3.5" /> Dependências diretas
-          </h3>
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="label label-visor flex items-center gap-2">
+              <Box class="w-3.5 h-3.5" /> Dependências diretas
+            </h3>
+            <button
+              type="button"
+              on:click={() => activeTab = 'dependencies'}
+              class="label inline-flex items-center gap-1.5 hover:t-visor transition-colors"
+            >
+              <GitFork class="w-3 h-3" /> {$t('graph.title')}
+            </button>
+          </div>
 
           {#if component.dependencies.length === 0}
             <p class="t-faint text-[13px]">Nenhuma dependência registrada.</p>
@@ -328,6 +372,24 @@
         </section>
       </div>
     </div>
+
+    {:else if activeTab === 'dependencies'}
+      <DependencyGraphView graph={graph} loading={loadingGraph} error={graphError} showRootLists>
+        <div slot="controls" class="flex items-center gap-2">
+          <span class="label" title={$t('graph.depthHint')}>{$t('graph.depth')}</span>
+          <div class="seg">
+            {#each [1, 2, 3] as depth}
+              <button
+                type="button"
+                on:click={() => setGraphDepth(depth)}
+                class="seg-item {graphDepth === depth ? 'is-active' : ''}"
+              >
+                {depth}
+              </button>
+            {/each}
+          </div>
+        </div>
+      </DependencyGraphView>
 
     {:else if activeTab === 'deployments'}
       <section class="space-y-6">

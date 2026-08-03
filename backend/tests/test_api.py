@@ -224,3 +224,32 @@ def test_get_solution_detail_inexistente(client):
 
 
 
+
+
+def test_get_dependency_graph(client, component):
+    response = client.get("/api/graph")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["scope"]["kind"] == "catalog"
+    # O componente de teste depende de um nome que não existe no catálogo:
+    # os dois viram nó, e o alvo é reportado como não resolvido.
+    nomes = sorted(n["name"] for n in data["nodes"])
+    assert nomes == ["componente-de-teste", "outro-componente"]
+    assert data["unresolved"] == ["outro-componente"]
+    assert len(data["edges"]) == 1
+    assert data["cycles"] == []
+
+
+def test_get_dependency_graph_por_raiz(client, component):
+    response = client.get(f"/api/graph?root={component['id']}&depth=1")
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["scope"] == {"kind": "root", "value": component["name"], "depth": 1}
+    assert [n["name"] for n in data["nodes"] if n["is_root"]] == [component["name"]]
+
+
+def test_get_dependency_graph_escopo_inexistente(client):
+    assert client.get("/api/graph?root=99999").status_code == 404
+    assert client.get("/api/graph?domain=dominio-inexistente-999").status_code == 404

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { marked } from 'marked';
   import mermaid from 'mermaid';
+  import { initMermaid } from '$lib/mermaid';
   import { FileText, ChevronRight, Book } from 'lucide-svelte';
   import type { DocFileItem } from '$lib/api';
 
@@ -13,28 +14,9 @@
   let parsedHtml = '';
 
   onMount(() => {
-    const dark = document.documentElement.classList.contains('dark');
-    const css = getComputedStyle(document.documentElement);
-    const token = (name: string, fallback: string) =>
-      css.getPropertyValue(name).trim() || fallback;
-
-    // Mermaid herda a paleta do cockpit em vez do tema padrão
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: 'loose',
-      theme: 'base',
-      fontFamily: 'JetBrains Mono, ui-monospace, monospace',
-      themeVariables: {
-        darkMode: dark,
-        background: token('--surface-2', '#141c21'),
-        primaryColor: token('--surface-3', '#1b252b'),
-        primaryTextColor: token('--txt', '#e4edf1'),
-        primaryBorderColor: token('--visor', '#2ed3ec'),
-        lineColor: token('--txt-faint', '#64777f'),
-        secondaryColor: token('--crest-wash', '#e9b93f'),
-        tertiaryColor: token('--surface', '#0f1519')
-      }
-    });
+    // Mermaid herda a paleta do cockpit em vez do tema padrão; a configuração
+    // é a mesma usada pelo grafo de dependências.
+    initMermaid();
     renderMarkdown();
   });
 
