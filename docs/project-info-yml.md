@@ -245,11 +245,13 @@ Ou seja: hoje `kind` é praticamente decorativo. Fica reservado para quando o ca
 | | |
 | --- | --- |
 | Validação | Nenhuma |
-| Padrão | `service` |
+| Padrão | `service` (quando o manifesto existe e omite o campo) |
 | Convenção do projeto | `service`, `website`, `library`, `cronjob` |
-| Uso atual | Exibido como chip no card e na página do componente; alimenta o filtro **"Tipo"** do catálogo. |
+| Uso atual | Exibido como chip no card e na página do componente; alimenta o filtro **"Tipo"** do catálogo e o contador "Serviços" na home. |
 
 O filtro é montado **dinamicamente a partir dos valores presentes no catálogo** — então um `type: lambda` novo simplesmente aparece como mais uma opção no dropdown. Isso é flexível, mas significa que erros de digitação viram categorias fantasma (`servcie` vira um filtro próprio). Padronize dentro do time.
+
+⚠️ **Componentes sintéticos recebem `type: unknown`, não `service`.** O padrão `service` só vale para manifestos que existem e omitem o campo. Repositórios sem `project-info.yml` entram como `unknown` justamente para não inflar o contador de serviços com projetos que nunca se declararam. Se um componente seu aparece como `unknown`, o caminho é declarar o `type` no manifesto.
 
 ### `lifecycle` — aberto, mas só 3 valores ganham tratamento visual
 

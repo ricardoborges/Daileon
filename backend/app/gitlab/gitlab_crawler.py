@@ -657,7 +657,7 @@ class GitLabCrawlerService:
                 component.name = project_name
                 component.description = description
                 component.kind = "Component"
-                component.type = "service"
+                component.type = "unknown"
                 component.lifecycle = "production"
                 component.owner = "unassigned"
                 component.solution = None
