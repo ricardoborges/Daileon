@@ -3,12 +3,12 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { t } from '$lib/i18n';
-  import { Wrench, FileCode, Sparkles } from 'lucide-svelte';
+  import { HelpCircle, FileCode, Sparkles } from 'lucide-svelte';
   import ProjectInfoBuilder from '$lib/components/ProjectInfoBuilder.svelte';
   import ProjectInfoTemplate from '$lib/components/ProjectInfoTemplate.svelte';
 
-  type ToolTab = 'builder' | 'template';
-  let activeTab: ToolTab = 'builder';
+  type ToolTab = 'template' | 'builder';
+  let activeTab: ToolTab = 'template';
 
   onMount(() => {
     const tabParam = $page.url.searchParams.get('tab');
@@ -26,8 +26,8 @@
 </script>
 
 <svelte:head>
-  <title>Tools & Manifestos · Daileon</title>
-  <meta name="description" content="Ferramentas para auxílio na criação, validação e exportação de manifestos project-info.yml no Daileon." />
+  <title>Ajuda & Manifestos · Daileon</title>
+  <meta name="description" content="Ajuda para criação, validação e exportação de manifestos project-info.yml no Daileon." />
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-6 py-8 space-y-8">
@@ -41,7 +41,7 @@
         </span>
       </div>
       <h1 class="text-3xl font-bold tracking-tight text-[var(--txt)] flex items-center gap-3">
-        <Wrench class="w-7 h-7 t-visor" />
+        <HelpCircle class="w-7 h-7 t-visor" />
         <span>{$t('tools.title')}</span>
       </h1>
       <p class="t-muted text-sm leading-relaxed">
@@ -59,15 +59,6 @@
   <!-- Tab selector -->
   <div class="flex items-center gap-2 border-b border-[var(--line)] pb-1">
     <button
-      on:click={() => selectTab('builder')}
-      class="px-4 py-2.5 rounded-t-lg font-bold text-xs flex items-center gap-2 transition-colors relative {activeTab === 'builder' ? 'text-[var(--txt)] bg-[var(--card)] border-t border-x border-[var(--line)]' : 't-muted hover:text-[var(--txt)]'}"
-      aria-current={activeTab === 'builder' ? 'page' : undefined}
-    >
-      <Sparkles class="w-4 h-4 {activeTab === 'builder' ? 't-visor' : ''}" />
-      <span>{$t('tools.tabBuilder')}</span>
-    </button>
-
-    <button
       on:click={() => selectTab('template')}
       class="px-4 py-2.5 rounded-t-lg font-bold text-xs flex items-center gap-2 transition-colors relative {activeTab === 'template' ? 'text-[var(--txt)] bg-[var(--card)] border-t border-x border-[var(--line)]' : 't-muted hover:text-[var(--txt)]'}"
       aria-current={activeTab === 'template' ? 'page' : undefined}
@@ -75,14 +66,23 @@
       <FileCode class="w-4 h-4 {activeTab === 'template' ? 't-visor' : ''}" />
       <span>{$t('tools.tabTemplate')}</span>
     </button>
+
+    <button
+      on:click={() => selectTab('builder')}
+      class="px-4 py-2.5 rounded-t-lg font-bold text-xs flex items-center gap-2 transition-colors relative {activeTab === 'builder' ? 'text-[var(--txt)] bg-[var(--card)] border-t border-x border-[var(--line)]' : 't-muted hover:text-[var(--txt)]'}"
+      aria-current={activeTab === 'builder' ? 'page' : undefined}
+    >
+      <Sparkles class="w-4 h-4 {activeTab === 'builder' ? 't-visor' : ''}" />
+      <span>{$t('tools.tabBuilder')}</span>
+    </button>
   </div>
 
   <!-- Content depending on activeTab -->
   <div>
-    {#if activeTab === 'builder'}
-      <ProjectInfoBuilder />
-    {:else if activeTab === 'template'}
+    {#if activeTab === 'template'}
       <ProjectInfoTemplate />
+    {:else if activeTab === 'builder'}
+      <ProjectInfoBuilder />
     {/if}
   </div>
 </div>
