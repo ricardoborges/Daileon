@@ -41,7 +41,9 @@
   // esqueleto de uma lista que já está em memória.
   let loading: Record<CatalogEntity, boolean> = { projects: false, solutions: false, domains: false };
   let loaded: Record<CatalogEntity, boolean> = { projects: false, solutions: false, domains: false };
-  let error: string | null = null;
+  // O erro também é por entidade: uma carga de fundo que falha não pode
+  // sobrepor a lista que o usuário está vendo.
+  let errors: Partial<Record<CatalogEntity, string>> = {};
 
   let searchQuery = '';
   let selectedOwner = '';
@@ -51,11 +53,18 @@
   let selectedSolution = '';
   let selectedSort = 'activity_desc';
 
+  const ENTITIES: CatalogEntity[] = ['projects', 'solutions', 'domains'];
+
   onMount(() => {
     entity = resolveEntity($page.url.searchParams.get('tab'));
     viewMode = loadViewMode(entity);
     ready = true;
-    load(entity);
+    // Os contadores das abas saem das próprias listas: carregamos as três já
+    // na abertura para os números aparecerem sem precisar visitar cada aba.
+    // A aba ativa vai primeiro para não disputar a rede com as de fundo.
+    load(entity).then(() => {
+      for (const other of ENTITIES) if (other !== entity) load(other);
+    });
   });
 
   // A aba vive na URL: voltar pelo navegador e abrir um link compartilhado
@@ -85,7 +94,7 @@
   async function load(target: CatalogEntity) {
     if (loaded[target] || loading[target]) return;
     loading = { ...loading, [target]: true };
-    error = null;
+    errors = { ...errors, [target]: undefined };
     try {
       if (target === 'projects') components = await fetchCatalog();
       else if (target === 'solutions') solutions = await fetchSolutions();
@@ -93,7 +102,7 @@
       loaded = { ...loaded, [target]: true };
     } catch (e: any) {
       console.error(e);
-      error = e?.message || $t('catalog.errorLoading');
+      errors = { ...errors, [target]: e?.message || $t('catalog.errorLoading') };
     } finally {
       loading = { ...loading, [target]: false };
     }
@@ -113,6 +122,7 @@
   $: if (entity) clearFilters();
 
   $: isLoading = loading[entity];
+  $: error = errors[entity];
 
   // --- Opções dos filtros, derivadas do que está carregado ---
   $: owners =
