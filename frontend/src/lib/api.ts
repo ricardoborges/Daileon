@@ -34,6 +34,47 @@ export interface ServerItem {
   components: ServerComponentItem[];
 }
 
+export function isProdEnv(env: string): boolean {
+  const e = (env || '').toLowerCase().trim();
+  return e === 'production' || e === 'prod' || e === 'prd';
+}
+
+export function isNonProdEnv(env: string): boolean {
+  const e = (env || '').toLowerCase().trim();
+  return (
+    e === 'test' ||
+    e === 'testing' ||
+    e === 'homolog' ||
+    e === 'homologation' ||
+    e === 'staging' ||
+    e === 'dev' ||
+    e === 'development' ||
+    e === 'ci' ||
+    e === 'sandbox' ||
+    e === 'hml' ||
+    e === 'qa' ||
+    e.startsWith('qa')
+  );
+}
+
+export function isMixedEnvironment(server: ServerItem): boolean {
+  const allEnvs = new Set<string>();
+  (server.environments || []).forEach((env) => allEnvs.add(env.toLowerCase()));
+  (server.components || []).forEach((c) => {
+    if (c.environment) allEnvs.add(c.environment.toLowerCase());
+  });
+
+  let hasProd = false;
+  let hasNonProd = false;
+
+  for (const env of allEnvs) {
+    if (isProdEnv(env)) hasProd = true;
+    if (isNonProdEnv(env)) hasNonProd = true;
+  }
+
+  return hasProd && hasNonProd;
+}
+
 /** Componente como ele aparece dentro de um grupo (domínio ou solução). */
 export interface GroupedComponentItem {
   id: number;

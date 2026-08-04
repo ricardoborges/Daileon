@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchServers, type ServerItem } from '$lib/api';
+  import { fetchServers, isMixedEnvironment, type ServerItem } from '$lib/api';
   import { t } from '$lib/i18n';
   import {
     Server,
@@ -47,47 +47,6 @@
     if (typeof window !== 'undefined') {
       localStorage.setItem('daileon_servers_view_mode', mode);
     }
-  }
-
-  function isProdEnv(env: string): boolean {
-    const e = (env || '').toLowerCase().trim();
-    return e === 'production' || e === 'prod' || e === 'prd';
-  }
-
-  function isNonProdEnv(env: string): boolean {
-    const e = (env || '').toLowerCase().trim();
-    return (
-      e === 'test' ||
-      e === 'testing' ||
-      e === 'homolog' ||
-      e === 'homologation' ||
-      e === 'staging' ||
-      e === 'dev' ||
-      e === 'development' ||
-      e === 'ci' ||
-      e === 'sandbox' ||
-      e === 'hml' ||
-      e === 'qa' ||
-      e.startsWith('qa')
-    );
-  }
-
-  function isMixedEnvironment(server: ServerItem): boolean {
-    const allEnvs = new Set<string>();
-    (server.environments || []).forEach((env) => allEnvs.add(env.toLowerCase()));
-    (server.components || []).forEach((c) => {
-      if (c.environment) allEnvs.add(c.environment.toLowerCase());
-    });
-
-    let hasProd = false;
-    let hasNonProd = false;
-
-    for (const env of allEnvs) {
-      if (isProdEnv(env)) hasProd = true;
-      if (isNonProdEnv(env)) hasNonProd = true;
-    }
-
-    return hasProd && hasNonProd;
   }
 
   $: mixedServersCount = servers.filter(isMixedEnvironment).length;
