@@ -22,6 +22,9 @@ backend/data/
 *.db
 *.sqlite
 *.sqlite3
+# Arquivos auxiliares do modo WAL, criados ao lado do banco.
+*.db-wal
+*.db-shm
 
 # Node & Frontend (SvelteKit / Vite)
 node_modules/

@@ -24,7 +24,23 @@ def auto_migrate_db(sync_conn):
         if table_name not in existing_tables:
             continue
         _add_missing_columns(sync_conn, inspector, table_name, table)
+        _create_missing_indexes(sync_conn, inspector, table_name, table)
         _reconcile_index_uniqueness(sync_conn, inspector, table_name, table)
+
+
+def _create_missing_indexes(sync_conn, inspector, table_name, table):
+    """Cria índices que o modelo declara e o banco ainda não tem.
+
+    `create_all` não volta em tabelas existentes, então um índice adicionado ao
+    modelo depois da instalação nunca chegaria a um banco em uso — que é
+    justamente onde ele faz falta.
+    """
+    existing = {idx.get("name") for idx in inspector.get_indexes(table_name)}
+    for index in table.indexes:
+        if not index.name or index.name in existing:
+            continue
+        logger.info(f"Auto-migrating DB: Creating missing index '{index.name}' on '{table_name}'")
+        index.create(sync_conn)
 
 
 def _add_missing_columns(sync_conn, inspector, table_name, table):

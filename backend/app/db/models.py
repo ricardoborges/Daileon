@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Table, Column, LargeBinary
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Table, Column, LargeBinary, func, select
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 from app.db.session import Base
 
 component_tags = Table(
@@ -29,39 +29,39 @@ class ComponentLink(Base):
     __tablename__ = "component_links"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
+    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(100))
     url: Mapped[str] = mapped_column(String(500))
     icon: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
-    component: Mapped["Component"] = relationship("Component", back_populates="links", lazy="selectin")
+    component: Mapped["Component"] = relationship("Component", back_populates="links", lazy="raise")
 
 class ComponentDependency(Base):
     __tablename__ = "component_dependencies"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    source_component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
+    source_component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"), index=True)
     target_component_name: Mapped[str] = mapped_column(String(100))
 
-    component: Mapped["Component"] = relationship("Component", back_populates="dependencies", lazy="selectin")
+    component: Mapped["Component"] = relationship("Component", back_populates="dependencies", lazy="raise")
 
 class ComponentJenkinsPipeline(Base):
     __tablename__ = "component_jenkins_pipelines"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
+    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(100))
     environment: Mapped[str] = mapped_column(String(50), default="production")
     job: Mapped[str] = mapped_column(String(300))
     server_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    component: Mapped["Component"] = relationship("Component", back_populates="jenkins_pipelines", lazy="selectin")
+    component: Mapped["Component"] = relationship("Component", back_populates="jenkins_pipelines", lazy="raise")
 
 class ComponentDeployment(Base):
     __tablename__ = "component_deployments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
+    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"), index=True)
     environment: Mapped[str] = mapped_column(String(50), default="production")
     url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     server_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -77,19 +77,29 @@ class DocFile(Base):
     __tablename__ = "doc_files"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"))
+    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"), index=True)
     relative_path: Mapped[str] = mapped_column(String(300), index=True) # e.g. "index.md", "architecture/setup.md"
     title: Mapped[str] = mapped_column(String(200))
     # "markdown" ou "pdf". Documentos binários guardam string vazia aqui e o
     # conteúdo em `content_binary`: bancos criados antes desta coluna existir
     # têm `content_markdown` NOT NULL e o auto-migrate do SQLite não relaxa isso.
     doc_type: Mapped[str] = mapped_column(String(20), default="markdown")
-    content_markdown: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    content_binary: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    # As duas colunas de conteúdo somam a quase totalidade do banco (PDFs e
+    # imagens embutidos), e quase toda consulta quer apenas os metadados do
+    # documento. Ficam `deferred` para que um `select(DocFile)` não as traga:
+    # quem precisa do conteúdo pede `undefer` explicitamente. `raiseload` faz
+    # o esquecimento falhar com uma mensagem clara em vez de emitir I/O
+    # implícito, que numa sessão async quebraria com `MissingGreenlet`.
+    content_markdown: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, deferred=True, deferred_raiseload=True
+    )
+    content_binary: Mapped[Optional[bytes]] = mapped_column(
+        LargeBinary, nullable=True, deferred=True, deferred_raiseload=True
+    )
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    component: Mapped["Component"] = relationship("Component", back_populates="docs", lazy="selectin")
+    component: Mapped["Component"] = relationship("Component", back_populates="docs", lazy="raise")
 
 class Component(Base):
     __tablename__ = "components"
@@ -129,7 +139,24 @@ class Component(Base):
     tags: Mapped[List[Tag]] = relationship("Tag", secondary=component_tags, lazy="selectin")
     links: Mapped[List[ComponentLink]] = relationship("ComponentLink", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
     dependencies: Mapped[List[ComponentDependency]] = relationship("ComponentDependency", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
-    docs: Mapped[List[DocFile]] = relationship("DocFile", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
+    # Ao contrário das demais coleções, esta é grande e cara, e nenhuma tela
+    # mostra os documentos junto do componente — só quantos são, que vem de
+    # `docs_count`. Carregar sob demanda aqui traria os documentos de todo o
+    # catálogo em cada listagem, então quem quiser a coleção pede
+    # `selectinload(Component.docs)` e assume o custo conscientemente.
+    docs: Mapped[List[DocFile]] = relationship("DocFile", back_populates="component", cascade="all, delete-orphan", lazy="raise")
     jenkins_pipelines: Mapped[List[ComponentJenkinsPipeline]] = relationship("ComponentJenkinsPipeline", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
     deployments: Mapped[List[ComponentDeployment]] = relationship("ComponentDeployment", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
+
+
+#: Contagem de documentos sem tocar em `Component.docs`. Declarada fora da
+#: classe porque a subconsulta precisa referenciar `Component.id`, que só passa
+#: a existir depois que o mapeamento é construído.
+Component.docs_count = column_property(
+    select(func.count(DocFile.id))
+    .where(DocFile.component_id == Component.id)
+    .correlate_except(DocFile)
+    .scalar_subquery(),
+    deferred=False,
+)
 

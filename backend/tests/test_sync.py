@@ -12,9 +12,19 @@ from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import selectinload, undefer
 
 from app.db.session import Base
-from app.db.models import Component
+from app.db.models import Component, DocFile
+
+#: `Component.docs` não é carregada junto do componente e o conteúdo dos
+#: documentos é `deferred` (ver `app/db/models.py`): quem for inspecionar os
+#: documentos precisa pedi-los, e ainda dentro do contexto async — as asserções
+#: rodam depois que a sessão fechou.
+CARREGA_DOCS = selectinload(Component.docs).options(
+    undefer(DocFile.content_markdown),
+    undefer(DocFile.content_binary),
+)
 from app.gitlab.gitlab_crawler import (
     MAX_BINARY_DOC_BYTES,
     GitLabCrawlerService,
@@ -136,7 +146,7 @@ async def _sync(db_path: Path, times: int) -> Component:
         for _ in range(times):
             await crawler.sync_all(db)
 
-        components = (await db.execute(select(Component))).scalars().all()
+        components = (await db.execute(select(Component).options(CARREGA_DOCS))).scalars().all()
         assert len(components) == 1, "sincronizar de novo deve atualizar, não duplicar"
 
         component = components[0]
@@ -412,7 +422,7 @@ async def _sync_fallback_docs(db_path: Path):
     crawler = SemPastaDocsCrawler(gitlab_url="https://gitlab.local", token="fake")
     async with _session(db_path) as db:
         await crawler.sync_all(db)
-        component = (await db.execute(select(Component))).scalars().first()
+        component = (await db.execute(select(Component).options(CARREGA_DOCS))).scalars().first()
         _ = component.docs
         return component
 
@@ -459,7 +469,7 @@ async def _sync_docs_em_subpastas(db_path: Path):
     crawler = DocsEmSubpastasCrawler(gitlab_url="https://gitlab.local", token="fake")
     async with _session(db_path) as db:
         await crawler.sync_all(db)
-        component = (await db.execute(select(Component))).scalars().first()
+        component = (await db.execute(select(Component).options(CARREGA_DOCS))).scalars().first()
         _ = component.docs
         return component
 
@@ -914,7 +924,7 @@ def test_sync_monorepo_nao_rouba_docs_do_subprojeto():
         crawler = MonorepoDocsCrawler(gitlab_url="https://gitlab.local", token="fake")
         async with _session(db_path) as db:
             await crawler.sync_all(db)
-            components = (await db.execute(select(Component))).scalars().all()
+            components = (await db.execute(select(Component).options(CARREGA_DOCS))).scalars().all()
             for c in components:
                 _ = c.docs
             return components

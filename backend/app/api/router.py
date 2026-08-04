@@ -4,7 +4,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, undefer
 
 from app.api.aggregations import build_group_detail, group_components
 from app.api.graph import build_graph
@@ -46,12 +46,11 @@ async def list_components(
         query = query.where(Component.type == type)
     if lifecycle:
         query = query.where(Component.lifecycle == lifecycle)
-    
+    if tag:
+        query = query.where(Component.tags.any(Tag.name == tag))
+
     result = await db.execute(query)
     components = result.scalars().all()
-
-    if tag:
-        components = [c for c in components if any(t.name == tag for t in c.tags)]
 
     return [
         {
@@ -69,7 +68,7 @@ async def list_components(
             "gitlab_url": c.gitlab_url,
             "manifest_path": c.manifest_path,
             "has_manifest": c.has_manifest,
-            "docs_count": len(c.docs),
+            "docs_count": c.docs_count,
             "tags": [t.name for t in c.tags],
             "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
             "dependencies": [d.target_component_name for d in c.dependencies],
@@ -120,7 +119,7 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "docs_index": c.docs_index,
         "has_manifest": c.has_manifest,
         "manifest_path": c.manifest_path,
-        "docs_count": len(c.docs),
+        "docs_count": c.docs_count,
         "tags": [t.name for t in c.tags],
         "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
         "dependencies": [d.target_component_name for d in c.dependencies],
@@ -416,7 +415,10 @@ async def search_component_docs(
     """Busca restrita aos documentos deste componente: caminho, título e conteúdo."""
     term = f"%{q}%"
     result = await db.execute(
-        select(DocFile).where(
+        select(DocFile)
+        # O texto entra no resultado, como trecho em torno do acerto.
+        .options(undefer(DocFile.content_markdown))
+        .where(
             DocFile.component_id == component_id,
             or_(
                 DocFile.relative_path.ilike(term),
@@ -446,9 +448,16 @@ async def search_component_docs(
     return {"query": q, "results": items}
 
 
-async def _load_doc(component_id: int, doc_path: str, db: AsyncSession) -> DocFile:
+async def _load_doc(component_id: int, doc_path: str, db: AsyncSession, content_column) -> DocFile:
+    """Carrega um documento com apenas a coluna de conteúdo que o chamador usa.
+
+    As duas colunas de conteúdo são `deferred`; pedir a errada aqui traria um
+    PDF inteiro para uma resposta que só devolve texto.
+    """
     result = await db.execute(
-        select(DocFile).where(DocFile.component_id == component_id, DocFile.relative_path == doc_path)
+        select(DocFile)
+        .options(undefer(content_column))
+        .where(DocFile.component_id == component_id, DocFile.relative_path == doc_path)
     )
     doc = result.scalar_one_or_none()
     if not doc:
@@ -459,7 +468,7 @@ async def _load_doc(component_id: int, doc_path: str, db: AsyncSession) -> DocFi
 @protected_router.get("/catalog/{component_id}/docs-raw/{doc_path:path}")
 async def get_component_doc_raw(component_id: int, doc_path: str, db: AsyncSession = Depends(get_db)):
     """Bytes originais de um documento binário (PDF ou imagem), para o navegador."""
-    doc = await _load_doc(component_id, doc_path, db)
+    doc = await _load_doc(component_id, doc_path, db, DocFile.content_binary)
     if doc.doc_type not in BINARY_DOC_TYPES or doc.content_binary is None:
         raise HTTPException(status_code=404, detail="Document has no binary content")
 
@@ -473,7 +482,7 @@ async def get_component_doc_raw(component_id: int, doc_path: str, db: AsyncSessi
 
 @protected_router.get("/catalog/{component_id}/docs/{doc_path:path}")
 async def get_component_doc_content(component_id: int, doc_path: str, db: AsyncSession = Depends(get_db)):
-    doc = await _load_doc(component_id, doc_path, db)
+    doc = await _load_doc(component_id, doc_path, db, DocFile.content_markdown)
 
     return {
         "id": doc.id,

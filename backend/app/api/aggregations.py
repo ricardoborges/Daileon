@@ -42,7 +42,7 @@ def component_summary(c, detailed: bool = False) -> Dict[str, Any]:
         "system": c.system,  # legado: alias de `solution`, será removido
         "gitlab_url": c.gitlab_url,
         "has_manifest": c.has_manifest,
-        "docs_count": len(c.docs),
+        "docs_count": c.docs_count,
     }
     if detailed:
         summary["tags"] = [t.name for t in c.tags]
