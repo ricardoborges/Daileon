@@ -72,13 +72,24 @@
         <tr class="hover:bg-surface-2 transition-colors">
           <!-- Nome e Descrição -->
           <td class="py-3.5 px-4 max-w-xs">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <a
                 href={`/catalog/${item.id}`}
                 class="font-bold t-txt hover:t-visor transition-colors truncate"
               >
                 {item.name}
               </a>
+              {#if item.critical_risks_count && item.critical_risks_count > 0}
+                <a href={`/catalog/${item.id}?tab=risks`} class="chip chip-alert hover:opacity-90 font-bold shrink-0 text-[10px] py-0 px-1.5" title="{item.critical_risks_count} risco(s) crítico(s) de segurança">
+                  <ShieldAlert class="w-3 h-3 text-red-400" />
+                  {item.critical_risks_count} {item.critical_risks_count === 1 ? 'Risco' : 'Riscos'}
+                </a>
+              {:else if item.warning_risks_count && item.warning_risks_count > 0}
+                <a href={`/catalog/${item.id}?tab=risks`} class="chip chip-crest hover:opacity-90 font-bold shrink-0 text-[10px] py-0 px-1.5" title="{item.warning_risks_count} aviso(s) de segurança">
+                  <ShieldAlert class="w-3 h-3 text-amber-400" />
+                  {item.warning_risks_count} {item.warning_risks_count === 1 ? 'Alerta' : 'Alertas'}
+                </a>
+              {/if}
             </div>
             {#if item.description}
               <p class="text-xs t-dim truncate mt-0.5" title={item.description}>

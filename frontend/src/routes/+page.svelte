@@ -66,7 +66,7 @@
       value: projectsWithRisksCount,
       icon: AlertTriangle,
       tone: projectsWithRisksCount > 0 ? "t-alert" : "t-ok",
-      href: "/catalog",
+      href: "/catalog?has_risk=true",
     },
     {
       label: $t("home.statServers"),

@@ -51,6 +51,7 @@
   let selectedLifecycle = '';
   let selectedDomain = '';
   let selectedSolution = '';
+  let selectedRisk = '';
   let selectedSort = 'activity_desc';
 
   const ENTITIES: CatalogEntity[] = ['projects', 'solutions', 'domains'];
@@ -58,6 +59,9 @@
   onMount(() => {
     entity = resolveEntity($page.url.searchParams.get('tab'));
     viewMode = loadViewMode(entity);
+    if ($page.url.searchParams.get('has_risk') === 'true' || $page.url.searchParams.get('risk') === 'true') {
+      selectedRisk = 'only';
+    }
     ready = true;
     // Os contadores das abas saem das próprias listas: carregamos as três já
     // na abertura para os números aparecerem sem precisar visitar cada aba.
@@ -75,6 +79,9 @@
       entity = fromUrl;
       viewMode = loadViewMode(entity);
       load(entity);
+    }
+    if ($page.url.searchParams.get('has_risk') === 'true' || $page.url.searchParams.get('risk') === 'true') {
+      selectedRisk = 'only';
     }
   }
 
@@ -115,6 +122,7 @@
     selectedLifecycle = '';
     selectedDomain = '';
     selectedSolution = '';
+    selectedRisk = '';
     selectedSort = 'activity_desc';
   }
 
@@ -145,6 +153,7 @@
     selectedLifecycle ||
     selectedDomain ||
     selectedSolution ||
+    selectedRisk ||
     selectedSort !== 'activity_desc'
   );
 
@@ -159,6 +168,13 @@
     if (selectedLifecycle && c.lifecycle !== selectedLifecycle) return false;
     if (selectedDomain && c.domain !== selectedDomain) return false;
     if (selectedSolution && c.solution !== selectedSolution) return false;
+    if (selectedRisk === 'only') {
+      const hasRisk =
+        (c.critical_risks_count || 0) > 0 ||
+        (c.warning_risks_count || 0) > 0 ||
+        (c.risks && c.risks.length > 0);
+      if (!hasRisk) return false;
+    }
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -327,6 +343,14 @@
           <select id="f-solution" bind:value={selectedSolution} class="field">
             <option value="">{$t('catalog.filterAll')}</option>
             {#each projectSolutions as s}<option value={s}>{s}</option>{/each}
+          </select>
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="f-risk" class="label block">{$t('catalog.filterRisks')}</label>
+          <select id="f-risk" bind:value={selectedRisk} class="field font-semibold {selectedRisk === 'only' ? 'text-amber-500 border-amber-500/50' : ''}">
+            <option value="">{$t('catalog.filterRisksAll')}</option>
+            <option value="only">{$t('catalog.filterRisksOnly')}</option>
           </select>
         </div>
 
