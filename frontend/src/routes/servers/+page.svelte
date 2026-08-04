@@ -9,6 +9,7 @@
     Box,
     Globe,
     ShieldAlert,
+    AlertTriangle,
     Cpu,
     LayoutGrid,
     Table as TableIcon,
@@ -21,6 +22,7 @@
   let error: string | null = null;
   let searchQuery = '';
   let viewMode: 'cards' | 'table' = 'cards';
+  let filterMixedOnly = false;
 
   onMount(async () => {
     if (typeof window !== 'undefined') {
@@ -47,7 +49,51 @@
     }
   }
 
+  function isProdEnv(env: string): boolean {
+    const e = (env || '').toLowerCase().trim();
+    return e === 'production' || e === 'prod' || e === 'prd';
+  }
+
+  function isNonProdEnv(env: string): boolean {
+    const e = (env || '').toLowerCase().trim();
+    return (
+      e === 'test' ||
+      e === 'testing' ||
+      e === 'homolog' ||
+      e === 'homologation' ||
+      e === 'staging' ||
+      e === 'dev' ||
+      e === 'development' ||
+      e === 'ci' ||
+      e === 'sandbox' ||
+      e === 'hml' ||
+      e === 'qa' ||
+      e.startsWith('qa')
+    );
+  }
+
+  function isMixedEnvironment(server: ServerItem): boolean {
+    const allEnvs = new Set<string>();
+    (server.environments || []).forEach((env) => allEnvs.add(env.toLowerCase()));
+    (server.components || []).forEach((c) => {
+      if (c.environment) allEnvs.add(c.environment.toLowerCase());
+    });
+
+    let hasProd = false;
+    let hasNonProd = false;
+
+    for (const env of allEnvs) {
+      if (isProdEnv(env)) hasProd = true;
+      if (isNonProdEnv(env)) hasNonProd = true;
+    }
+
+    return hasProd && hasNonProd;
+  }
+
+  $: mixedServersCount = servers.filter(isMixedEnvironment).length;
+
   $: filteredServers = servers.filter((s) => {
+    if (filterMixedOnly && !isMixedEnvironment(s)) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     const matchName = s.server_name.toLowerCase().includes(q);
@@ -105,7 +151,7 @@
   <!-- Barra de Busca, Métricas & Seletor de Exibição -->
   <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
     <!-- Input de Busca -->
-    <div class="md:col-span-6 plate p-3.5 flex items-center gap-3" style="--chamfer: 12px;">
+    <div class="md:col-span-5 plate p-3.5 flex items-center gap-3" style="--chamfer: 12px;">
       <Search class="w-4 h-4 t-faint shrink-0" />
       <input
         type="text"
@@ -113,10 +159,19 @@
         placeholder={$t('servers.searchPlaceholder')}
         class="bg-transparent border-none outline-none text-sm w-full t-txt placeholder:t-faint font-mono"
       />
+      {#if filterMixedOnly}
+        <button
+          on:click={() => (filterMixedOnly = false)}
+          class="btn btn-sm px-2 text-[10px] font-bold bg-amber-500/20 border border-amber-500/40 text-amber-500 hover:bg-amber-500/30 flex items-center gap-1 shrink-0"
+        >
+          <AlertTriangle class="w-3 h-3" />
+          Risco Misto (x)
+        </button>
+      {/if}
       {#if searchQuery}
         <button
           on:click={() => (searchQuery = '')}
-          class="btn btn-sm px-2 text-xs t-faint hover:t-txt"
+          class="btn btn-sm px-2 text-xs t-faint hover:t-txt shrink-0"
         >
           Limpar
         </button>
@@ -146,7 +201,7 @@
     </div>
 
     <!-- Métricas Globais -->
-    <div class="md:col-span-3 plate p-3.5 flex items-center justify-around text-center" style="--chamfer: 12px;">
+    <div class="md:col-span-4 plate p-3.5 flex items-center justify-around text-center gap-2" style="--chamfer: 12px;">
       <div>
         <span class="t-faint text-xs block">{$t('servers.mappedServers')}</span>
         <span class="text-xl font-bold t-visor">{servers.length}</span>
@@ -158,6 +213,25 @@
           {servers.reduce((acc, s) => acc + s.components_count, 0)}
         </span>
       </div>
+      {#if mixedServersCount > 0}
+        <div class="w-px h-8 bg-[var(--line)]"></div>
+        <button
+          on:click={() => (filterMixedOnly = !filterMixedOnly)}
+          class="text-center group focus:outline-none transition-transform active:scale-95"
+          title={$t('servers.filterMixedOnly')}
+        >
+          <span class="t-faint text-[10px] uppercase font-bold flex items-center justify-center gap-1 text-amber-500">
+            <AlertTriangle class="w-3 h-3 text-amber-500 shrink-0" />
+            {$t('servers.cohostingRisk')}
+          </span>
+          <span class="text-xl font-bold text-amber-500 flex items-center justify-center gap-1">
+            {mixedServersCount}
+            {#if filterMixedOnly}
+              <span class="text-[9px] bg-amber-500/20 border border-amber-500/40 text-amber-500 px-1 py-0.2 rounded font-sans uppercase">Filtrado</span>
+            {/if}
+          </span>
+        </button>
+      {/if}
     </div>
   </div>
 
@@ -180,6 +254,8 @@
       <p class="t-dim text-xs max-w-md mx-auto leading-relaxed">
         {#if searchQuery}
           {$t('servers.noServersSubSearch', { query: searchQuery })}
+        {:else if filterMixedOnly}
+          Nenhum servidor com risco de co-hospedagem (Prod + Teste) foi encontrado.
         {:else}
           {$t('servers.noServersSubEmpty')}
         {/if}
@@ -189,18 +265,23 @@
     <!-- Visão em Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       {#each filteredServers as server}
-        <div class="plate plate-deep p-6 space-y-5 flex flex-col justify-between hover:border-[var(--line-bright)] transition-colors group" style="--chamfer: 18px;">
+        <div
+          class="plate plate-deep p-6 space-y-5 flex flex-col justify-between transition-all group relative overflow-hidden {isMixedEnvironment(server) ? 'border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.06)]' : 'hover:border-[var(--line-bright)]'}"
+          style="--chamfer: 18px;"
+        >
           <div class="space-y-4">
             <!-- Header do Card do Servidor -->
             <div class="flex items-start justify-between gap-3 border-b border-[var(--line)] pb-4">
               <div class="space-y-1.5 min-w-0">
-                <a
-                  href={`/servers/${encodeURIComponent(server.server_name)}`}
-                  class="flex items-center gap-2 group-hover:t-visor transition-colors"
-                >
-                  <Cpu class="w-4 h-4 t-visor shrink-0" />
-                  <h3 class="text-xl font-bold font-mono t-txt truncate group-hover:underline">{server.server_name}</h3>
-                </a>
+                <div class="flex items-center gap-2">
+                  <a
+                    href={`/servers/${encodeURIComponent(server.server_name)}`}
+                    class="flex items-center gap-2 group-hover:t-visor transition-colors"
+                  >
+                    <Cpu class="w-4 h-4 t-visor shrink-0" />
+                    <h3 class="text-xl font-bold font-mono t-txt truncate group-hover:underline">{server.server_name}</h3>
+                  </a>
+                </div>
 
                 {#if server.server_ip}
                   <div class="flex items-center gap-2 text-xs">
@@ -212,15 +293,39 @@
                 {/if}
               </div>
 
-              <!-- Badges de Ambientes no Servidor -->
-              <div class="flex flex-wrap items-center gap-1.5 justify-end max-w-[180px]">
-                {#each server.environments as env}
-                  <span class="chip {envBadgeClass(env)} uppercase text-[9px] tracking-wider font-bold">
-                    {env}
+              <!-- Badges de Ambientes no Servidor & Alerta Misto -->
+              <div class="flex flex-col items-end gap-1.5 max-w-[200px]">
+                {#if isMixedEnvironment(server)}
+                  <span
+                    class="chip bg-amber-500/15 border border-amber-500/40 text-amber-500 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-0.5 rounded-full"
+                    title={$t('servers.mixedUsageWarning')}
+                  >
+                    <AlertTriangle class="w-3 h-3 shrink-0" />
+                    <span>{$t('servers.mixedUsageBadge')}</span>
                   </span>
-                {/each}
+                {/if}
+                <div class="flex flex-wrap items-center gap-1.5 justify-end">
+                  {#each server.environments as env}
+                    <span class="chip {envBadgeClass(env)} uppercase text-[9px] tracking-wider font-bold">
+                      {env}
+                    </span>
+                  {/each}
+                </div>
               </div>
             </div>
+
+            <!-- Banner Alerta Interno para Co-hospedagem -->
+            {#if isMixedEnvironment(server)}
+              <div class="plate p-3 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-start gap-2.5 text-xs" style="--chamfer: 8px;">
+                <AlertTriangle class="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+                <div class="space-y-0.5">
+                  <strong class="font-bold block">{$t('servers.mixedUsageBadge')}</strong>
+                  <p class="text-[11px] leading-snug opacity-90">
+                    {$t('servers.mixedUsageWarning')}
+                  </p>
+                </div>
+              </div>
+            {/if}
 
             <!-- Lista de Aplicações Instaladas -->
             <div class="space-y-3">
@@ -297,7 +402,7 @@
           </thead>
           <tbody class="divide-y divide-[var(--line)]">
             {#each filteredServers as server}
-              <tr class="hover:bg-[var(--bg-hover)] transition-colors group">
+              <tr class="hover:bg-[var(--bg-hover)] transition-colors group {isMixedEnvironment(server) ? 'bg-amber-500/5' : ''}">
                 <!-- Servidor / IP -->
                 <td class="py-4 px-4">
                   <a
@@ -307,6 +412,15 @@
                     <div class="flex items-center gap-2 font-mono font-bold text-sm t-txt group-hover:underline">
                       <Cpu class="w-4 h-4 t-visor shrink-0" />
                       {server.server_name}
+                      {#if isMixedEnvironment(server)}
+                        <span
+                          class="chip bg-amber-500/15 border border-amber-500/40 text-amber-500 text-[9px] font-bold uppercase tracking-wider inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
+                          title={$t('servers.mixedUsageWarning')}
+                        >
+                          <AlertTriangle class="w-3 h-3 shrink-0" />
+                          {$t('servers.mixedUsageShortBadge')}
+                        </span>
+                      {/if}
                     </div>
                     {#if server.server_ip}
                       <span class="chip chip-net text-[11px] px-2 py-0.5">

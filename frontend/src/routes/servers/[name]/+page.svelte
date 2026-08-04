@@ -10,6 +10,7 @@
     Box,
     Globe,
     ShieldAlert,
+    AlertTriangle,
     Cpu,
     ArrowLeft,
     Copy,
@@ -56,6 +57,48 @@
       copiedIp = false;
     }, 2000);
   }
+
+  function isProdEnv(env: string): boolean {
+    const e = (env || '').toLowerCase().trim();
+    return e === 'production' || e === 'prod' || e === 'prd';
+  }
+
+  function isNonProdEnv(env: string): boolean {
+    const e = (env || '').toLowerCase().trim();
+    return (
+      e === 'test' ||
+      e === 'testing' ||
+      e === 'homolog' ||
+      e === 'homologation' ||
+      e === 'staging' ||
+      e === 'dev' ||
+      e === 'development' ||
+      e === 'ci' ||
+      e === 'sandbox' ||
+      e === 'hml' ||
+      e === 'qa' ||
+      e.startsWith('qa')
+    );
+  }
+
+  $: isMixed = (() => {
+    if (!server) return false;
+    const allEnvs = new Set<string>();
+    (server.environments || []).forEach((env) => allEnvs.add(env.toLowerCase()));
+    (server.components || []).forEach((c) => {
+      if (c.environment) allEnvs.add(c.environment.toLowerCase());
+    });
+
+    let hasProd = false;
+    let hasNonProd = false;
+
+    for (const env of allEnvs) {
+      if (isProdEnv(env)) hasProd = true;
+      if (isNonProdEnv(env)) hasNonProd = true;
+    }
+
+    return hasProd && hasNonProd;
+  })();
 
   $: filteredComponents = (server?.components || []).filter((c) => {
     if (!searchQuery.trim()) return true;
@@ -137,6 +180,21 @@
       </a>
     </div>
   {:else}
+    {#if isMixed}
+      <!-- Banner de Alerta para Servidor de Uso Misto -->
+      <div class="plate p-4 bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-start gap-3 text-sm" style="--chamfer: 14px;">
+        <AlertTriangle class="w-5 h-5 shrink-0 text-amber-500 mt-0.5" />
+        <div class="space-y-1">
+          <h4 class="font-bold flex items-center gap-2 text-base">
+            {$t('serverDetail.mixedUsageAlertTitle')}
+          </h4>
+          <p class="text-xs opacity-90 leading-relaxed max-w-4xl">
+            {$t('serverDetail.mixedUsageAlertSub')}
+          </p>
+        </div>
+      </div>
+    {/if}
+
     <!-- Server Header Box -->
     <div class="plate plate-deep p-6 md:p-8 space-y-6" style="--chamfer: 20px;">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">

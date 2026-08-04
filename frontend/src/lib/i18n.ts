@@ -289,6 +289,11 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
       noServersSubSearch: 'Nenhum servidor corresponde à busca por "{query}".',
       noServersSubEmpty: 'Nenhum projeto registrou informações de servidor na seção deployments do seu project-info.yml.',
       errorLoading: 'Erro ao carregar servidores',
+      cohostingRisk: 'Risco Co-hospedagem',
+      mixedUsageBadge: 'Uso Misto (Prod + Teste)',
+      mixedUsageShortBadge: 'Misto',
+      mixedUsageWarning: 'Atenção: Este servidor hospeda aplicações de Produção e Teste/Homologação simultaneamente. Isso representa risco de estabilidade e isolamento de recursos.',
+      filterMixedOnly: 'Filtrar por Risco Misto',
     },
     serverDetail: {
       backToServers: 'Voltar para Servidores',
@@ -315,6 +320,8 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
       viewAppDetail: 'Ver no catálogo',
       errorLoading: 'Erro ao carregar detalhes do servidor',
       notFoundTitle: 'Servidor não encontrado',
+      mixedUsageAlertTitle: 'Alerta de Co-hospedagem (Produção + Teste/Homologação)',
+      mixedUsageAlertSub: 'Este servidor compartilha a mesma infraestrutura entre aplicações de Produção e ambientes de Teste/Desenvolvimento. Recomendamos isolar os ambientes para mitigar riscos operacionais.',
     },
     techdocs: {
       summary: 'Sumário',
@@ -767,6 +774,11 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
       noServersSubSearch: 'No server matches search query "{query}".',
       noServersSubEmpty: 'No project has registered server information in the deployments section of project-info.yml.',
       errorLoading: 'Error loading servers',
+      cohostingRisk: 'Co-hosting Risk',
+      mixedUsageBadge: 'Mixed Usage (Prod + Test)',
+      mixedUsageShortBadge: 'Mixed',
+      mixedUsageWarning: 'Warning: This server is hosting Production and Test/Staging applications simultaneously. This presents risks to stability and resource isolation.',
+      filterMixedOnly: 'Filter Co-hosting Risk',
     },
     serverDetail: {
       backToServers: 'Back to Servers',
@@ -791,6 +803,8 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
       colNotes: 'Notes',
       viewCatalogComponent: 'View in Catalog',
       errorLoading: 'Error loading server details',
+      mixedUsageAlertTitle: 'Co-hosting Risk Alert (Production + Test/Staging)',
+      mixedUsageAlertSub: 'This server shares infrastructure between Production applications and Test/Development environments. We recommend isolating environments to mitigate operational risks.',
     },
     techdocs: {
       summary: 'Contents',
