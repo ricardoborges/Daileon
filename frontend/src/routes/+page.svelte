@@ -19,6 +19,8 @@
     Server,
     Network,
     FolderKanban,
+    Boxes,
+    FolderGit2,
   } from "lucide-svelte";
   import { t } from "$lib/i18n";
 
@@ -177,9 +179,13 @@
           <span>{$t("home.btnCatalog")}</span>
           <ArrowRight class="w-4 h-4" />
         </a>
-        <a href="/servers" class="btn btn-md flex items-center gap-2">
-          <Server class="w-4 h-4 t-visor" />
-          <span>{$t("nav.servers")}</span>
+        <a href="/catalog?tab=solutions" class="btn btn-md flex items-center gap-2">
+          <Boxes class="w-4 h-4 t-visor" />
+          <span>{$t("catalog.tabSolutions")}</span>
+        </a>
+        <a href="/catalog?tab=domains" class="btn btn-md flex items-center gap-2">
+          <FolderGit2 class="w-4 h-4 t-visor" />
+          <span>{$t("catalog.tabDomains")}</span>
         </a>
       </div>
 
