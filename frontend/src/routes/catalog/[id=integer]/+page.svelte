@@ -16,7 +16,8 @@
   import CommitHeatmap from '$lib/components/CommitHeatmap.svelte';
   import DependencyGraphView from '$lib/components/DependencyGraph.svelte';
   import DocsTree from '$lib/components/DocsTree.svelte';
-  import { buildDocsTree, allFolderPaths } from '$lib/docsTree';
+  import DocsSearch from '$lib/components/DocsSearch.svelte';
+  import { buildDocsTree, rootFolderPaths, allFolderPaths } from '$lib/docsTree';
   import { domainHref, solutionHref } from '$lib/catalogView';
   import { t } from '$lib/i18n';
   import {
@@ -38,7 +39,9 @@
     Server,
     LayoutGrid,
     Table,
-    GitFork
+    GitFork,
+    ChevronsDownUp,
+    ChevronsUpDown
   } from 'lucide-svelte';
 
   type Tab = 'overview' | 'deployments' | 'dependencies' | 'docs' | 'jenkins';
@@ -62,12 +65,12 @@
 
   $: componentId = parseInt($page.params.id);
 
-  // Na aba TechDocs a lista nasce com as pastas abertas: aqui não há documento
-  // selecionado para servir de pista do que vale expandir.
+  // Na aba TechDocs a lista nasce com só o primeiro nível aberto: mostra os
+  // documentos e subpastas da raiz sem despejar a árvore inteira de uma vez.
   $: docsTree = buildDocsTree(docs);
   $: if (docs.length > 0 && !docsExpandInitialized) {
     docsExpandInitialized = true;
-    docsExpanded = new Set(allFolderPaths(docsTree));
+    docsExpanded = new Set(rootFolderPaths(docsTree));
   }
 
   function toggleDocsFolder(path: string) {
@@ -76,6 +79,10 @@
     else next.add(path);
     docsExpanded = next;
   }
+
+  $: docsFolderPaths = allFolderPaths(docsTree);
+  const expandAllDocs = () => (docsExpanded = new Set(docsFolderPaths));
+  const collapseAllDocs = () => (docsExpanded = new Set<string>());
 
   $: {
     const tabParam = $page.url.searchParams.get('tab');
@@ -652,15 +659,42 @@
         {#if docs.length === 0}
           <p class="t-faint text-[13px]">{$t('techdocs.noDocuments')}</p>
         {:else}
-          <nav class="space-y-0.5">
-            <DocsTree
-              nodes={docsTree}
-              currentDocPath=""
-              componentId={component.id}
-              expanded={docsExpanded}
-              onToggle={toggleDocsFolder}
-            />
-          </nav>
+          {#if docsFolderPaths.length > 0}
+            <div class="flex items-center gap-2 pb-3 mb-2 border-b border-line">
+              <span class="label">{$t('techdocs.summary')}</span>
+              <span class="label ml-auto">{docs.length}</span>
+              <button
+                type="button"
+                class="t-faint hover:t-visor transition-colors"
+                title={$t('techdocs.expandAll')}
+                aria-label={$t('techdocs.expandAll')}
+                on:click={expandAllDocs}
+              >
+                <ChevronsUpDown class="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                class="t-faint hover:t-visor transition-colors"
+                title={$t('techdocs.collapseAll')}
+                aria-label={$t('techdocs.collapseAll')}
+                on:click={collapseAllDocs}
+              >
+                <ChevronsDownUp class="w-3.5 h-3.5" />
+              </button>
+            </div>
+          {/if}
+
+          <DocsSearch componentId={component.id}>
+            <nav class="space-y-0.5">
+              <DocsTree
+                nodes={docsTree}
+                currentDocPath=""
+                componentId={component.id}
+                expanded={docsExpanded}
+                onToggle={toggleDocsFolder}
+              />
+            </nav>
+          </DocsSearch>
         {/if}
       </section>
 

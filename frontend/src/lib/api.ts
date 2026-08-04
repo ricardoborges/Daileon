@@ -186,6 +186,17 @@ export interface DocFileItem {
   updated_at?: string;
 }
 
+export interface DocSearchHit {
+  id: number;
+  relative_path: string;
+  title: string;
+  doc_type: DocType;
+  /** O termo aparece no nome/título do arquivo, não só no conteúdo. */
+  in_name: boolean;
+  /** Trecho do conteúdo em volta do termo; nulo quando o acerto foi só no nome. */
+  snippet: string | null;
+}
+
 export interface DocFileDetail extends DocFileItem {
   /** Nulo para documentos binários — use `fetchDocRaw` nesses casos. */
   content_markdown: string | null;
@@ -247,6 +258,14 @@ export async function fetchComponentDocs(id: number): Promise<DocFileItem[]> {
   const res = await authFetch(`${API_BASE}/catalog/${id}/docs`);
   if (!res.ok) throw new Error('Docs não encontradas');
   return res.json();
+}
+
+/** Busca por nome, título ou conteúdo dentro das docs de um único componente. */
+export async function searchComponentDocs(id: number, q: string): Promise<DocSearchHit[]> {
+  const res = await authFetch(`${API_BASE}/catalog/${id}/docs-search?q=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error('Falha ao buscar nos documentos');
+  const data = await res.json();
+  return data.results ?? [];
 }
 
 /** Codifica cada segmento, preservando as barras que separam os diretórios. */

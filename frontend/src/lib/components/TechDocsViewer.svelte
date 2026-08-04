@@ -8,6 +8,7 @@
   import { fetchDocRaw, type DocFileItem, type DocType } from '$lib/api';
   import { buildDocsTree, ancestorFolders, allFolderPaths, formatDocSize, resolveDocPath } from '$lib/docsTree';
   import DocsTree from '$lib/components/DocsTree.svelte';
+  import DocsSearch from '$lib/components/DocsSearch.svelte';
   import { t } from '$lib/i18n';
 
   export let docs: DocFileItem[] = [];
@@ -210,15 +211,19 @@
         {/if}
       </div>
 
-      <nav class="space-y-0.5 max-h-[70vh] overflow-y-auto -mr-1 pr-1">
-        <DocsTree
-          nodes={tree}
-          {currentDocPath}
-          {componentId}
-          {expanded}
-          onToggle={toggleFolder}
-        />
-      </nav>
+      <div class="max-h-[70vh] overflow-y-auto -mr-1 pr-1">
+        <DocsSearch {componentId} {currentDocPath}>
+          <nav class="space-y-0.5">
+            <DocsTree
+              nodes={tree}
+              {currentDocPath}
+              {componentId}
+              {expanded}
+              onToggle={toggleFolder}
+            />
+          </nav>
+        </DocsSearch>
+      </div>
     </div>
   </aside>
 

@@ -7,7 +7,7 @@ implícito e quebra a sincronização inteira.
 import asyncio
 import tempfile
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
@@ -757,22 +757,30 @@ def test_fetch_docs_tree_descarta_diretorios_ocultos():
     assert sorted(d["path"] for d in docs) == ["README.md", "docs/index.md"]
 
 
-def _fetch_first_commit(headers, paginas):
-    """Executa `fetch_first_commit_date` contra uma API do GitLab simulada."""
+def _fetch_first_commit(headers, paginas, crawler=None):
+    """Executa `fetch_first_commit_date` contra uma API do GitLab simulada.
+
+    `paginas` recebe `(page, per_page)` e devolve os commits daquela página, ou
+    `None` para simular uma requisição que falhou.
+    """
     from unittest.mock import patch, MagicMock
 
-    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+    crawler = crawler or GitLabCrawlerService(
+        gitlab_url="https://gitlab.local", token="fake_token"
+    )
 
     async def run_test():
         async def mock_get(*args, **kwargs):
             url_arg = kwargs.get("url") or (args[1] if len(args) > 1 else args[0])
             url = str(url_arg)
-            resp = MagicMock()
-            resp.status_code = 200
-            resp.headers = headers
             # Cuidado: `per_page=` também contém "page=".
-            pagina = "page=" + url.split("&page=")[1] if "&page=" in url else "page=1"
-            resp.json.return_value = paginas.get(pagina, [])
+            page = int(url.split("&page=")[1]) if "&page=" in url else 1
+            per_page = int(url.split("&per_page=")[1].split("&")[0])
+            resp = MagicMock()
+            commits = paginas(page, per_page)
+            resp.status_code = 200 if commits is not None else 500
+            resp.headers = headers
+            resp.json.return_value = commits if commits is not None else {}
             return resp
 
         with patch("httpx.AsyncClient.get", side_effect=mock_get):
@@ -781,40 +789,89 @@ def _fetch_first_commit(headers, paginas):
     return asyncio.run(run_test())
 
 
+def _repo_simulado(total_commits):
+    """Um repositório do commit mais novo para o mais antigo, um por dia.
+
+    O commit de índice 0 é de 2026-01-01 e o mais antigo, o de índice
+    `total_commits - 1`, é de `2026-01-01` menos `total_commits - 1` dias.
+    """
+    def paginas(page, per_page):
+        inicio = (page - 1) * per_page
+        return [
+            {
+                "committed_date": (
+                    datetime(2026, 1, 1) - timedelta(days=i)
+                ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            }
+            for i in range(inicio, min(inicio + per_page, total_commits))
+        ]
+
+    return paginas
+
+
+def _data_do_commit_mais_antigo(total_commits):
+    return datetime(2026, 1, 1) - timedelta(days=total_commits - 1)
+
+
 def test_fetch_first_commit_date_vai_ate_a_ultima_pagina():
     """Com `per_page=1`, a última página guarda o commit mais antigo."""
     resultado = _fetch_first_commit(
         headers={"x-total-pages": "42"},
-        paginas={
-            "page=1": [{"committed_date": "2026-07-30T10:00:00.000Z"}],
-            "page=42": [{"committed_date": "2015-03-02T08:30:00.000Z"}],
-        },
+        paginas=_repo_simulado(42),
     )
     assert resultado is not None
-    assert resultado.year == 2015 and resultado.month == 3 and resultado.day == 2
+    assert resultado.replace(tzinfo=None) == _data_do_commit_mais_antigo(42)
 
 
 def test_fetch_first_commit_date_com_commit_unico():
     """Uma página só: o commit mais novo também é o mais antigo."""
     resultado = _fetch_first_commit(
         headers={"x-total-pages": "1"},
-        paginas={"page=1": [{"committed_date": "2020-01-15T12:00:00.000Z"}]},
+        paginas=_repo_simulado(1),
     )
     assert resultado is not None
-    assert resultado.year == 2020
+    assert resultado.replace(tzinfo=None) == datetime(2026, 1, 1)
 
 
 def test_fetch_first_commit_date_sem_cabecalho_de_paginacao():
-    """Sem `x-total-pages` não dá para saber qual é a última página.
+    """Sem `x-total-pages` a última página é encontrada por sondagem.
 
-    Devolver a primeira seria devolver o commit mais *recente* como se fosse o
-    primeiro — pior do que não ter o dado.
+    O endpoint de commits costuma vir sem esse cabeçalho, então este é o
+    caminho normal, não a exceção.
     """
+    resultado = _fetch_first_commit(headers={}, paginas=_repo_simulado(350))
+    assert resultado is not None
+    assert resultado.replace(tzinfo=None) == _data_do_commit_mais_antigo(350)
+
+
+def test_fetch_first_commit_date_sondagem_com_repo_de_uma_pagina():
+    """Repositório menor que uma página: a primeira página já é a última."""
+    resultado = _fetch_first_commit(headers={}, paginas=_repo_simulado(7))
+    assert resultado is not None
+    assert resultado.replace(tzinfo=None) == _data_do_commit_mais_antigo(7)
+
+
+def test_fetch_first_commit_date_desiste_quando_a_sondagem_estoura_o_teto():
+    """Sem chegar à última página, devolver um commit do meio seria pior.
+
+    O teto de requisições é apertado aqui de propósito; na prática ele cobre
+    repositórios muito maiores do que este.
+    """
+    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+    crawler.MAX_COMMIT_PAGE_PROBES = 2
+
     resultado = _fetch_first_commit(
-        headers={},
-        paginas={"page=1": [{"committed_date": "2026-07-30T10:00:00.000Z"}]},
+        headers={}, paginas=_repo_simulado(5000), crawler=crawler
     )
     assert resultado is None
+
+
+def test_fetch_first_commit_date_nao_confunde_erro_com_fim_do_repositorio():
+    """Uma requisição que falha não significa que a página está vazia."""
+    def paginas(page, per_page):
+        return None if page > 1 else _repo_simulado(5000)(page, per_page)
+
+    assert _fetch_first_commit(headers={}, paginas=paginas) is None
 
 
 class MonorepoDocsCrawler(FakeCrawler):

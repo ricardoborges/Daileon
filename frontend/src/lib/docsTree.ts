@@ -114,6 +114,11 @@ export function allFolderPaths(nodes: DocTreeNode[]): string[] {
   return paths;
 }
 
+/** Caminhos das pastas da raiz, para abrir só o primeiro nível da árvore. */
+export function rootFolderPaths(nodes: DocTreeNode[]): string[] {
+  return nodes.filter((n): n is DocTreeFolder => n.kind === 'folder').map((n) => n.path);
+}
+
 /**
  * Documento a abrir quando nenhum foi pedido. Um arquivo do nível atual vem
  * antes de descer nas pastas: como a ordenação já joga `index.md`/`README.md`

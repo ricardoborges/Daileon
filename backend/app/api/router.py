@@ -393,6 +393,59 @@ async def list_component_docs(component_id: int, db: AsyncSession = Depends(get_
     ]
 
 
+def _content_snippet(content: Optional[str], term: str, radius: int = 90) -> Optional[str]:
+    """Trecho em torno da primeira ocorrência de `term`, para dar contexto ao resultado."""
+    if not content:
+        return None
+    idx = content.lower().find(term.lower())
+    if idx == -1:
+        return None
+
+    start = max(0, idx - radius)
+    end = min(len(content), idx + len(term) + radius)
+    snippet = " ".join(content[start:end].split())
+    return f"{'…' if start > 0 else ''}{snippet}{'…' if end < len(content) else ''}"
+
+
+@protected_router.get("/catalog/{component_id}/docs-search")
+async def search_component_docs(
+    component_id: int,
+    q: str = Query(..., min_length=2),
+    db: AsyncSession = Depends(get_db)
+):
+    """Busca restrita aos documentos deste componente: caminho, título e conteúdo."""
+    term = f"%{q}%"
+    result = await db.execute(
+        select(DocFile).where(
+            DocFile.component_id == component_id,
+            or_(
+                DocFile.relative_path.ilike(term),
+                DocFile.title.ilike(term),
+                DocFile.content_markdown.ilike(term)
+            )
+        )
+    )
+    docs = result.scalars().all()
+
+    items = []
+    for d in docs:
+        # `in_name` separa o acerto visível — caminho ou título — do acerto só no
+        # corpo do texto: quem digita um nome de arquivo espera ele em primeiro.
+        needle = q.lower()
+        in_name = needle in d.relative_path.lower() or needle in (d.title or "").lower()
+        items.append({
+            "id": d.id,
+            "relative_path": d.relative_path,
+            "title": d.title,
+            "doc_type": d.doc_type or "markdown",
+            "in_name": in_name,
+            "snippet": _content_snippet(d.content_markdown, q)
+        })
+
+    items.sort(key=lambda i: (not i["in_name"], i["relative_path"].lower()))
+    return {"query": q, "results": items}
+
+
 async def _load_doc(component_id: int, doc_path: str, db: AsyncSession) -> DocFile:
     result = await db.execute(
         select(DocFile).where(DocFile.component_id == component_id, DocFile.relative_path == doc_path)

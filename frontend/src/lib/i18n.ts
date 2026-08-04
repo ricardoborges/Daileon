@@ -319,6 +319,11 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
       download: 'Baixar arquivo',
       openInNewTab: 'Abrir em nova aba',
       assetError: 'Não foi possível carregar o arquivo.',
+      searchPlaceholder: 'Buscar nos documentos deste projeto...',
+      clearSearch: 'Limpar busca',
+      searching: 'Buscando...',
+      noResults: 'Nenhum documento corresponde à busca.',
+      resultCount: '{count} resultado(s)',
     },
     domains: {
       eyebrow: 'Arquitetura de Negócio & Domínios',
@@ -784,6 +789,11 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
       download: 'Download file',
       openInNewTab: 'Open in new tab',
       assetError: 'Could not load the file.',
+      searchPlaceholder: 'Search this project\'s documents...',
+      clearSearch: 'Clear search',
+      searching: 'Searching...',
+      noResults: 'No document matches this search.',
+      resultCount: '{count} result(s)',
     },
     domains: {
       eyebrow: 'Business Architecture & Domains',

@@ -165,6 +165,48 @@ def test_get_doc_raw_de_markdown_nao_existe(client, component):
     response = client.get(f"/api/catalog/{component['id']}/docs-raw/index.md")
     assert response.status_code == 404
 
+def test_docs_search_por_nome(client, component):
+    response = client.get(f"/api/catalog/{component['id']}/docs-search", params={"q": "topologia"})
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert [r["relative_path"] for r in results] == ["NTI-001 SIMBA/topologia.png"]
+    assert results[0]["in_name"] is True
+
+def test_docs_search_por_conteudo_traz_trecho(client, component):
+    response = client.get(f"/api/catalog/{component['id']}/docs-search", params={"q": "sequenceDiagram"})
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert [r["relative_path"] for r in results] == ["index.md"]
+    # Acerto só no corpo: a UI precisa do trecho para justificar o resultado.
+    assert results[0]["in_name"] is False
+    assert "sequenceDiagram" in results[0]["snippet"]
+
+def test_docs_search_casa_com_a_pasta_no_caminho(client, component):
+    response = client.get(f"/api/catalog/{component['id']}/docs-search", params={"q": "SIMBA"})
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert [r["relative_path"] for r in results] == [
+        "NTI-001 SIMBA/Relatorio Tecnico.pdf",
+        "NTI-001 SIMBA/topologia.png",
+    ]
+    assert all(r["in_name"] for r in results)
+
+def test_docs_search_poe_acerto_de_nome_antes_do_de_conteudo(client, component):
+    """`componente` está no título de README e no corpo dos dois markdowns."""
+    response = client.get(f"/api/catalog/{component['id']}/docs-search", params={"q": "componente"})
+    assert response.status_code == 200
+    flags = [r["in_name"] for r in response.json()["results"]]
+    assert flags == sorted(flags, reverse=True)
+
+def test_docs_search_ignora_docs_de_outro_componente(client, component):
+    response = client.get("/api/catalog/99999/docs-search", params={"q": "README"})
+    assert response.status_code == 200
+    assert response.json()["results"] == []
+
+def test_docs_search_exige_termo_minimo(client, component):
+    response = client.get(f"/api/catalog/{component['id']}/docs-search", params={"q": "a"})
+    assert response.status_code == 422
+
 @pytest.mark.parametrize("mode", ["rebuild", "prune"])
 def test_sync_recusa_recorte_em_modo_destrutivo(client, mode):
     """Restringir rebuild/prune a alguns projetos apagaria todo o resto."""

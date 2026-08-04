@@ -171,6 +171,13 @@ def parse_gitlab_datetime(value: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def commit_datetime(commit: Dict[str, Any]) -> Optional[datetime]:
+    """Data de um commit da API do GitLab."""
+    return parse_gitlab_datetime(
+        commit.get("committed_date") or commit.get("created_at")
+    )
+
+
 def extract_commit_author(commit: Dict[str, Any]) -> Optional[str]:
     """Extrai e normaliza o username do autor do commit dando prioridade ao e-mail do GitLab."""
     email = commit.get("author_email") or commit.get("committer_email")
@@ -410,25 +417,34 @@ class GitLabCrawlerService:
             "daily_counts": daily_counts
         }
 
+    #: Página cheia na sondagem da última página. O máximo que o GitLab aceita;
+    #: quanto maior, menos páginas para sondar.
+    COMMIT_PAGE_SIZE = 100
+    #: Teto de requisições da sondagem. Com busca por duplicação seguida de
+    #: busca binária, 24 cobrem ~2000 páginas (200 mil commits).
+    MAX_COMMIT_PAGE_PROBES = 24
+
     async def fetch_first_commit_date(self, project_id: int, ref: str = "main") -> Optional[datetime]:
         """Data do commit mais antigo do repositório.
 
         A API do GitLab devolve commits do mais novo para o mais antigo e não
-        aceita inverter a ordem, então o caminho é ir direto à última página:
-        com `per_page=1`, o cabeçalho `x-total-pages` é o número de commits e a
-        última página contém o primeiro deles. Custa duas requisições.
+        aceita inverter a ordem, então o primeiro commit está na última página.
 
-        Devolve `None` quando o GitLab omite o cabeçalho (ele o suprime em
-        repositórios muito grandes) — melhor não ter o dado do que devolver o
-        commit mais *recente* achando que é o primeiro.
+        O caminho barato são duas requisições: com `per_page=1` o cabeçalho
+        `x-total-pages` é o número de commits, e a última página guarda o
+        primeiro deles. Só que o endpoint de commits costuma vir sem esse
+        cabeçalho — o GitLab o omite por custo, para valer em repositórios
+        grandes. Sem ele, procuramos a última página: dobramos o número da
+        página até cair numa vazia e fazemos busca binária no intervalo, o que
+        custa ~2·log2(páginas) requisições.
         """
         base = (
             f"{self.base_url}/api/v4/projects/{project_id}/repository/commits"
-            f"?ref_name={ref}&per_page=1"
+            f"?ref_name={ref}"
         )
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
             try:
-                resp = await client.get(base)
+                resp = await client.get(f"{base}&per_page=1")
                 if resp.status_code != 200:
                     logger.warning(
                         f"GitLab returned {resp.status_code} fetching first commit for project {project_id}"
@@ -440,30 +456,88 @@ class GitLabCrawlerService:
                     return None
 
                 total_pages = resp.headers.get("x-total-pages")
-                if not total_pages or not str(total_pages).isdigit():
-                    logger.debug(
-                        f"Project {project_id} did not report x-total-pages; skipping first commit date."
+                if total_pages and str(total_pages).isdigit():
+                    # Um único commit: a primeira página já é a última.
+                    if int(total_pages) <= 1:
+                        return commit_datetime(data[0])
+                    last = await self._fetch_commits_page(
+                        client, base, page=int(total_pages), per_page=1
                     )
-                    return None
+                    return commit_datetime(last[0]) if last else None
 
-                # Um único commit: a primeira página já é a última.
-                if int(total_pages) <= 1:
-                    return parse_gitlab_datetime(
-                        data[0].get("committed_date") or data[0].get("created_at")
-                    )
-
-                last = await client.get(f"{base}&page={total_pages}")
-                if last.status_code != 200:
-                    return None
-                last_data = last.json()
-                if not isinstance(last_data, list) or not last_data:
-                    return None
-                return parse_gitlab_datetime(
-                    last_data[0].get("committed_date") or last_data[0].get("created_at")
+                logger.debug(
+                    f"Project {project_id} did not report x-total-pages; "
+                    f"probing for the last page of commits."
                 )
+                oldest = await self._probe_oldest_commit(client, base, project_id)
+                return commit_datetime(oldest) if oldest else None
             except Exception as e:
                 logger.error(f"Error fetching first commit for project {project_id}: {e}")
                 return None
+
+    async def _fetch_commits_page(
+        self, client: httpx.AsyncClient, base: str, page: int, per_page: int
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Uma página de commits; `None` quando a requisição não deu certo.
+
+        A distinção importa: página vazia é o fim do repositório, erro não é —
+        confundir os dois faria a sondagem tratar uma falha como fim e devolver
+        um commit que não é o primeiro.
+        """
+        resp = await client.get(f"{base}&per_page={per_page}&page={page}")
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return data if isinstance(data, list) else None
+
+    async def _probe_oldest_commit(
+        self, client: httpx.AsyncClient, base: str, project_id: int
+    ) -> Optional[Dict[str, Any]]:
+        """Commit mais antigo quando o GitLab não informa o total de páginas.
+
+        Devolve `None` se o teto de requisições chegar antes da última página:
+        melhor não ter o dado do que registrar como primeiro commit um que está
+        no meio da história.
+        """
+        per_page = self.COMMIT_PAGE_SIZE
+        probes = 0
+        low, low_data = 0, None  # última página conhecida como não-vazia
+        high = None              # primeira página conhecida como vazia
+
+        page = 1
+        while probes < self.MAX_COMMIT_PAGE_PROBES:
+            data = await self._fetch_commits_page(client, base, page, per_page)
+            probes += 1
+            if data is None:
+                return None
+            if not data:
+                high = page
+                break
+            low, low_data = page, data
+            page *= 2
+
+        while (
+            high is not None
+            and high - low > 1
+            and probes < self.MAX_COMMIT_PAGE_PROBES
+        ):
+            mid = (low + high) // 2
+            data = await self._fetch_commits_page(client, base, mid, per_page)
+            probes += 1
+            if data is None:
+                return None
+            if data:
+                low, low_data = mid, data
+            else:
+                high = mid
+
+        if high is None or high - low > 1 or low_data is None:
+            logger.warning(
+                f"Gave up looking for the last page of commits of project {project_id} "
+                f"after {probes} requests; first commit date left unset."
+            )
+            return None
+        return low_data[-1]
 
     async def fetch_top_committer(self, project_id: int) -> Optional[str]:
         """Consulta os commits recentes do repositório para inferir o usuário/autor com maior número de commits."""
