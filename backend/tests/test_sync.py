@@ -676,6 +676,8 @@ def test_doc_type_for_reconhece_extensoes():
     assert doc_type_for("GUIA.MD") == "markdown"
     assert doc_type_for("notas.markdown") == "markdown"
     assert doc_type_for("relatorio.pdf") == "pdf"
+    assert doc_type_for("manual.docx") == "docx"
+    assert doc_type_for("MANUAL.DOCX") == "docx"
     assert doc_type_for("diagrama.png") == "image"
     assert doc_type_for("foto.JPG") == "image"
     assert doc_type_for("captura.jpeg") == "image"
@@ -686,10 +688,26 @@ def test_doc_type_for_reconhece_extensoes():
 
 def test_doc_media_type_por_extensao():
     assert doc_media_type("NTI-001/relatorio.pdf") == "application/pdf"
+    assert doc_media_type("NTI-001/manual.docx") == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     assert doc_media_type("NTI-001/topologia.PNG") == "image/png"
     # `.jpeg` não pode ser resolvido pelo sufixo mais curto `.jpg`.
     assert doc_media_type("captura.jpeg") == "image/jpeg"
     assert doc_media_type("foto.jpg") == "image/jpeg"
+
+
+def test_extract_docx_text():
+    from app.gitlab.gitlab_crawler import extract_docx_text
+    import io, zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr(
+            "word/document.xml",
+            '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Arquitetura Daileon</w:t></w:r></w:p></w:body></w:document>'
+        )
+    docx_bytes = buf.getvalue()
+    text = extract_docx_text(docx_bytes)
+    assert text == "Arquitetura Daileon"
+
 
 
 def test_doc_title_from_path_usa_apenas_o_nome_do_arquivo():

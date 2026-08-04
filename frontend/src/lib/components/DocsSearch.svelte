@@ -105,6 +105,8 @@
             <span class="shrink-0">
               {#if hit.doc_type === 'pdf'}
                 <FileType class="w-3 h-3 t-alert" />
+              {:else if hit.doc_type === 'docx'}
+                <FileText class="w-3 h-3 text-blue-400 opacity-90" />
               {:else if hit.doc_type === 'image'}
                 <Image class="w-3 h-3 t-iris" />
               {:else}

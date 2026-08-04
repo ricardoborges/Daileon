@@ -468,7 +468,7 @@ async def _load_doc(component_id: int, doc_path: str, db: AsyncSession, content_
 
 @protected_router.get("/catalog/{component_id}/docs-raw/{doc_path:path}")
 async def get_component_doc_raw(component_id: int, doc_path: str, db: AsyncSession = Depends(get_db)):
-    """Bytes originais de um documento binário (PDF ou imagem), para o navegador."""
+    """Bytes originais de um documento binário (PDF, DOCX ou imagem), para o navegador."""
     doc = await _load_doc(component_id, doc_path, db, DocFile.content_binary)
     if doc.doc_type not in BINARY_DOC_TYPES or doc.content_binary is None:
         raise HTTPException(status_code=404, detail="Document has no binary content")

@@ -58,8 +58,8 @@ IGNORE_MARKER = ".daileon-ignore"
 
 
 #: Extensões indexadas como documentação, mapeadas para o tipo que a API
-#: expõe. O Markdown é lido como texto; PDF e imagem são guardados em bytes e
-#: servidos crus para o visualizador nativo do navegador.
+#: expõe. O Markdown é lido como texto; PDF, DOCX e imagens são guardados em bytes e
+#: servidos crus para o visualizador do navegador.
 #:
 #: SVG fica de fora de propósito: é um documento com script embutido em
 #: potencial e, aberto em aba própria a partir de uma blob URL, rodaria na
@@ -68,6 +68,7 @@ DOC_EXTENSIONS = {
     ".md": "markdown",
     ".markdown": "markdown",
     ".pdf": "pdf",
+    ".docx": "docx",
     ".png": "image",
     ".jpg": "image",
     ".jpeg": "image",
@@ -77,18 +78,19 @@ DOC_EXTENSIONS = {
 }
 
 #: Tipos cujo conteúdo vive em `DocFile.content_binary`.
-BINARY_DOC_TYPES = frozenset({"pdf", "image"})
+BINARY_DOC_TYPES = frozenset({"pdf", "image", "docx"})
 
 #: Tipos aceitos quando a varredura cai no fallback do repositório inteiro.
 #: Sem uma pasta de docs para delimitar o escopo, toda imagem do código-fonte
 #: entraria como documentação — `src/assets/`, sprites de plugin, ícones de
-#: tema. Markdown e PDF são documento por si só; imagem solta, fora de um
+#: tema. Markdown, PDF e DOCX são documento por si só; imagem solta, fora de um
 #: `.md` que a referencie, é ruído.
-FALLBACK_DOC_TYPES = frozenset({"markdown", "pdf"})
+FALLBACK_DOC_TYPES = frozenset({"markdown", "pdf", "docx"})
 
 #: Content-Type devolvido pelo endpoint de bytes crus.
 DOC_MEDIA_TYPES = {
     ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -97,10 +99,31 @@ DOC_MEDIA_TYPES = {
     ".bmp": "image/bmp",
 }
 
-#: Um PDF de manual escaneado passa fácil dos 50 MB. Como o conteúdo vai para
+#: Um PDF ou DOCX de manual escaneado passa fácil dos 50 MB. Como o conteúdo vai para
 #: dentro do banco, o que não couber aqui é registrado e ignorado — melhor
 #: perder um documento do que inchar o SQLite a cada sync.
 MAX_BINARY_DOC_BYTES = 25 * 1024 * 1024
+
+
+def extract_docx_text(b: bytes) -> str:
+    """Extrai texto legível de um arquivo .docx para indexação e busca."""
+    if not b:
+        return ""
+    try:
+        import io
+        import zipfile
+        import xml.etree.ElementTree as ET
+        with zipfile.ZipFile(io.BytesIO(b)) as z:
+            if "word/document.xml" not in z.namelist():
+                return ""
+            xml_content = z.read("word/document.xml")
+            tree = ET.fromstring(xml_content)
+            texts = [node.text for node in tree.iter() if node.tag.endswith("}t") and node.text]
+            return " ".join(texts)
+    except Exception as e:
+        logger.warning(f"Falha ao extrair texto de arquivo .docx: {e}")
+        return ""
+
 
 
 def _extension_of(path: str) -> Optional[str]:
@@ -1006,7 +1029,10 @@ class GitLabCrawlerService:
                             f"{len(doc_bytes)} bytes exceeds the {MAX_BINARY_DOC_BYTES} byte limit for binary docs."
                         )
                         continue
-                    doc_content = None
+                    if kind == "docx":
+                        doc_content = extract_docx_text(doc_bytes)
+                    else:
+                        doc_content = None
                 else:
                     doc_bytes = None
                     doc_content = await self.fetch_file_content(project_id, file_path, ref=default_branch)

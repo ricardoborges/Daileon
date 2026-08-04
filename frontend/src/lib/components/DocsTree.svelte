@@ -61,6 +61,8 @@
       <span class="shrink-0">
         {#if node.doc.doc_type === 'pdf'}
           <FileType class="w-3 h-3 t-alert" />
+        {:else if node.doc.doc_type === 'docx'}
+          <FileText class="w-3 h-3 text-blue-400 opacity-90" />
         {:else if node.doc.doc_type === 'image'}
           <Image class="w-3 h-3 t-iris" />
         {:else}

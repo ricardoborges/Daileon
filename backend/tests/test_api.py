@@ -76,6 +76,15 @@ def component(client):
                 content_binary=b"\x89PNG fake",
                 size_bytes=9,
             ))
+            db.add(DocFile(
+                component_id=c.id,
+                relative_path="NTI-001 SIMBA/Manual.docx",
+                title="Manual",
+                doc_type="docx",
+                content_markdown="Texto extraído do manual docx",
+                content_binary=b"PK\x03\x04fake docx bytes",
+                size_bytes=18,
+            ))
             db.add(ComponentDeployment(
                 component_id=c.id,
                 environment="production",
@@ -86,6 +95,7 @@ def component(client):
                 port="8080"
             ))
             db.commit()
+            db.refresh(c)
             return {"id": c.id, "name": c.name}
     finally:
         engine.dispose()
@@ -102,14 +112,14 @@ def test_list_catalog(client, component):
     data = response.json()
     assert isinstance(data, list)
     assert [c["name"] for c in data] == [component["name"]]
-    assert data[0]["docs_count"] == 4
+    assert data[0]["docs_count"] == 5
 
 def test_get_component_detail(client, component):
     response = client.get(f"/api/catalog/{component['id']}")
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == component["name"]
-    assert data["docs_count"] == 4
+    assert data["docs_count"] == 5
     assert "python" in data["tags"]
     assert data["dependencies"] == ["outro-componente"]
 
@@ -121,6 +131,7 @@ def test_get_component_docs(client, component):
     assert response.status_code == 200
     docs = response.json()
     assert sorted(d["relative_path"] for d in docs) == [
+        "NTI-001 SIMBA/Manual.docx",
         "NTI-001 SIMBA/Relatorio Tecnico.pdf",
         "NTI-001 SIMBA/topologia.png",
         "README.md",
@@ -131,6 +142,7 @@ def test_get_component_docs(client, component):
     assert by_path["NTI-001 SIMBA/Relatorio Tecnico.pdf"]["doc_type"] == "pdf"
     assert by_path["NTI-001 SIMBA/Relatorio Tecnico.pdf"]["size_bytes"] == 13
     assert by_path["NTI-001 SIMBA/topologia.png"]["doc_type"] == "image"
+    assert by_path["NTI-001 SIMBA/Manual.docx"]["doc_type"] == "docx"
 
 def test_get_doc_content(client, component):
     response = client.get(f"/api/catalog/{component['id']}/docs/index.md")
@@ -186,6 +198,7 @@ def test_docs_search_casa_com_a_pasta_no_caminho(client, component):
     assert response.status_code == 200
     results = response.json()["results"]
     assert [r["relative_path"] for r in results] == [
+        "NTI-001 SIMBA/Manual.docx",
         "NTI-001 SIMBA/Relatorio Tecnico.pdf",
         "NTI-001 SIMBA/topologia.png",
     ]

@@ -27,8 +27,9 @@
   let loadedAssetPath = '';
   /** Object URLs das imagens embutidas no Markdown, revogadas a cada render. */
   let inlineImageUrls: string[] = [];
+  let docxContainer: HTMLDivElement | null = null;
 
-  $: isBinary = docType === 'pdf' || docType === 'image';
+  $: isBinary = docType === 'pdf' || docType === 'image' || docType === 'docx';
 
   $: tree = buildDocsTree(docs);
   $: folderPaths = allFolderPaths(tree);
@@ -96,10 +97,31 @@
       // O endpoint é autenticado por header, então o iframe/img não pode apontar
       // direto para a API: servimos os bytes já baixados por object URL.
       assetUrl = URL.createObjectURL(blob);
+      if (docType === 'docx') {
+        setTimeout(() => renderDocx(blob), 50);
+      }
     } catch (e) {
       assetError = e instanceof Error ? e.message : String(e);
     } finally {
       assetLoading = false;
+    }
+  }
+
+  async function renderDocx(blob: Blob) {
+    if (!browser || !docxContainer) return;
+    docxContainer.innerHTML = '';
+    try {
+      const { renderAsync } = await import('docx-preview');
+      const buffer = await blob.arrayBuffer();
+      await renderAsync(buffer, docxContainer, undefined, {
+        inWrapper: true,
+        ignoreWidth: false,
+        ignoreHeight: false,
+        className: 'docx-viewer-content'
+      });
+    } catch (e) {
+      console.error('Error rendering docx:', e);
+      assetError = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -263,6 +285,10 @@
       {:else if assetUrl && docType === 'image'}
         <div class="p-6 flex justify-center bg-surface-2">
           <img src={assetUrl} alt={currentDoc?.title || currentDocPath} class="max-w-full h-auto" />
+        </div>
+      {:else if assetUrl && docType === 'docx'}
+        <div class="p-6 bg-surface-2 overflow-auto max-h-[80vh]">
+          <div bind:this={docxContainer} class="docx-preview-container bg-white text-black p-6 rounded shadow max-w-4xl mx-auto overflow-auto min-h-[500px]"></div>
         </div>
       {:else if assetUrl}
         <iframe src={assetUrl} title={currentDocPath} class="w-full h-[80vh] border-0 bg-surface-2"></iframe>

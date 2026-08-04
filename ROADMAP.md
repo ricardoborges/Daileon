@@ -73,11 +73,12 @@ Para o **MVP (Minimum Viable Product)**, focamos nas funcionalidades essenciais 
   - Caso o projeto não possua `project-info.yml`, o Daileon cria um registro sintético básico utilizando as informações nativas da API do GitLab (Nome do Repositório, Descrição, Linguagem Principal e README.md).
 
 ### 3.2. 📚 TechDocs Engine (Documentação como Código)
-- **Leitor de Documentação Markdown**:
+- **Leitor de Documentação (Markdown & DOCX)**:
   - Leitura recursiva da pasta `/docs` (ou caminho customizado configurado no `project-info.yml`).
   - Suporte a Markdown completo: Tabelas, Mermaid.js (diagramas de sequência/arquitetura), alertas, blocos de código com sintaxe destacada.
+  - Suporte a documentos do Microsoft Word (`.docx`): Indexação automática pelo crawler, extração de texto para busca global e visualização *read-only* integrada no portal sem necessidade de servidores externos.
 - **Navegação de Docs**:
-  - Árvore de arquivos lateral gerada automaticamente com base na estrutura de pastas/arquivos `.md`.
+  - Árvore de arquivos lateral gerada automaticamente com base na estrutura de pastas/arquivos `.md`, `.pdf` e `.docx`.
   - Links internos corrigidos automaticamente para navegação fluida dentro do portal.
 
 ### 3.3. 🗂️ Software Catalog (Catálogo de Componentes)

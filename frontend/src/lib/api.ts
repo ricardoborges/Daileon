@@ -175,7 +175,7 @@ export async function fetchDependencyGraph(query: GraphQuery = {}): Promise<Depe
   return res.json();
 }
 
-export type DocType = 'markdown' | 'pdf' | 'image';
+export type DocType = 'markdown' | 'pdf' | 'image' | 'docx';
 
 export interface DocFileItem {
   id: number;
