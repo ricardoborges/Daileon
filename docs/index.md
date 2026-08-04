@@ -28,7 +28,7 @@ Cada projeto mantém na raiz do seu repositório um arquivo de manifesto chamado
 O Daileon se conecta à **API REST v4 do GitLab** utilizando o token `GITLAB_READ_TOKEN`:
 1. **Varredura**: Lista todos os projetos acessíveis pelo token (ou filtrados por um grupo específico).
 2. **Parsing do Manifesto**: Baixa e valida o arquivo `project-info.yml`. Se o arquivo não existir, o Daileon gera automaticamente um registro *sintético* com as informações básicas do repositório GitLab.
-3. **Leitura de Docs**: Identifica os arquivos Markdown na pasta `/docs` (ou diretório customizado) e indexa o conteúdo.
+3. **Leitura de Docs**: Identifica os arquivos Markdown na pasta `/docs` (ou diretório customizado) e indexa o conteúdo. Pastas com um arquivo `.daileon-ignore` ficam de fora — ver [Referência do `project-info.yml`](project-info-yml.md).
 4. **Atualização**: Mantém o catálogo de serviços e o motor de busca atualizados no banco de dados.
 
 ### 2.2. O Manifesto `project-info.yml`

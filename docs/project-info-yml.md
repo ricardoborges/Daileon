@@ -81,7 +81,7 @@ Esse arquivo é válido e produz um componente `Component` / `service` / `produc
 | Campo | Tipo | Obrigatório | Padrão | Observações |
 | --- | --- | --- | --- | --- |
 | `apiVersion` | string | Não | `daileon/v1` | **Não é validado.** Qualquer string é aceita. Existe por convenção/versionamento futuro. |
-| `kind` | string | Não | `Component` | **Conjunto aberto** — veja a seção 4. |
+| `kind` | string | Não | `Component` | **Conjunto aberto** — veja a seção 5. |
 | `metadata` | objeto | **Sim** | — | |
 | `spec` | objeto | Não | objeto vazio (tudo default) | |
 
@@ -99,8 +99,8 @@ Esse arquivo é válido e produz um componente `Component` / `service` / `produc
 
 | Campo | Tipo | Obrigatório | Padrão | Efeito |
 | --- | --- | --- | --- | --- |
-| `type` | string | Não | `service` | **Conjunto aberto** — veja a seção 4. Alimenta o filtro "Tipo". |
-| `lifecycle` | string | Não | `production` | **Conjunto aberto, mas com 3 valores privilegiados** — veja a seção 4. |
+| `type` | string | Não | `service` | **Conjunto aberto** — veja a seção 5. Alimenta o filtro "Tipo". |
+| `lifecycle` | string | Não | `production` | **Conjunto aberto, mas com 3 valores privilegiados** — veja a seção 5. |
 | `solution` | string | Não | `null` | Solução à qual o componente pertence (agrupador de projetos). |
 | `docs` | objeto | Não | `{dir: /docs, index: index.md}` | Ver 3.4. |
 | `links` | lista | Não | `[]` | Ver 3.5. |
@@ -124,6 +124,8 @@ Além da pasta de docs, o **`README.md` da raiz do repositório é sempre indexa
 > ⚠️ **Uma pasta de docs sem nenhum `.md` some da interface.** Se o `docs.dir` só tem planilha, HTML ou imagem, o componente aparece sem documentação navegável mesmo com o manifesto correto — as imagens ficam indexadas, mas não há página que as apresente. Comece pelo `index.md`.
 
 **Quando a pasta não existe:** o Daileon cai num fallback e varre o repositório inteiro (ou a subpasta do componente, em monorepo) atrás de `.md` e `.pdf`. Imagens **não** entram nesse modo — sem a pasta delimitando o escopo, todo `src/assets/` viraria documentação. Diretórios ocultos (`.git`, `.github`) e de dependência/build (`node_modules`, `dist`, `target`, …) são pulados nos dois modos.
+
+Para excluir uma pasta específica da varredura, veja a seção 4.
 
 ### 3.5. `spec.links`
 
@@ -229,7 +231,57 @@ spec:
 
 ---
 
-## 4. Os conjuntos de valores: abertos ou fechados?
+## 4. Excluindo pastas da indexação: `.daileon-ignore`
+
+O manifesto diz onde o Daileon **deve** olhar. O `.daileon-ignore` diz onde ele **não** deve.
+
+| Item | Valor |
+| --- | --- |
+| **Nome do arquivo** | `.daileon-ignore` |
+| **Local** | Dentro de qualquer pasta que você queira excluir |
+| **Conteúdo** | **Irrelevante.** O arquivo nunca é lido — pode ficar vazio ou explicar o motivo para quem vier depois |
+| **Escopo** | A pasta que o contém **e tudo abaixo dela**, recursivamente |
+| **Efeito** | Nada ali dentro é indexado como documentação, nem gera componente a partir de um `project-info.yml` |
+
+O caso mais comum é uma pasta de docs que carrega peso morto — protótipo HTML com imagens, anexos de outra época:
+
+```
+docs/
+├── index.md
+├── arquitetura.md
+└── Prototipo/
+    ├── .daileon-ignore        ← só isso
+    ├── index.html
+    └── images/logo.png
+```
+
+Resultado: as TechDocs mostram `index.md` e `arquitetura.md`; `Prototipo/` some do portal e continua no repositório.
+
+Em monorepo, o marcador também tira um subprojeto inteiro do catálogo:
+
+```
+apps/
+├── novo/project-info.yml      → vira componente
+└── legado/
+    ├── .daileon-ignore        → não vira componente
+    └── project-info.yml
+```
+
+> ⚠️ **Um `.daileon-ignore` na raiz do repositório remove o projeto do catálogo.** É consistente com a regra — o escopo é a pasta que o contém, e na raiz isso é tudo — mas o efeito é grande e silencioso: no próximo sync o componente e a documentação dele desaparecem do portal. Use quando for exatamente essa a intenção; para excluir só a documentação, marque a pasta de docs.
+
+Cada exclusão é registrada no log do backend em nível `INFO`, então um marcador esquecido não vira um sumiço inexplicado:
+
+```
+Ignoring manifest under .daileon-ignore: apps/legado/project-info.yml
+Skipping docs of project 5: 'docs/Prototipo' is marked with .daileon-ignore.
+Project Strix has .daileon-ignore at the repository root; nothing will be indexed.
+```
+
+**Marcar a pasta de docs não aciona o fallback.** Uma pasta que não existe faz o Daileon varrer o repositório atrás de documentação (ver 3.4); uma pasta marcada, não — é ausência deliberada, e varrer em volta contrariaria o pedido. O `README.md` da raiz continua sendo indexado nesse caso; para excluí-lo também, o marcador precisa estar na raiz.
+
+---
+
+## 5. Os conjuntos de valores: abertos ou fechados?
 
 Esta é a resposta curta: **todos os campos de classificação (`kind`, `type`, `lifecycle`, `apiVersion`) são strings livres.** Não existe enum, `Literal` ou validação de domínio no parser — o que você escrever é aceito e gravado como veio.
 
@@ -285,7 +337,7 @@ Nenhuma verificação de compatibilidade é feita. Escrever `apiVersion: sei-la/
 
 ---
 
-## 5. Comportamentos que costumam surpreender
+## 6. Comportamentos que costumam surpreender
 
 1. **Campos desconhecidos são silenciosamente ignorados.** Escrever `ownr:` em vez de `owner:` não gera erro — o campo errado é descartado e o `owner` fica `unassigned`. Não há aviso na interface; confira o resultado no catálogo após o sync.
 2. **`metadata.name` sobrescreve o nome do repositório.** O card do catálogo mostra o nome do manifesto, não o do GitLab.
@@ -293,10 +345,11 @@ Nenhuma verificação de compatibilidade é feita. Escrever `apiVersion: sei-la/
 4. **Links e dependências são recriados a cada sync.** O que sumiu do arquivo some do portal; não há acúmulo histórico.
 5. **Manifesto inválido = componente sintético, sem alarde.** O erro vai para o log do backend (`Could not parse project-info.yml in project <nome>`) e o componente aparece marcado como "Fallback sintético". Se um componente aparecer sem os metadados esperados, esse é o primeiro lugar a olhar.
 6. **Nem todo anexo do `docs.dir` é indexado.** Só `.md`, `.markdown`, `.pdf` e imagens entram — planilhas, HTML e `.txt` são descartados em silêncio. Uma pasta de docs cheia, mas sem nenhum `.md`, resulta em componente sem documentação visível. Ver 3.4.
+7. **`.daileon-ignore` na raiz apaga o componente do catálogo.** O marcador exclui a pasta que o contém — na raiz, isso é o repositório inteiro, e no próximo sync o projeto some do portal. Ver 4.
 
 ---
 
-## 6. Limites de tamanho
+## 7. Limites de tamanho
 
 O banco define limites por coluna. Em SQLite (padrão de desenvolvimento) eles **não são aplicados**; em PostgreSQL, um valor acima do limite **falha a sincronização daquele componente**. Vale respeitá-los desde já:
 
@@ -321,9 +374,9 @@ O banco define limites por coluna. Em SQLite (padrão de desenvolvimento) eles *
 
 ---
 
-## 7. Exemplos
+## 8. Exemplos
 
-### 7.1. Microsserviço com documentação, observabilidade e CI/CD Jenkins
+### 8.1. Microsserviço com documentação, observabilidade e CI/CD Jenkins
 
 ```yaml
 apiVersion: daileon/v1
@@ -371,7 +424,7 @@ spec:
 ```
 
 
-### 7.2. Biblioteca compartilhada, docs fora do padrão
+### 8.2. Biblioteca compartilhada, docs fora do padrão
 
 ```yaml
 apiVersion: daileon/v1
@@ -392,7 +445,7 @@ spec:
     index: index.md
 ```
 
-### 7.3. Componente em descontinuação
+### 8.3. Componente em descontinuação
 
 ```yaml
 metadata:
@@ -409,7 +462,7 @@ spec:
 
 ---
 
-## 8. Checklist antes de commitar
+## 9. Checklist antes de commitar
 
 - [ ] Arquivo se chama `project-info.yml` e está na raiz do repositório.
 - [ ] `metadata.name` preenchido e único no catálogo.
@@ -417,13 +470,14 @@ spec:
 - [ ] `lifecycle` é `production`, `experimental` ou `deprecated`.
 - [ ] `type` segue a convenção do time (`service`, `website`, `library`, `cronjob`, …).
 - [ ] Existe um `index.md` na raiz da pasta indicada em `docs.dir`.
+- [ ] Se há `.daileon-ignore` no repositório, ele está na pasta certa — e **não** na raiz, salvo se a intenção for tirar o projeto do catálogo.
 - [ ] Todo item de `links` tem `url` **e** `title`.
 - [ ] YAML válido — rode um lint ou cole em um validador antes de commitar.
 - [ ] Após o merge, rode o Sync no portal e confira se o componente aparece com o selo `project-info.yml` (e não como "Fallback sintético").
 
 ---
 
-## 9. Referência do schema no código
+## 10. Referência do schema no código
 
 | O que | Onde |
 | --- | --- |

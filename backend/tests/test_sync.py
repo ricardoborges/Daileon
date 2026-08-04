@@ -26,6 +26,7 @@ CARREGA_DOCS = selectinload(Component.docs).options(
     undefer(DocFile.content_binary),
 )
 from app.gitlab.gitlab_crawler import (
+    IGNORE_MARKER,
     MAX_BINARY_DOC_BYTES,
     GitLabCrawlerService,
     ProjectListError,
@@ -34,7 +35,9 @@ from app.gitlab.gitlab_crawler import (
     doc_media_type,
     doc_title_from_path,
     doc_type_for,
+    ignored_dirs,
     is_hidden_path,
+    is_ignored_path,
     is_vendor_path,
     nested_sub_dirs,
 )
@@ -448,6 +451,62 @@ def test_sync_fallback_docs_sem_pasta_docs():
     ]
 
 
+class DocsIgnoradaCrawler(FakeCrawler):
+    """Pasta de docs marcada com `.daileon-ignore`."""
+
+    async def fetch_docs_tree(self, project_id, docs_dir, ref="main"):
+        if docs_dir.strip("/") == "docs":
+            return None
+        return await super().fetch_docs_tree(project_id, docs_dir, ref=ref)
+
+
+async def _sync_docs_ignorada(db_path: Path):
+    crawler = DocsIgnoradaCrawler(gitlab_url="https://gitlab.local", token="fake")
+    async with _session(db_path) as db:
+        await crawler.sync_all(db)
+        component = (await db.execute(select(Component).options(CARREGA_DOCS))).scalars().first()
+        _ = component.docs
+        return component
+
+
+def test_sync_pasta_marcada_nao_dispara_o_fallback():
+    """Pasta marcada é ausência deliberada: varrer o repositório contrariaria o pedido."""
+    with tempfile.TemporaryDirectory() as tmp:
+        component = asyncio.run(_sync_docs_ignorada(Path(tmp) / "test.db"))
+
+    # O README da raiz continua entrando; o CHANGELOG.md, que só o fallback
+    # alcançaria, não pode aparecer.
+    assert [d.relative_path for d in component.docs] == ["README.md"]
+
+
+class RepoIgnoradoCrawler(FakeCrawler):
+    """`.daileon-ignore` na raiz do repositório."""
+
+    async def fetch_manifest_paths(self, project_id: int, ref: str = "main"):
+        return None
+
+
+async def _sync_repo_ignorado(db_path: Path):
+    async with _session(db_path) as db:
+        await FakeCrawler(gitlab_url="https://gitlab.local", token="fake").sync_all(db)
+        antes = (await db.execute(select(Component))).scalars().all()
+        antes = [c.name for c in antes]
+
+    async with _session(db_path) as db:
+        await RepoIgnoradoCrawler(gitlab_url="https://gitlab.local", token="fake").sync_all(db)
+        depois = (await db.execute(select(Component))).scalars().all()
+        return antes, [c.name for c in depois]
+
+
+def test_sync_marcador_na_raiz_remove_o_componente_existente():
+    """Adicionar o marcador depois tem que desfazer a indexação anterior."""
+    with tempfile.TemporaryDirectory() as tmp:
+        antes, depois = asyncio.run(_sync_repo_ignorado(Path(tmp) / "test.db"))
+
+    assert antes == ["pedido-service"]
+    assert depois == []
+
+
 class DocsEmSubpastasCrawler(FakeCrawler):
     """Documentação organizada em subpastas, misturando Markdown e PDF."""
 
@@ -744,6 +803,36 @@ def test_is_vendor_path_ignora_dependencias_e_build():
     assert is_vendor_path("build/docs/node_modules/leia.md", base="build/docs")
 
 
+def test_ignored_dirs_localiza_os_marcadores():
+    tree = [
+        {"type": "blob", "name": IGNORE_MARKER, "path": f"docs/Prototipo/{IGNORE_MARKER}"},
+        {"type": "blob", "name": IGNORE_MARKER, "path": IGNORE_MARKER},
+        {"type": "blob", "name": "index.md", "path": "docs/index.md"},
+        # Uma pasta chamada como o marcador não é um marcador.
+        {"type": "tree", "name": IGNORE_MARKER, "path": f"lixo/{IGNORE_MARKER}"},
+    ]
+
+    # O marcador da raiz vira `""` — o escopo é tudo.
+    assert sorted(ignored_dirs(tree)) == ["", "docs/Prototipo"]
+
+
+def test_is_ignored_path_cobre_a_pasta_e_tudo_abaixo():
+    marcadas = ["docs/Prototipo"]
+
+    assert is_ignored_path("docs/Prototipo", marcadas)
+    assert is_ignored_path("docs/Prototipo/images/logo.png", marcadas)
+
+    assert not is_ignored_path("docs/index.md", marcadas)
+    # Prefixo de texto não é prefixo de caminho.
+    assert not is_ignored_path("docs/PrototipoNovo/guia.md", marcadas)
+
+    # Marcador na raiz da varredura: não sobra nada.
+    assert is_ignored_path("qualquer/coisa.md", [""])
+    assert is_ignored_path("", [""])
+
+    assert not is_ignored_path("docs/index.md", [])
+
+
 def test_nested_sub_dirs_so_exclui_o_que_esta_abaixo():
     todos = {"", "apps/web", "apps/web/lib", "apps/api"}
 
@@ -783,6 +872,92 @@ def test_fetch_docs_tree_descarta_diretorios_ocultos():
 
     docs = asyncio.run(run_test())
     assert sorted(d["path"] for d in docs) == ["README.md", "docs/index.md"]
+
+
+def _docs_tree_de(itens, docs_dir="/"):
+    """Executa `fetch_docs_tree` contra uma árvore fixa do GitLab."""
+    from unittest.mock import patch, MagicMock
+
+    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+
+    async def run_test():
+        async def mock_get(*args, **kwargs):
+            url_arg = kwargs.get("url") or (args[1] if len(args) > 1 else args[0])
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = itens if "page=1&" in str(url_arg) else []
+            return mock_resp
+
+        with patch("httpx.AsyncClient.get", side_effect=mock_get):
+            return await crawler.fetch_docs_tree(100, docs_dir, ref="main")
+
+    return asyncio.run(run_test())
+
+
+def test_fetch_docs_tree_respeita_o_marcador_de_ignorar():
+    """`.daileon-ignore` exclui a pasta que o contém e tudo abaixo dela."""
+    docs = _docs_tree_de([
+        {"type": "blob", "name": "index.md", "path": "docs/index.md"},
+        {"type": "blob", "name": IGNORE_MARKER, "path": f"docs/Prototipo/{IGNORE_MARKER}"},
+        {"type": "blob", "name": "tela.png", "path": "docs/Prototipo/images/tela.png"},
+        {"type": "blob", "name": "leia.md", "path": "docs/Prototipo/leia.md"},
+    ], docs_dir="docs")
+
+    assert [d["path"] for d in docs] == ["docs/index.md"]
+
+
+def test_fetch_docs_tree_devolve_none_quando_a_propria_pasta_e_marcada():
+    """`None` distingue 'não olhe aqui' de 'pasta vazia' — só o segundo aceita fallback."""
+    docs = _docs_tree_de([
+        {"type": "blob", "name": IGNORE_MARKER, "path": f"docs/{IGNORE_MARKER}"},
+        {"type": "blob", "name": "index.md", "path": "docs/index.md"},
+    ], docs_dir="docs")
+
+    assert docs is None
+
+
+def _manifest_paths_de(itens):
+    """Executa `fetch_manifest_paths` contra uma árvore fixa do GitLab."""
+    from unittest.mock import patch, MagicMock
+
+    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+
+    async def run_test():
+        async def mock_get(*args, **kwargs):
+            url_arg = kwargs.get("url") or (args[1] if len(args) > 1 else args[0])
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = itens if "page=1&" in str(url_arg) else []
+            return mock_resp
+
+        with patch("httpx.AsyncClient.get", side_effect=mock_get):
+            return await crawler.fetch_manifest_paths(100, ref="main")
+
+    return asyncio.run(run_test())
+
+
+def test_fetch_manifest_paths_ignora_manifesto_em_pasta_marcada():
+    """Pasta marcada não gera componente, mesmo tendo manifesto próprio."""
+    paths = _manifest_paths_de([
+        {"type": "blob", "name": "project-info.yml", "path": "project-info.yml"},
+        {"type": "blob", "name": IGNORE_MARKER, "path": f"apps/legado/{IGNORE_MARKER}"},
+        {"type": "blob", "name": "project-info.yml", "path": "apps/legado/project-info.yml"},
+        {"type": "blob", "name": "project-info.yml", "path": "apps/novo/project-info.yml"},
+    ])
+
+    assert paths == ["project-info.yml", "apps/novo/project-info.yml"]
+
+
+def test_fetch_manifest_paths_devolve_none_com_marcador_na_raiz():
+    """Marcador na raiz tira o repositório inteiro do catálogo."""
+    paths = _manifest_paths_de([
+        {"type": "blob", "name": IGNORE_MARKER, "path": IGNORE_MARKER},
+        {"type": "blob", "name": "project-info.yml", "path": "project-info.yml"},
+    ])
+
+    # `None`, e não `[]`: a lista vazia significaria "sem manifesto" e o
+    # projeto voltaria como registro sintético.
+    assert paths is None
 
 
 def test_fetch_docs_tree_descarta_dependencias_e_build():

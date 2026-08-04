@@ -45,6 +45,17 @@ VENDOR_DIRS = frozenset({
 })
 
 
+#: Marcador de "não olhe aqui". Um arquivo com este nome exclui a pasta que o
+#: contém e tudo abaixo dela — tanto da indexação de documentação quanto da
+#: descoberta de manifestos. O conteúdo não é lido: serve para quem abrir o
+#: arquivo depois entender o motivo.
+#:
+#: Na raiz do repositório, o escopo é o repositório inteiro e o projeto sai do
+#: catálogo. É deliberado, mas é uma faca de dois gumes — daí o log em INFO a
+#: cada sync, para que um marcador esquecido não vire um sumiço inexplicado.
+IGNORE_MARKER = ".daileon-ignore"
+
+
 #: Extensões indexadas como documentação, mapeadas para o tipo que a API
 #: expõe. O Markdown é lido como texto; PDF e imagem são guardados em bytes e
 #: servidos crus para o visualizador nativo do navegador.
@@ -154,6 +165,35 @@ def is_vendor_path(path: str, base: str = "") -> bool:
     `docs.dir` apontando para dentro de `dist/` foi escolha explícita.
     """
     return any(seg.lower() in VENDOR_DIRS for seg in relative_segments(path, base)[:-1])
+
+
+def ignored_dirs(tree: Iterable[Dict[str, Any]]) -> List[str]:
+    """Pastas marcadas com `IGNORE_MARKER` numa listagem de árvore do GitLab.
+
+    Devolve o caminho da pasta que contém cada marcador — `""` quando ele está
+    na raiz da varredura.
+    """
+    marked = []
+    for item in tree:
+        if item.get("type") != "blob":
+            continue
+        if item.get("name", "").lower() != IGNORE_MARKER:
+            continue
+        path = item.get("path", "").strip("/")
+        marked.append(path[: -len(IGNORE_MARKER)].strip("/"))
+    return marked
+
+
+def is_ignored_path(path: str, marked_dirs: Iterable[str]) -> bool:
+    """True se `path` estiver dentro de alguma pasta de `marked_dirs`."""
+    clean = path.strip("/")
+    for marked in marked_dirs:
+        # Marcador na raiz da varredura: não sobra nada de fora dele.
+        if not marked:
+            return True
+        if clean == marked or clean.startswith(f"{marked}/"):
+            return True
+    return False
 
 
 def nested_sub_dirs(own_sub_dir: str, all_sub_dirs: Iterable[str]) -> List[str]:
@@ -325,9 +365,18 @@ class GitLabCrawlerService:
                 logger.error(f"Error fetching binary file {file_path} for project {project_id}: {e}")
         return None
 
-    async def fetch_docs_tree(self, project_id: int, docs_dir: str, ref: str = "main") -> List[Dict[str, Any]]:
+    async def fetch_docs_tree(
+        self, project_id: int, docs_dir: str, ref: str = "main"
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Blobs indexáveis abaixo de `docs_dir`.
+
+        Devolve `None` — e não uma lista vazia — quando a própria pasta está
+        marcada com `IGNORE_MARKER`. Quem chama precisa distinguir os dois
+        casos: pasta vazia pede o fallback de repositório inteiro, pasta
+        marcada é um "não olhe aqui" que o fallback contrariaria.
+        """
         clean_dir = docs_dir.strip("/")
-        docs_tree = []
+        blobs = []
         page = 1
         per_page = 100
         max_pages = 20
@@ -344,16 +393,7 @@ class GitLabCrawlerService:
                         tree = resp.json()
                         if not tree or not isinstance(tree, list):
                             break
-                        for item in tree:
-                            if item.get("type") != "blob":
-                                continue
-                            if not doc_type_for(item.get("name", "")):
-                                continue
-                            if is_hidden_path(item.get("path", ""), clean_dir):
-                                continue
-                            if is_vendor_path(item.get("path", ""), clean_dir):
-                                continue
-                            docs_tree.append(item)
+                        blobs.extend(i for i in tree if i.get("type") == "blob")
                         page += 1
                         if len(tree) < per_page:
                             break
@@ -367,7 +407,26 @@ class GitLabCrawlerService:
                     f"Docs tree for project {project_id} truncated at {max_pages * per_page} entries "
                     f"(path={clean_dir or '/'}); some documents may be missing."
                 )
-        return docs_tree
+
+        # Os marcadores vêm da árvore inteira antes de qualquer filtro: um
+        # `.daileon-ignore` na última página precisa alcançar um documento da
+        # primeira.
+        marked = ignored_dirs(blobs)
+        if is_ignored_path(clean_dir, marked):
+            logger.info(
+                f"Skipping docs of project {project_id}: "
+                f"'{clean_dir or '/'}' is marked with {IGNORE_MARKER}."
+            )
+            return None
+
+        return [
+            item
+            for item in blobs
+            if doc_type_for(item.get("name", ""))
+            and not is_hidden_path(item.get("path", ""), clean_dir)
+            and not is_vendor_path(item.get("path", ""), clean_dir)
+            and not is_ignored_path(item.get("path", ""), marked)
+        ]
 
     async def fetch_project_commits(self, project_id: int, days: int = 365) -> Dict[str, Any]:
         """Busca os commits do projeto nos últimos `days` dias e agrega a contagem por data (YYYY-MM-DD)."""
@@ -572,9 +631,15 @@ class GitLabCrawlerService:
                 logger.error(f"Error fetching top committer for project {project_id}: {e}")
         return None
 
-    async def fetch_manifest_paths(self, project_id: int, ref: str = "main") -> List[str]:
-        """Busca recursivamente todos os arquivos 'project-info.yml' ou 'project-info.yaml' no repositório (suporta Monorepo e paginação)."""
+    async def fetch_manifest_paths(self, project_id: int, ref: str = "main") -> Optional[List[str]]:
+        """Busca recursivamente todos os arquivos 'project-info.yml' ou 'project-info.yaml' no repositório (suporta Monorepo e paginação).
+
+        Devolve `None` quando a raiz do repositório está marcada com
+        `IGNORE_MARKER` — distinto da lista vazia, que só diz que ninguém
+        escreveu um manifesto e mantém o registro sintético.
+        """
         manifest_paths = []
+        blobs = []
         page = 1
         per_page = 100
         max_pages = 50
@@ -596,6 +661,8 @@ class GitLabCrawlerService:
                     tree = resp.json()
                     if not tree or not isinstance(tree, list):
                         break
+
+                    blobs.extend(i for i in tree if i.get("type") == "blob")
 
                     for item in tree:
                         if item.get("type") != "blob":
@@ -622,6 +689,15 @@ class GitLabCrawlerService:
                     f"manifests below that point were not discovered."
                 )
 
+        marked = ignored_dirs(blobs)
+        if is_ignored_path("", marked):
+            return None
+
+        ignored_manifests = [p for p in manifest_paths if is_ignored_path(p, marked)]
+        for path in ignored_manifests:
+            logger.info(f"Ignoring manifest under {IGNORE_MARKER}: {path}")
+        manifest_paths = [p for p in manifest_paths if p not in ignored_manifests]
+
         manifest_paths.sort(key=lambda p: (p.count("/"), p))
         return manifest_paths
 
@@ -633,7 +709,16 @@ class GitLabCrawlerService:
         description = project_data.get("description", "")
 
         manifest_paths = await self.fetch_manifest_paths(project_id, ref=default_branch)
-        if not manifest_paths:
+        if manifest_paths is None:
+            # Marcador na raiz: o repositório inteiro está fora do catálogo. A
+            # lista vazia percorre o resto do fluxo sem sincronizar nada, e a
+            # limpeza do fim remove o que já tivesse sido indexado antes.
+            logger.info(
+                f"Project {project_name} has {IGNORE_MARKER} at the repository root; "
+                f"nothing will be indexed."
+            )
+            manifest_paths = []
+        elif not manifest_paths:
             manifest_paths = ["project-info.yml"]
 
         # Cada manifesto define um componente cujo escopo é a pasta que o
@@ -838,8 +923,11 @@ class GitLabCrawlerService:
             # fora do padrão. O escopo largo cobra o preço em `FALLBACK_DOC_TYPES`.
             docs_tree = await self.fetch_docs_tree(project_id, component.docs_dir, ref=default_branch)
             is_fallback = False
-            if not docs_tree and component.docs_dir.strip("/"):
-                docs_tree = await self.fetch_docs_tree(project_id, sub_dir, ref=default_branch)
+            if docs_tree is None:
+                # Pasta marcada: ausência deliberada, não pasta faltando.
+                docs_tree = []
+            elif not docs_tree and component.docs_dir.strip("/"):
+                docs_tree = await self.fetch_docs_tree(project_id, sub_dir, ref=default_branch) or []
                 is_fallback = True
 
             # O fallback varre a pasta inteira do componente (a raiz, quando
