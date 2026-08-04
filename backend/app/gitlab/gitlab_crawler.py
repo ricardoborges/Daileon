@@ -36,8 +36,9 @@ def normalize_owner(raw: Optional[str]) -> str:
 #: Diretórios de dependência e artefato de build. Um `project-info.yml`
 #: vendorizado aqui dentro descreve o projeto de outra pessoa, não este —
 #: sem o filtro, cada dependência com manifesto viraria um componente no
-#: catálogo. Só vale para a descoberta de manifestos: docs gerados em
-#: `build/` ou `dist/` continuam sendo indexados.
+#: catálogo. Vale também para a varredura de documentação, sempre contado a
+#: partir do diretório consultado: apontar `docs.dir` para `build/docs` é
+#: escolha explícita de quem escreveu o manifesto e continua indexando.
 VENDOR_DIRS = frozenset({
     "node_modules", "bower_components", "vendor", "site-packages",
     "__pycache__", "dist", "build", "target", "out",
@@ -65,6 +66,13 @@ DOC_EXTENSIONS = {
 
 #: Tipos cujo conteúdo vive em `DocFile.content_binary`.
 BINARY_DOC_TYPES = frozenset({"pdf", "image"})
+
+#: Tipos aceitos quando a varredura cai no fallback do repositório inteiro.
+#: Sem uma pasta de docs para delimitar o escopo, toda imagem do código-fonte
+#: entraria como documentação — `src/assets/`, sprites de plugin, ícones de
+#: tema. Markdown e PDF são documento por si só; imagem solta, fora de um
+#: `.md` que a referencie, é ruído.
+FALLBACK_DOC_TYPES = frozenset({"markdown", "pdf"})
 
 #: Content-Type devolvido pelo endpoint de bytes crus.
 DOC_MEDIA_TYPES = {
@@ -139,10 +147,13 @@ def is_hidden_path(path: str, base: str = "") -> bool:
     return any(seg.startswith(".") for seg in relative_segments(path, base)[:-1])
 
 
-def is_vendor_path(path: str) -> bool:
-    """True se `path` passar por um diretório de dependência ou de build."""
-    segments = [seg for seg in path.strip("/").split("/") if seg]
-    return any(seg.lower() in VENDOR_DIRS for seg in segments[:-1])
+def is_vendor_path(path: str, base: str = "") -> bool:
+    """True se `path` passar por um diretório de dependência ou de build.
+
+    Como em `is_hidden_path`, só conta o que está *abaixo* de `base`: um
+    `docs.dir` apontando para dentro de `dist/` foi escolha explícita.
+    """
+    return any(seg.lower() in VENDOR_DIRS for seg in relative_segments(path, base)[:-1])
 
 
 def nested_sub_dirs(own_sub_dir: str, all_sub_dirs: Iterable[str]) -> List[str]:
@@ -339,6 +350,8 @@ class GitLabCrawlerService:
                             if not doc_type_for(item.get("name", "")):
                                 continue
                             if is_hidden_path(item.get("path", ""), clean_dir):
+                                continue
+                            if is_vendor_path(item.get("path", ""), clean_dir):
                                 continue
                             docs_tree.append(item)
                         page += 1
@@ -819,6 +832,10 @@ class GitLabCrawlerService:
                 ))
 
             # Sync docs directory
+            #
+            # Sem a pasta declarada no manifesto, o fallback varre a pasta do
+            # componente inteira para alcançar quem organiza a documentação
+            # fora do padrão. O escopo largo cobra o preço em `FALLBACK_DOC_TYPES`.
             docs_tree = await self.fetch_docs_tree(project_id, component.docs_dir, ref=default_branch)
             is_fallback = False
             if not docs_tree and component.docs_dir.strip("/"):
@@ -837,6 +854,8 @@ class GitLabCrawlerService:
                     continue
 
                 kind = doc_type_for(file_path) or "markdown"
+                if is_fallback and kind not in FALLBACK_DOC_TYPES:
+                    continue
 
                 if kind in BINARY_DOC_TYPES:
                     doc_bytes = await self.fetch_file_bytes(project_id, file_path, ref=default_branch)

@@ -414,8 +414,15 @@ class SemPastaDocsCrawler(FakeCrawler):
             return [
                 {"path": "README.md", "name": "README.md", "type": "blob"},
                 {"path": "CHANGELOG.md", "name": "CHANGELOG.md", "type": "blob"},
+                {"path": "manual.pdf", "name": "manual.pdf", "type": "blob"},
+                # Imagem do código-fonte: nunca foi documentação.
+                {"path": "src/assets/logo.png", "name": "logo.png", "type": "blob"},
+                {"path": "public/favicon.png", "name": "favicon.png", "type": "blob"},
             ]
         return []
+
+    async def fetch_file_bytes(self, project_id, file_path, ref="main"):
+        return b"conteudo binario"
 
 
 async def _sync_fallback_docs(db_path: Path):
@@ -432,7 +439,13 @@ def test_sync_fallback_docs_sem_pasta_docs():
     with tempfile.TemporaryDirectory() as tmp:
         component = asyncio.run(_sync_fallback_docs(Path(tmp) / "test.db"))
 
-    assert sorted(d.relative_path for d in component.docs) == ["CHANGELOG.md", "README.md"]
+    # Markdown e PDF entram; imagem solta do código-fonte, não — sem a pasta
+    # de docs delimitando o escopo, `src/assets/` viraria "documentação".
+    assert sorted(d.relative_path for d in component.docs) == [
+        "CHANGELOG.md",
+        "README.md",
+        "manual.pdf",
+    ]
 
 
 class DocsEmSubpastasCrawler(FakeCrawler):
@@ -725,6 +738,11 @@ def test_is_vendor_path_ignora_dependencias_e_build():
     assert not is_vendor_path("project-info.yml")
     assert not is_vendor_path("apps/strix-api/project-info.yml")
 
+    # Um diretório de build no próprio `docs.dir` foi escolha explícita de
+    # quem escreveu o manifesto — só o que está abaixo dele é descartado.
+    assert not is_vendor_path("build/docs/index.md", base="build/docs")
+    assert is_vendor_path("build/docs/node_modules/leia.md", base="build/docs")
+
 
 def test_nested_sub_dirs_so_exclui_o_que_esta_abaixo():
     todos = {"", "apps/web", "apps/web/lib", "apps/api"}
@@ -765,6 +783,35 @@ def test_fetch_docs_tree_descarta_diretorios_ocultos():
 
     docs = asyncio.run(run_test())
     assert sorted(d["path"] for d in docs) == ["README.md", "docs/index.md"]
+
+
+def test_fetch_docs_tree_descarta_dependencias_e_build():
+    """A varredura da raiz alcança `node_modules`, `dist` e afins."""
+    crawler = GitLabCrawlerService(gitlab_url="https://gitlab.local", token="fake_token")
+
+    async def run_test():
+        from unittest.mock import patch, MagicMock
+
+        itens = [
+            {"type": "blob", "name": "index.md", "path": "docs/index.md"},
+            {"type": "blob", "name": "logo.png", "path": "node_modules/pkg/logo.png"},
+            {"type": "blob", "name": "leia.md", "path": "frontend/node_modules/x/leia.md"},
+            {"type": "blob", "name": "bundle.png", "path": "dist/assets/bundle.png"},
+            {"type": "blob", "name": "cache.md", "path": "__pycache__/cache.md"},
+        ]
+
+        async def mock_get(*args, **kwargs):
+            url_arg = kwargs.get("url") or (args[1] if len(args) > 1 else args[0])
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = itens if "page=1&" in str(url_arg) else []
+            return mock_resp
+
+        with patch("httpx.AsyncClient.get", side_effect=mock_get):
+            return await crawler.fetch_docs_tree(100, "/", ref="main")
+
+    docs = asyncio.run(run_test())
+    assert sorted(d["path"] for d in docs) == ["docs/index.md"]
 
 
 def _fetch_first_commit(headers, paginas, crawler=None):

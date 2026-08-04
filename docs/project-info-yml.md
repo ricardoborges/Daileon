@@ -112,12 +112,18 @@ Esse arquivo é válido e produz um componente `Component` / `service` / `produc
 
 | Campo | Tipo | Padrão | Efeito |
 | --- | --- | --- | --- |
-| `dir` | string | `/docs` | Pasta varrida recursivamente atrás de arquivos `.md`. Barras no início/fim são ignoradas — `/docs`, `docs` e `docs/` são equivalentes. Aceita subpastas (`documentacao/tecnica`). |
+| `dir` | string | `/docs` | Pasta varrida recursivamente atrás de documentos. Barras no início/fim são ignoradas — `/docs`, `docs` e `docs/` são equivalentes. Aceita subpastas (`documentacao/tecnica`). |
 | `index` | string | `index.md` | Arquivo de entrada da documentação. ⚠️ Ver o alerta abaixo. |
 
 > ⚠️ **Hoje o `index` não é honrado pela interface.** O valor é lido, gravado e exposto na API (`docs_index`), mas o frontend abre sempre `index.md` como página inicial das TechDocs. Se a sua pasta de docs não tiver um `index.md`, o link "Documentação" cairá em página vazia. Até que isso seja ajustado, **mantenha um `index.md`** na raiz do `docs.dir`.
 
 Além da pasta de docs, o **`README.md` da raiz do repositório é sempre indexado**, tenha manifesto ou não.
+
+**Extensões indexadas:** `.md`, `.markdown`, `.pdf` e imagens (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`). Qualquer outra coisa dentro da pasta — `.html`, `.xlsx`, `.txt`, `.css`, `.js`, fontes — é ignorada. `.svg` fica de fora de propósito, por poder carregar script embutido. PDFs e imagens acima de 25 MB são descartados com aviso no log.
+
+> ⚠️ **Uma pasta de docs sem nenhum `.md` some da interface.** Se o `docs.dir` só tem planilha, HTML ou imagem, o componente aparece sem documentação navegável mesmo com o manifesto correto — as imagens ficam indexadas, mas não há página que as apresente. Comece pelo `index.md`.
+
+**Quando a pasta não existe:** o Daileon cai num fallback e varre o repositório inteiro (ou a subpasta do componente, em monorepo) atrás de `.md` e `.pdf`. Imagens **não** entram nesse modo — sem a pasta delimitando o escopo, todo `src/assets/` viraria documentação. Diretórios ocultos (`.git`, `.github`) e de dependência/build (`node_modules`, `dist`, `target`, …) são pulados nos dois modos.
 
 ### 3.5. `spec.links`
 
@@ -286,7 +292,7 @@ Nenhuma verificação de compatibilidade é feita. Escrever `apiVersion: sei-la/
 3. **Tags do GitLab só são usadas quando não há manifesto.** Se o `project-info.yml` existir com `tags` vazio, o componente fica **sem tags** — as tags nativas do projeto no GitLab são ignoradas. É tudo ou nada.
 4. **Links e dependências são recriados a cada sync.** O que sumiu do arquivo some do portal; não há acúmulo histórico.
 5. **Manifesto inválido = componente sintético, sem alarde.** O erro vai para o log do backend (`Could not parse project-info.yml in project <nome>`) e o componente aparece marcado como "Fallback sintético". Se um componente aparecer sem os metadados esperados, esse é o primeiro lugar a olhar.
-6. **Só arquivos `.md` são indexados.** Imagens e outros anexos dentro do `docs.dir` são ignorados pela varredura.
+6. **Nem todo anexo do `docs.dir` é indexado.** Só `.md`, `.markdown`, `.pdf` e imagens entram — planilhas, HTML e `.txt` são descartados em silêncio. Uma pasta de docs cheia, mas sem nenhum `.md`, resulta em componente sem documentação visível. Ver 3.4.
 
 ---
 
