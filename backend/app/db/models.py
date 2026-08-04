@@ -147,6 +147,23 @@ class Component(Base):
     docs: Mapped[List[DocFile]] = relationship("DocFile", back_populates="component", cascade="all, delete-orphan", lazy="raise")
     jenkins_pipelines: Mapped[List[ComponentJenkinsPipeline]] = relationship("ComponentJenkinsPipeline", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
     deployments: Mapped[List[ComponentDeployment]] = relationship("ComponentDeployment", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
+    risks: Mapped[List["ComponentRisk"]] = relationship("ComponentRisk", back_populates="component", cascade="all, delete-orphan", lazy="selectin")
+
+
+class ComponentRisk(Base):
+    __tablename__ = "component_risks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"), index=True)
+    severity: Mapped[str] = mapped_column(String(20)) # "critical", "warning", "info"
+    category: Mapped[str] = mapped_column(String(50)) # "versioned_secret", "unignored_env", "cloud_credentials", "hardcoded_connection_string"
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text)
+    file_path: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    recommendation: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    component: Mapped["Component"] = relationship("Component", back_populates="risks", lazy="raise")
 
 
 #: Contagem de documentos sem tocar em `Component.docs`. Declarada fora da
@@ -159,4 +176,5 @@ Component.docs_count = column_property(
     .scalar_subquery(),
     deferred=False,
 )
+
 

@@ -78,6 +78,17 @@ export interface SolutionItem {
   components: GroupedComponentItem[];
 }
 
+export interface RiskItem {
+  id?: number;
+  severity: 'critical' | 'warning' | 'info';
+  category: string;
+  title: string;
+  description: string;
+  file_path?: string | null;
+  recommendation: string;
+  created_at?: string | null;
+}
+
 export interface ComponentItem {
   id: number;
   gitlab_project_id: number;
@@ -100,12 +111,16 @@ export interface ComponentItem {
   links: Array<{ title: string; url: string; icon?: string }>;
   dependencies: string[];
   deployments?: DeploymentItem[];
+  risks?: RiskItem[];
+  critical_risks_count?: number;
+  warning_risks_count?: number;
   gitlab_created_at?: string;
   /** Commit mais antigo do repositório; preserva a idade de projetos migrados. */
   first_commit_at?: string;
   last_activity_at?: string;
   updated_at?: string;
 }
+
 
 /** Nó do grafo de dependências: um componente do catálogo ou um alvo não resolvido. */
 export interface GraphNode {

@@ -87,6 +87,21 @@ async def list_components(
                 }
                 for dep in c.deployments
             ],
+            "risks": [
+                {
+                    "id": r.id,
+                    "severity": r.severity,
+                    "category": r.category,
+                    "title": r.title,
+                    "description": r.description,
+                    "file_path": r.file_path,
+                    "recommendation": r.recommendation,
+                    "created_at": r.created_at.isoformat() if r.created_at else None
+                }
+                for r in c.risks
+            ],
+            "critical_risks_count": sum(1 for r in c.risks if r.severity == "critical"),
+            "warning_risks_count": sum(1 for r in c.risks if r.severity == "warning"),
             "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
             "first_commit_at": c.first_commit_at.isoformat() if c.first_commit_at else None,
             "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
@@ -148,11 +163,27 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
             }
             for dep in c.deployments
         ],
+        "risks": [
+            {
+                "id": r.id,
+                "severity": r.severity,
+                "category": r.category,
+                "title": r.title,
+                "description": r.description,
+                "file_path": r.file_path,
+                "recommendation": r.recommendation,
+                "created_at": r.created_at.isoformat() if r.created_at else None
+            }
+            for r in c.risks
+        ],
+        "critical_risks_count": sum(1 for r in c.risks if r.severity == "critical"),
+        "warning_risks_count": sum(1 for r in c.risks if r.severity == "warning"),
         "gitlab_created_at": c.gitlab_created_at.isoformat() if c.gitlab_created_at else None,
         "first_commit_at": c.first_commit_at.isoformat() if c.first_commit_at else None,
         "last_activity_at": c.last_activity_at.isoformat() if c.last_activity_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None
     }
+
 
 
 @protected_router.get("/graph")

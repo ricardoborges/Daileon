@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { ComponentItem } from "$lib/api";
-  import { BookOpen, ExternalLink, Cpu } from "lucide-svelte";
+  import { BookOpen, ExternalLink, Cpu, ShieldAlert } from "lucide-svelte";
   import { t, locale } from "$lib/i18n";
 
   export let items: ComponentItem[] = [];
+
 
   function getLifecycle(lifecycle: string) {
     switch (lifecycle.toLowerCase()) {

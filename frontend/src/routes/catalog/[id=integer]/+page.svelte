@@ -44,7 +44,7 @@
     ChevronsUpDown
   } from 'lucide-svelte';
 
-  type Tab = 'overview' | 'deployments' | 'dependencies' | 'docs' | 'jenkins';
+  type Tab = 'overview' | 'deployments' | 'dependencies' | 'docs' | 'jenkins' | 'risks';
 
   let component: ComponentItem | null = null;
   let docs: DocFileItem[] = [];
@@ -88,10 +88,11 @@
     const tabParam = $page.url.searchParams.get('tab');
     if (tabParam === 'docs' || tabParam === 'techdocs') {
       activeTab = 'docs';
-    } else if (tabParam && ['overview', 'deployments', 'dependencies', 'jenkins'].includes(tabParam)) {
-      activeTab = tabParam as Tab;
+    } else if (tabParam && ['overview', 'deployments', 'dependencies', 'jenkins', 'risks', 'security'].includes(tabParam)) {
+      activeTab = (tabParam === 'security' ? 'risks' : tabParam) as Tab;
     }
   }
+
 
   $: allLinks = [
     ...(component?.deployments || [])
@@ -322,7 +323,16 @@
           <button on:click={() => activeTab = 'jenkins'} class="seg-item {activeTab === 'jenkins' ? 'is-active' : ''}">
             <Activity class="w-3 h-3" /> {$t('catalog.tab_jenkins', { count: jenkinsData?.pipelines?.length || 0 })}
           </button>
+          <button on:click={() => activeTab = 'risks'} class="seg-item {activeTab === 'risks' ? 'is-active' : ''}">
+            <ShieldAlert class="w-3 h-3 {component.critical_risks_count ? 'text-red-400' : component.warning_risks_count ? 'text-amber-400' : ''}" /> Segurança &amp; Riscos
+            {#if (component.risks?.length || 0) > 0}
+              <span class="chip chip-sm ml-1 {component.critical_risks_count ? 'chip-alert' : 'chip-crest'} font-bold">
+                {component.risks?.length}
+              </span>
+            {/if}
+          </button>
         </div>
+
       </div>
     </section>
 
@@ -839,6 +849,61 @@
         {/if}
       </section>
     {/if}
+
+    {#if activeTab === 'risks'}
+      <div class="space-y-5">
+        {#if !component.risks || component.risks.length === 0}
+          <section class="plate p-8 text-center space-y-3" style="--chamfer: 16px;">
+            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 mb-2">
+              <CheckCircle2 class="w-6 h-6" />
+            </div>
+            <h3 class="text-lg font-bold t-txt">Nenhum Risco Detectado</h3>
+            <p class="t-dim text-sm max-w-md mx-auto">
+              A varredura automática não encontrou arquivos .env versionados, senhas hardcoded ou chaves de credenciais neste repositório.
+            </p>
+          </section>
+        {:else}
+          <div class="grid grid-cols-1 gap-4">
+            {#each component.risks as risk}
+              <section class="plate p-6 space-y-3.5 border-l-4 {risk.severity === 'critical' ? 'border-l-red-500' : 'border-l-amber-500'}" style="--chamfer: 14px;">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                      <span class="chip {risk.severity === 'critical' ? 'chip-alert' : 'chip-crest'} uppercase font-bold text-[10px]">
+                        {risk.severity === 'critical' ? 'Crítico' : 'Alerta'}
+                      </span>
+                      <h4 class="text-base font-bold t-txt flex items-center gap-2">
+                        <ShieldAlert class="w-4 h-4 {risk.severity === 'critical' ? 'text-red-400' : 'text-amber-400'}" />
+                        {risk.title}
+                      </h4>
+                    </div>
+                    {#if risk.file_path}
+                      <p class="text-xs font-mono t-visor bg-surface-2 px-2.5 py-1 rounded inline-block">
+                        📄 {risk.file_path}
+                      </p>
+                    {/if}
+                  </div>
+                </div>
+
+                <p class="text-sm t-dim leading-relaxed">
+                  {risk.description}
+                </p>
+
+                <div class="bg-surface-2/70 p-4 rounded-lg border border-line space-y-1.5">
+                  <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <AlertTriangle class="w-3.5 h-3.5" /> Recomendação de Correção:
+                  </span>
+                  <p class="text-xs t-txt leading-relaxed font-mono">
+                    {risk.recommendation}
+                  </p>
+                </div>
+              </section>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
   {/if}
 </main>
+
 

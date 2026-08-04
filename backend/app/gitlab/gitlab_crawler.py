@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.models import (
-    Component, Tag, ComponentLink, ComponentDependency, ComponentJenkinsPipeline, ComponentDeployment, DocFile, component_tags
+    Component, Tag, ComponentLink, ComponentDependency, ComponentJenkinsPipeline, ComponentDeployment, DocFile, ComponentRisk, component_tags
 )
 from app.catalog.manifest import DaileonManifest
+from app.gitlab.risk_scanner import scan_repository_tree, scan_file_content
 
 logger = logging.getLogger(__name__)
 
@@ -758,7 +759,36 @@ class GitLabCrawlerService:
         manifest_paths.sort(key=lambda p: (p.count("/"), p))
         return manifest_paths
 
+    async def fetch_repo_tree(self, project_id: int, ref: str = "main") -> List[Dict[str, Any]]:
+        """Busca a lista completa de itens da árvore do repositório no GitLab."""
+        blobs: List[Dict[str, Any]] = []
+        page = 1
+        per_page = 100
+        max_pages = 30
+        async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
+            while page <= max_pages:
+                url = (
+                    f"{self.base_url}/api/v4/projects/{project_id}/repository/tree"
+                    f"?recursive=true&ref={ref}&page={page}&per_page={per_page}"
+                )
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code != 200:
+                        break
+                    tree = resp.json()
+                    if not tree or not isinstance(tree, list):
+                        break
+                    blobs.extend(tree)
+                    page += 1
+                    if len(tree) < per_page:
+                        break
+                except Exception as e:
+                    logger.error(f"Error fetching repo tree for project {project_id}: {e}")
+                    break
+        return blobs
+
     async def sync_project(
+
         self,
         db: AsyncSession,
         project_data: Dict[str, Any],
@@ -796,6 +826,7 @@ class GitLabCrawlerService:
         # buscar a data do primeiro commit uma vez só evita repetir a consulta
         # por componente.
         first_commit_at = await self.fetch_first_commit_date(project_id, ref=default_branch)
+        repo_tree = await self.fetch_repo_tree(project_id, ref=default_branch)
 
         synced_components: List[Component] = []
         synced_ids: set = set()
@@ -1056,6 +1087,41 @@ class GitLabCrawlerService:
                     content_markdown=doc_content if doc_content is not None else "",
                     content_binary=doc_bytes,
                     size_bytes=len(doc_bytes) if doc_bytes is not None else len(doc_content.encode("utf-8"))
+                ))
+
+            # Clear & Sync Component Security Risks
+            await db.execute(delete(ComponentRisk).where(ComponentRisk.component_id == component.id))
+            
+            risk_findings = scan_repository_tree(repo_tree)
+
+            target_config_files = []
+            for item in repo_tree:
+                if item.get("type") != "blob":
+                    continue
+                file_p = item.get("path", "")
+                p_low = file_p.lower()
+                f_name = p_low.split("/")[-1]
+                if (f_name.startswith("appsettings") and f_name.endswith(".json")) or \
+                   (f_name in ["web.config", "app.config"] or f_name.endswith(".config")) or \
+                   ("config/" in p_low and f_name.endswith(".json")) or \
+                   (f_name in ["local_settings.py", "settings.py", "config.py"]):
+                    target_config_files.append(file_p)
+
+            for cfg_path in target_config_files[:5]:
+                cfg_content = await self.fetch_file_content(project_id, cfg_path, ref=default_branch)
+                if cfg_content:
+                    content_findings = scan_file_content(cfg_path, cfg_content)
+                    risk_findings.extend(content_findings)
+
+            for rf in risk_findings:
+                db.add(ComponentRisk(
+                    component_id=component.id,
+                    severity=rf.severity,
+                    category=rf.category,
+                    title=rf.title,
+                    description=rf.description,
+                    file_path=rf.file_path,
+                    recommendation=rf.recommendation
                 ))
 
             await db.commit()

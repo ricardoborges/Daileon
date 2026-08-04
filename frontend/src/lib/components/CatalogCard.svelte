@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { ComponentItem } from "$lib/api";
-  import { BookOpen, ExternalLink, Cpu, Calendar } from "lucide-svelte";
+  import { BookOpen, ExternalLink, Cpu, Calendar, ShieldAlert } from "lucide-svelte";
   import { t, locale } from "$lib/i18n";
 
   export let item: ComponentItem;
+
 
   function getLifecycle(lifecycle: string) {
     switch (lifecycle.toLowerCase()) {
@@ -57,22 +58,37 @@
 <article class="plate plate-link flex flex-col p-5" style="--chamfer: 14px;">
   <!-- Identificação -->
   <div class="flex items-center justify-between gap-3 mb-4">
-    {#if item.has_manifest}
-      <span class="chip chip-visor">
-        <Cpu class="w-3 h-3" />
-        {item.type}
-      </span>
-      <span class="chip {status.chip}">
-        <span class="led {status.led}"></span>
-        {status.text}
-      </span>
-    {:else}
-      <span class="chip chip-alert opacity-80">
-        <span class="led led-alert"></span>
-        {$t("card.noManifest")}
-      </span>
+    <div class="flex items-center gap-1.5 flex-wrap">
+      {#if item.has_manifest}
+        <span class="chip chip-visor">
+          <Cpu class="w-3 h-3" />
+          {item.type}
+        </span>
+        <span class="chip {status.chip}">
+          <span class="led {status.led}"></span>
+          {status.text}
+        </span>
+      {:else}
+        <span class="chip chip-alert opacity-80">
+          <span class="led led-alert"></span>
+          {$t("card.noManifest")}
+        </span>
+      {/if}
+    </div>
+
+    {#if item.critical_risks_count && item.critical_risks_count > 0}
+      <a href={`/catalog/${item.id}?tab=risks`} class="chip chip-alert hover:opacity-90 font-bold shrink-0" title="{item.critical_risks_count} risco(s) crítico(s) de segurança">
+        <ShieldAlert class="w-3 h-3 text-red-400" />
+        {item.critical_risks_count} {item.critical_risks_count === 1 ? 'Risco' : 'Riscos'}
+      </a>
+    {:else if item.warning_risks_count && item.warning_risks_count > 0}
+      <a href={`/catalog/${item.id}?tab=risks`} class="chip chip-crest hover:opacity-90 font-bold shrink-0" title="{item.warning_risks_count} aviso(s) de segurança">
+        <ShieldAlert class="w-3 h-3 text-amber-400" />
+        {item.warning_risks_count} {item.warning_risks_count === 1 ? 'Alerta' : 'Alertas'}
+      </a>
     {/if}
   </div>
+
 
   <a href={`/catalog/${item.id}`} class="group/name block">
     <h3

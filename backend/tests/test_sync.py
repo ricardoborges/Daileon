@@ -127,6 +127,13 @@ class FakeCrawler(GitLabCrawlerService):
     async def fetch_first_commit_date(self, project_id: int, ref: str = "main"):
         return datetime(2015, 3, 2, 8, 30)
 
+    async def fetch_repo_tree(self, project_id: int, ref: str = "main"):
+        docs = await self.fetch_docs_tree(project_id, "", ref=ref)
+        if docs:
+            return docs
+        return [{"path": "project-info.yml", "type": "blob"}, {"path": ".gitignore", "type": "blob"}]
+
+
 
 @asynccontextmanager
 async def _session(db_path: Path):
