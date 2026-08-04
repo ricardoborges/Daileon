@@ -215,6 +215,29 @@ def test_sync_recusa_recorte_em_modo_destrutivo(client, mode):
     assert "update" in response.json()["detail"]
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"docs_dir": "documentacao"},
+        {"index_images": False},
+    ],
+)
+def test_sync_recusa_ajustes_sem_selecao_de_projetos(client, payload):
+    """Pasta e imagens descrevem um repositório, não o catálogo inteiro."""
+    response = client.post("/api/sync", json={"mode": "update", **payload})
+    assert response.status_code == 400
+    assert "seleção de projetos" in response.json()["detail"]
+
+
+def test_sync_recusa_pasta_que_sai_da_raiz(client):
+    response = client.post(
+        "/api/sync",
+        json={"mode": "update", "project_ids": [1], "docs_dir": "../outro/docs"},
+    )
+    assert response.status_code == 400
+    assert "raiz do repositório" in response.json()["detail"]
+
+
 def test_sync_projects_reporta_falha_do_gitlab(client, monkeypatch):
     """Sem GitLab acessível, a lista tem que falhar em vez de vir vazia."""
     from app.gitlab.gitlab_crawler import GitLabCrawlerService, ProjectListError

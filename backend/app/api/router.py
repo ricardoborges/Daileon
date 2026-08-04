@@ -15,6 +15,7 @@ from app.gitlab.gitlab_crawler import (
     GitLabCrawlerService,
     ProjectListError,
     SyncMode,
+    SyncOptions,
     doc_media_type,
 )
 from app.sync.jobs import SyncAlreadyRunning, sync_jobs
@@ -499,6 +500,11 @@ class SyncRequest(BaseModel):
     mode: SyncMode = SyncMode.UPDATE
     #: Vazio ou ausente = catálogo inteiro.
     project_ids: Optional[List[int]] = None
+    #: Pasta a varrer no lugar da declarada em `spec.docs.dir`. Vazio = manter
+    #: o que o manifesto diz.
+    docs_dir: Optional[str] = None
+    #: Indexar as imagens encontradas na varredura da documentação.
+    index_images: bool = True
 
 
 @protected_router.get("/sync/projects")
@@ -549,8 +555,30 @@ async def trigger_sync(payload: Optional[SyncRequest] = Body(default=None)):
             detail=f"A seleção de projetos só vale para o modo '{SyncMode.UPDATE.value}'.",
         )
 
+    docs_dir = (request.docs_dir or "").strip()
+    if ".." in docs_dir.split("/"):
+        raise HTTPException(
+            status_code=400,
+            detail="A pasta de documentação não pode sair da raiz do repositório.",
+        )
+
+    options = SyncOptions(
+        docs_dir=docs_dir or None,
+        index_images=request.index_images,
+    )
+
+    # Ambas descrevem um repositório — onde ficam os documentos dele, se as
+    # imagens dele valem o espaço no banco. Aplicá-las ao catálogo inteiro
+    # reescreveria a `docs_dir` de todo mundo com o caminho de um só.
+    if (options.docs_dir is not None or not options.index_images) and not project_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="A pasta de documentação e a indexação de imagens só valem "
+                   "para uma seleção de projetos.",
+        )
+
     try:
-        job = await sync_jobs.start(request.mode, project_ids=project_ids)
+        job = await sync_jobs.start(request.mode, project_ids=project_ids, options=options)
     except SyncAlreadyRunning as e:
         raise HTTPException(status_code=409, detail=str(e))
 

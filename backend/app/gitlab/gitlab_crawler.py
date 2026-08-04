@@ -3,6 +3,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Iterable, List, Dict, Any, Optional
+from urllib.parse import quote
 import httpx
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -196,6 +197,20 @@ def is_ignored_path(path: str, marked_dirs: Iterable[str]) -> bool:
     return False
 
 
+def scoped_docs_dir(sub_dir: str, docs_dir: str) -> str:
+    """`docs_dir` reposicionado sob a pasta do componente.
+
+    Num monorepo, `docs.dir` é relativo ao manifesto que o declara — o mesmo
+    vale para a pasta escolhida na tela de sincronização. Sem sub-diretório o
+    valor passa intacto, inclusive a barra inicial de `/docs`, que o resto do
+    fluxo já trata.
+    """
+    if not sub_dir:
+        return docs_dir
+    clean = docs_dir.strip("/")
+    return f"{sub_dir}/{clean}" if clean else f"{sub_dir}/docs"
+
+
 def nested_sub_dirs(own_sub_dir: str, all_sub_dirs: Iterable[str]) -> List[str]:
     """Sub-diretórios de outros componentes que caem dentro do escopo deste.
 
@@ -251,6 +266,23 @@ class SyncMode(str, Enum):
     UPDATE = "update"    # atualiza o que existe e importa o que é novo
     REBUILD = "rebuild"  # apaga o catálogo e importa tudo de novo
     PRUNE = "prune"      # remove o que não existe mais no GitLab
+
+
+@dataclass(frozen=True)
+class SyncOptions:
+    """Ajustes pontuais de uma sincronização restrita a projetos escolhidos.
+
+    São decisões sobre *um* repositório — onde está a documentação dele, se as
+    imagens dele valem o espaço no banco —, e por isso só fazem sentido com um
+    recorte de projetos. Os padrões reproduzem exatamente o comportamento de
+    uma sincronização comum.
+    """
+
+    #: Pasta a varrer no lugar da declarada em `spec.docs.dir`. `None` mantém o
+    #: manifesto (ou o padrão `/docs`, quando não há manifesto).
+    docs_dir: Optional[str] = None
+    #: Quando falso, imagens encontradas na varredura não entram no catálogo.
+    index_images: bool = True
 
 
 class ProjectListError(RuntimeError):
@@ -384,7 +416,9 @@ class GitLabCrawlerService:
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
             while page <= max_pages:
                 if clean_dir:
-                    url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={clean_dir}&recursive=true&ref={ref}&page={page}&per_page={per_page}"
+                    # A pasta pode vir digitada na tela de sincronização: um
+                    # espaço ou um `&` sem escapar viraria outro parâmetro.
+                    url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={quote(clean_dir, safe='')}&recursive=true&ref={ref}&page={page}&per_page={per_page}"
                 else:
                     url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?recursive=true&ref={ref}&page={page}&per_page={per_page}"
                 try:
@@ -701,7 +735,13 @@ class GitLabCrawlerService:
         manifest_paths.sort(key=lambda p: (p.count("/"), p))
         return manifest_paths
 
-    async def sync_project(self, db: AsyncSession, project_data: Dict[str, Any]) -> List[Component]:
+    async def sync_project(
+        self,
+        db: AsyncSession,
+        project_data: Dict[str, Any],
+        options: Optional[SyncOptions] = None,
+    ) -> List[Component]:
+        options = options or SyncOptions()
         project_id = project_data["id"]
         project_name = project_data["name"]
         default_branch = project_data.get("default_branch", "main")
@@ -818,12 +858,7 @@ class GitLabCrawlerService:
                 component.domain = manifest.metadata.domain
                 component.solution = manifest.spec.get_solution()
 
-                if sub_dir:
-                    clean_manifest_docs = manifest.spec.docs.dir.strip("/")
-                    component.docs_dir = f"{sub_dir}/{clean_manifest_docs}" if clean_manifest_docs else f"{sub_dir}/docs"
-                else:
-                    component.docs_dir = manifest.spec.docs.dir
-
+                component.docs_dir = scoped_docs_dir(sub_dir, manifest.spec.docs.dir)
                 component.docs_index = manifest.spec.docs.index
             else:
                 component.name = project_name
@@ -835,6 +870,12 @@ class GitLabCrawlerService:
                 component.solution = None
                 component.docs_dir = "/docs"
                 component.docs_index = "index.md"
+
+            # A pasta escolhida na tela de sincronização vence o manifesto: é a
+            # saída para o repositório que guarda a documentação fora do padrão
+            # e não tem (ou não corrigiu) o `spec.docs.dir`.
+            if options.docs_dir is not None:
+                component.docs_dir = scoped_docs_dir(sub_dir, options.docs_dir)
 
             if not component.owner or component.owner == "unassigned":
                 if not top_committer:
@@ -927,8 +968,16 @@ class GitLabCrawlerService:
                 # Pasta marcada: ausência deliberada, não pasta faltando.
                 docs_tree = []
             elif not docs_tree and component.docs_dir.strip("/"):
-                docs_tree = await self.fetch_docs_tree(project_id, sub_dir, ref=default_branch) or []
-                is_fallback = True
+                if options.docs_dir is not None:
+                    # Com a pasta apontada na tela, o fallback varreria o
+                    # repositório inteiro e contrariaria a escolha explícita.
+                    logger.warning(
+                        f"Docs folder '{component.docs_dir}' of project {project_id} is empty or "
+                        f"does not exist; no documents indexed from it."
+                    )
+                else:
+                    docs_tree = await self.fetch_docs_tree(project_id, sub_dir, ref=default_branch) or []
+                    is_fallback = True
 
             # O fallback varre a pasta inteira do componente (a raiz, quando
             # ele não é um subprojeto) e alcançaria os arquivos dos vizinhos.
@@ -943,6 +992,8 @@ class GitLabCrawlerService:
 
                 kind = doc_type_for(file_path) or "markdown"
                 if is_fallback and kind not in FALLBACK_DOC_TYPES:
+                    continue
+                if kind == "image" and not options.index_images:
                     continue
 
                 if kind in BINARY_DOC_TYPES:
@@ -1000,12 +1051,15 @@ class GitLabCrawlerService:
         mode: SyncMode = SyncMode.UPDATE,
         progress: Optional[SyncProgress] = None,
         project_ids: Optional[Iterable[int]] = None,
+        options: Optional[SyncOptions] = None,
     ) -> SyncResult:
         """Ponto de entrada único das operações do painel de configuração.
 
         `project_ids` restringe a atualização a projetos específicos. Não vale
         para `rebuild` nem para `prune`: as duas raciocinam sobre o catálogo
-        inteiro e apagariam o que ficasse fora do recorte.
+        inteiro e apagariam o que ficasse fora do recorte. `options` acompanha
+        esse recorte pelo mesmo motivo — descreve um repositório, não o
+        catálogo — e é ignorada pelas outras duas operações.
         """
         progress = progress or SyncProgress()
 
@@ -1013,15 +1067,17 @@ class GitLabCrawlerService:
             return await self.rebuild(db, progress)
         if mode == SyncMode.PRUNE:
             return await self.prune(db, progress)
-        return await self.sync_all(db, progress, project_ids=project_ids)
+        return await self.sync_all(db, progress, project_ids=project_ids, options=options)
 
     async def sync_all(
         self,
         db: AsyncSession,
         progress: Optional[SyncProgress] = None,
         project_ids: Optional[Iterable[int]] = None,
+        options: Optional[SyncOptions] = None,
     ) -> SyncResult:
         progress = progress or SyncProgress()
+        options = options or SyncOptions()
         result = SyncResult(mode=SyncMode.UPDATE.value)
 
         progress.log("info", "Consultando projetos no GitLab...")
@@ -1040,7 +1096,7 @@ class GitLabCrawlerService:
 
         for p in projects:
             try:
-                components = await self.sync_project(db, p)
+                components = await self.sync_project(db, p, options=options)
                 for comp in components:
                     result.synced.append(comp.name)
                     progress.log("ok", f"Sincronizado: {comp.name}")

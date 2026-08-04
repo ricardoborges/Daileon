@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.db.session import AsyncSessionLocal
-from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode
+from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode, SyncOptions
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,8 @@ class SyncJob:
     state: str = "running"  # running | success | partial | error
     #: Projetos aos quais a operação foi restringida; vazio = catálogo inteiro.
     project_ids: List[int] = field(default_factory=list)
+    #: Ajustes pedidos junto com o recorte (pasta de docs, imagens).
+    options: SyncOptions = field(default_factory=SyncOptions)
     # `None` enquanto a contagem de passos é desconhecida — a UI mostra a barra
     # em modo indeterminado até a listagem de projetos voltar.
     total: Optional[int] = None
@@ -91,6 +93,8 @@ class SyncJob:
             "mode": self.mode,
             "state": self.state,
             "scoped_project_count": len(self.project_ids),
+            "docs_dir": self.options.docs_dir,
+            "index_images": self.options.index_images,
             "total": self.total,
             "processed": self.processed,
             "started_at": self.started_at,
@@ -120,15 +124,29 @@ class SyncJobRegistry:
     def current(self) -> Optional[SyncJob]:
         return self._job
 
-    async def start(self, mode: SyncMode, project_ids: Optional[List[int]] = None) -> SyncJob:
+    async def start(
+        self,
+        mode: SyncMode,
+        project_ids: Optional[List[int]] = None,
+        options: Optional[SyncOptions] = None,
+    ) -> SyncJob:
         async with self._lock:
             if self._job and self._job.state == "running":
                 raise SyncAlreadyRunning(self._job.mode)
 
-            job = SyncJob(id=uuid.uuid4().hex[:12], mode=mode.value, project_ids=list(project_ids or []))
+            job = SyncJob(
+                id=uuid.uuid4().hex[:12],
+                mode=mode.value,
+                project_ids=list(project_ids or []),
+                options=options or SyncOptions(),
+            )
             job.log("info", f"Operação iniciada: {mode.value}")
             if job.project_ids:
                 job.log("info", f"Restrita a {len(job.project_ids)} projeto(s) selecionado(s).")
+            if job.options.docs_dir is not None:
+                job.log("info", f"Pasta de documentação: {job.options.docs_dir or '/'} (no lugar do manifesto).")
+            if not job.options.index_images:
+                job.log("info", "Imagens não serão indexadas.")
             self._job = job
             self._task = asyncio.create_task(self._run(job, mode))
             return job
@@ -139,7 +157,11 @@ class SyncJobRegistry:
             # Sessão própria: a do request morre assim que o endpoint responde.
             async with AsyncSessionLocal() as db:
                 result = await crawler.run(
-                    db, mode=mode, progress=job, project_ids=job.project_ids or None
+                    db,
+                    mode=mode,
+                    progress=job,
+                    project_ids=job.project_ids or None,
+                    options=job.options,
                 )
 
             job.synced = result.synced

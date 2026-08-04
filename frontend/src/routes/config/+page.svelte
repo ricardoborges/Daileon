@@ -29,6 +29,8 @@
     Building2,
     Search,
     FolderGit2,
+    FolderOpen,
+    Image as ImageIcon,
     RotateCw,
   } from "lucide-svelte";
   import { t } from "$lib/i18n";
@@ -92,6 +94,9 @@
   let projectsError = "";
   let projectQuery = "";
   let selectedIds = new Set<number>();
+  /** Vazio = usar o `spec.docs.dir` de cada manifesto. */
+  let docsDir = "";
+  let indexImages = true;
 
   $: scoped = scope === "selected";
   $: selectedProjectIds = [...selectedIds];
@@ -345,9 +350,12 @@
     starting = true;
     uiError = "";
     try {
+      // Pasta e imagens descrevem um repositório: só acompanham o recorte.
+      const withScope = scoped && mode === "update";
       const started = await startSync(
         mode,
-        scoped && mode === "update" ? selectedProjectIds : undefined,
+        withScope ? selectedProjectIds : undefined,
+        withScope ? { docsDir, indexImages } : {},
       );
       logs = [];
       cursor = 0;
@@ -548,6 +556,51 @@
                 {/each}
               </div>
             {/if}
+
+            <div
+              class="grid gap-5 sm:grid-cols-2 pt-4 border-t border-[var(--line-soft)]"
+            >
+              <div class="space-y-1.5">
+                <label class="label block" for="sync-docs-dir">
+                  {$t("config.scopeDocsDirLabel")}
+                </label>
+                <div class="relative">
+                  <FolderOpen
+                    class="w-3.5 h-3.5 t-faint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                  />
+                  <input
+                    id="sync-docs-dir"
+                    class="field pl-9 font-mono"
+                    type="text"
+                    bind:value={docsDir}
+                    placeholder={$t("config.scopeDocsDirPlaceholder")}
+                    disabled={busy}
+                  />
+                </div>
+                <p class="t-faint text-[11px] leading-relaxed">
+                  {$t("config.scopeDocsDirHint")}
+                </p>
+              </div>
+
+              <div class="space-y-1.5">
+                <span class="label block">{$t("config.scopeImagesLabel")}</span>
+                <label class="flex items-center gap-2 cursor-pointer py-1.5">
+                  <input
+                    type="checkbox"
+                    class="shrink-0"
+                    bind:checked={indexImages}
+                    disabled={busy}
+                  />
+                  <ImageIcon class="w-3.5 h-3.5 t-visor" />
+                  <span class="text-xs t-txt"
+                    >{$t("config.scopeIndexImages")}</span
+                  >
+                </label>
+                <p class="t-faint text-[11px] leading-relaxed">
+                  {$t("config.scopeIndexImagesHint")}
+                </p>
+              </div>
+            </div>
           </div>
         {/if}
       </section>

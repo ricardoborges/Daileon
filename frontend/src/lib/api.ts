@@ -315,8 +315,19 @@ export interface SyncStatus {
   error?: string | null;
   /** 0 quando a operação abrange o catálogo inteiro. */
   scoped_project_count?: number;
+  /** Pasta usada no lugar da declarada no manifesto; null = manifesto. */
+  docs_dir?: string | null;
+  index_images?: boolean;
   cursor: number;
   logs: SyncLogLine[];
+}
+
+/** Ajustes que só acompanham uma sincronização de projetos escolhidos. */
+export interface SyncOptions {
+  /** Pasta a varrer no lugar da declarada em `spec.docs.dir`. */
+  docsDir?: string;
+  /** Indexar as imagens encontradas na varredura. */
+  indexImages?: boolean;
 }
 
 export interface SyncableProject {
@@ -337,11 +348,20 @@ export async function fetchSyncableProjects(): Promise<SyncableProject[]> {
   return res.json();
 }
 
-export async function startSync(mode: SyncMode, projectIds?: number[]): Promise<SyncStatus> {
+export async function startSync(
+  mode: SyncMode,
+  projectIds?: number[],
+  options: SyncOptions = {}
+): Promise<SyncStatus> {
   const res = await authFetch(`${API_BASE}/sync`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ mode, project_ids: projectIds?.length ? projectIds : null })
+    body: JSON.stringify({
+      mode,
+      project_ids: projectIds?.length ? projectIds : null,
+      docs_dir: options.docsDir?.trim() || null,
+      index_images: options.indexImages ?? true
+    })
   });
   if (!res.ok) {
     const detail = await res.json().then(b => b?.detail).catch(() => null);

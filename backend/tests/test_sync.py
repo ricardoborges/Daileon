@@ -31,6 +31,7 @@ from app.gitlab.gitlab_crawler import (
     GitLabCrawlerService,
     ProjectListError,
     SyncMode,
+    SyncOptions,
     SyncProgress,
     doc_media_type,
     doc_title_from_path,
@@ -40,6 +41,7 @@ from app.gitlab.gitlab_crawler import (
     is_ignored_path,
     is_vendor_path,
     nested_sub_dirs,
+    scoped_docs_dir,
 )
 
 MANIFEST = """
@@ -578,6 +580,95 @@ def test_sync_preserva_subpastas_e_indexa_pdf():
     assert markdown.doc_type == "markdown"
     assert markdown.content_binary is None
     assert markdown.content_markdown == "# Troubleshooting do SIMBA"
+
+
+class DocsForaDoPadraoCrawler(FakeCrawler):
+    """Documentação em `documentacao/`, enquanto o manifesto aponta `/docs`."""
+
+    async def fetch_docs_tree(self, project_id, docs_dir, ref="main"):
+        if docs_dir.strip("/") != "documentacao":
+            return []
+        return [
+            {"path": "documentacao/guia.md", "name": "guia.md", "type": "blob"},
+            {"path": "documentacao/diagrama.png", "name": "diagrama.png", "type": "blob"},
+        ]
+
+    async def fetch_file_content(self, project_id, file_path, ref="main"):
+        if file_path == "documentacao/guia.md":
+            return "# Guia de operação"
+        return await super().fetch_file_content(project_id, file_path, ref=ref)
+
+    async def fetch_file_bytes(self, project_id, file_path, ref="main"):
+        return b"\x89PNG bytes"
+
+
+async def _sync_com_opcoes(db_path: Path, crawler, options):
+    async with _session(db_path) as db:
+        await crawler.sync_all(db, options=options)
+        component = (await db.execute(select(Component).options(CARREGA_DOCS))).scalars().first()
+        _ = component.docs
+        return component
+
+
+def _run_com_opcoes(crawler_cls, options) -> Component:
+    crawler = crawler_cls(gitlab_url="https://gitlab.local", token="fake")
+    with tempfile.TemporaryDirectory() as tmp:
+        return asyncio.run(_sync_com_opcoes(Path(tmp) / "test.db", crawler, options))
+
+
+def test_sync_usa_a_pasta_de_docs_escolhida_na_tela():
+    """A pasta pedida no sync vence o `spec.docs.dir` do manifesto."""
+    component = _run_com_opcoes(
+        DocsForaDoPadraoCrawler, SyncOptions(docs_dir="documentacao")
+    )
+
+    assert component.docs_dir == "documentacao"
+    assert sorted(d.relative_path for d in component.docs) == [
+        "README.md",
+        "diagrama.png",
+        "guia.md",
+    ]
+
+
+def test_sync_sem_a_pasta_escolhida_segue_o_manifesto():
+    """Contraprova: sem o ajuste, `documentacao/` continua invisível."""
+    component = _run_com_opcoes(DocsForaDoPadraoCrawler, SyncOptions())
+
+    assert component.docs_dir == "/docs"
+    assert [d.relative_path for d in component.docs] == ["README.md"]
+
+
+def test_sync_pasta_escolhida_vazia_nao_dispara_o_fallback():
+    """Apontar a pasta é escolha explícita: varrer o repositório a contrariaria."""
+    component = _run_com_opcoes(
+        SemPastaDocsCrawler, SyncOptions(docs_dir="documentacao")
+    )
+
+    # Sem o ajuste este mesmo crawler cai no fallback e traz CHANGELOG.md e
+    # manual.pdf (ver `test_sync_fallback_docs_sem_pasta_docs`).
+    assert [d.relative_path for d in component.docs] == ["README.md"]
+
+
+def test_sync_sem_indexar_imagens_mantem_markdown_e_pdf():
+    component = _run_com_opcoes(DocsEmSubpastasCrawler, SyncOptions(index_images=False))
+
+    assert sorted(d.relative_path for d in component.docs) == [
+        "NTI-001 SIMBA/Relatorio_Tecnico.pdf",
+        "NTI-001 SIMBA/Troubleshooting.md",
+        "README.md",
+        "index.md",
+    ]
+
+
+def test_scoped_docs_dir_posiciona_sob_o_subdiretorio():
+    # Sem subprojeto, o valor passa intacto — inclusive a barra inicial.
+    assert scoped_docs_dir("", "/docs") == "/docs"
+    assert scoped_docs_dir("", "documentacao") == "documentacao"
+    # Num monorepo, a pasta é relativa ao manifesto que a declarou.
+    assert scoped_docs_dir("svc-a", "/docs") == "svc-a/docs"
+    assert scoped_docs_dir("svc-a", "documentacao/tecnica") == "svc-a/documentacao/tecnica"
+    # Pasta em branco cai no padrão do componente.
+    assert scoped_docs_dir("svc-a", "") == "svc-a/docs"
 
 
 def test_doc_type_for_reconhece_extensoes():
