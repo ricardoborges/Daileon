@@ -33,6 +33,9 @@ spec:
   dependencies:
     - component: gitlab-api
 
+  dependents:
+    - component: IDEA 2
+
   jenkins:
     pipelines:
       - name: Pipeline de Produção

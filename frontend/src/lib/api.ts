@@ -156,6 +156,7 @@ export interface ComponentItem {
   tags: string[];
   links: Array<{ title: string; url: string; icon?: string }>;
   dependencies: Array<string | DependencyItemDetail>;
+  dependents?: Array<string | DependencyItemDetail>;
   deployments?: DeploymentItem[];
   risks?: RiskItem[];
   critical_risks_count?: number;

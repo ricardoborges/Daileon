@@ -119,6 +119,10 @@
     { component: 'gitlab-api' }
   ];
 
+  let dependents: DependencyItem[] = [
+    { component: 'IDEA 2', external: 'IDEA 2', isExternal: true }
+  ];
+
   let copied = false;
 
   const kindOptions = ['Component', 'API', 'Library', 'Resource', 'System'];
@@ -151,7 +155,8 @@
     deployments,
     jenkinsPipelines,
     links,
-    dependencies
+    dependencies,
+    dependents
   });
 
   function generateYaml(data: any): string {
@@ -210,6 +215,18 @@
       lines.push('  ');
       lines.push('  dependencies:');
       data.dependencies.forEach((d: DependencyItem) => {
+        if (d.isExternal || d.external) {
+          lines.push(`    - external: ${d.external || d.component || ''}`);
+        } else if (d.component) {
+          lines.push(`    - component: ${d.component}`);
+        }
+      });
+    }
+
+    if (data.dependents && data.dependents.length > 0) {
+      lines.push('  ');
+      lines.push('  dependents:');
+      data.dependents.forEach((d: DependencyItem) => {
         if (d.isExternal || d.external) {
           lines.push(`    - external: ${d.external || d.component || ''}`);
         } else if (d.component) {
@@ -449,6 +466,14 @@
 
   function removeDependency(index: number) {
     dependencies = dependencies.filter((_, i) => i !== index);
+  }
+
+  function addDependent() {
+    dependents = [...dependents, { component: '' }];
+  }
+
+  function removeDependent(index: number) {
+    dependents = dependents.filter((_, i) => i !== index);
   }
 </script>
 
@@ -955,6 +980,70 @@
                     on:click={() => removeDependency(d)}
                     title="Remover Dependência"
                     aria-label="Remover Dependência"
+                    class="t-alert hover:opacity-70 p-1 transition-colors"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        <!-- Componentes Dependentes (Quem depende deste projeto) -->
+        <div class="border-t border-[var(--line)] pt-4 space-y-4">
+          <div class="form-head">
+            <h3>
+              Dependentes (Projetos que dependem do nosso)
+            </h3>
+            <button on:click={addDependent} class="btn btn-sm btn-ghost text-xs flex items-center gap-1">
+              <Plus class="w-3.5 h-3.5" />
+              <span>+ Adicionar Dependente</span>
+            </button>
+          </div>
+
+          {#if dependents.length === 0}
+            <p class="field-help italic">Nenhum componente dependente adicionado.</p>
+          {:else}
+            <div class="space-y-2">
+              {#each dependents as dep, d}
+                <div class="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={dep.isExternal ? (dep.external || '') : (dep.component || '')}
+                    on:input={(e) => {
+                      const val = e.currentTarget.value;
+                      if (dep.isExternal) {
+                        dep.external = val;
+                      } else {
+                        dep.component = val;
+                      }
+                    }}
+                    placeholder={dep.isExternal ? "Nome do projeto externo (ex: IDEA 2)" : "Nome do componente dependente (ex: IDEA 2)"}
+                    class="field field-mono flex-1"
+                  />
+                  <label class="flex items-center gap-1 text-xs t-muted cursor-pointer select-none px-2 py-1 rounded bg-[var(--card)] border border-[var(--line)]">
+                    <input
+                      type="checkbox"
+                      checked={!!dep.isExternal}
+                      on:change={(e) => {
+                        const checked = e.currentTarget.checked;
+                        dep.isExternal = checked;
+                        if (checked) {
+                          dep.external = dep.component || dep.external || '';
+                          dep.component = '';
+                        } else {
+                          dep.component = dep.external || dep.component || '';
+                          dep.external = '';
+                        }
+                      }}
+                    />
+                    <span>Externo</span>
+                  </label>
+                  <button
+                    on:click={() => removeDependent(d)}
+                    title="Remover Dependente"
+                    aria-label="Remover Dependente"
                     class="t-alert hover:opacity-70 p-1 transition-colors"
                   >
                     <Trash2 class="w-4 h-4" />

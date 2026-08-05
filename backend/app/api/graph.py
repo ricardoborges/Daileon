@@ -155,42 +155,52 @@ def build_graph(
     unresolved_names: List[str] = []
 
     for c in components:
-        source_id = f"c{c.id}"
+        c_node_id = f"c{c.id}"
         for dep in c.dependencies:
             target_name = _clean(dep.target_component_name)
             if not target_name:
                 continue
 
             is_ext = getattr(dep, "is_external", False)
+            is_dependent = getattr(dep, "is_dependent", False)
 
             target = by_name.get(target_name.lower()) if not is_ext else None
             if target is not None:
                 # Auto-dependência é ruído do manifesto, não uma aresta.
                 if target.id == c.id:
                     continue
-                target_id = f"c{target.id}"
+                other_node_id = f"c{target.id}"
             else:
                 key = target_name.lower()
                 if key not in unresolved_ids:
                     node_id = f"u{len(unresolved_ids) + 1}"
                     unresolved_ids[key] = node_id
                     unresolved_names.append(target_name)
-                    nodes[node_id] = _unresolved_node(node_id, target_name, is_external=is_ext)
-                target_id = unresolved_ids[key]
-                if is_ext:
-                    nodes[target_id]["is_external"] = True
+                    nodes[node_id] = _unresolved_node(node_id, target_name, is_external=is_ext or is_dependent)
+                other_node_id = unresolved_ids[key]
+                if is_ext or is_dependent:
+                    nodes[other_node_id]["is_external"] = True
 
-            if (source_id, target_id) in declared:
+            # Se is_dependent é False: c_node_id ---> other_node_id (c depende de outro)
+            # Se is_dependent é True: other_node_id ---> c_node_id (outro depende de c)
+            if is_dependent:
+                src_id = other_node_id
+                tgt_id = c_node_id
+            else:
+                src_id = c_node_id
+                tgt_id = other_node_id
+
+            if (src_id, tgt_id) in declared:
                 continue
-            declared.add((source_id, target_id))
+            declared.add((src_id, tgt_id))
             edges.append(
                 {
-                    "source": source_id,
-                    "target": target_id,
+                    "source": src_id,
+                    "target": tgt_id,
                     "target_name": target_name,
                     "resolved": target is not None,
                     "in_cycle": False,
-                    "is_external": is_ext or nodes.get(target_id, {}).get("is_external", False),
+                    "is_external": is_ext or nodes.get(other_node_id, {}).get("is_external", False),
                 }
             )
 

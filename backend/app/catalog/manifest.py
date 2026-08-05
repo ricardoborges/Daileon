@@ -73,6 +73,7 @@ class ManifestSpec(BaseModel):
     docs: ManifestDocsConfig = Field(default_factory=ManifestDocsConfig)
     links: List[ManifestLink] = Field(default_factory=list)
     dependencies: List[ManifestDependency] = Field(default_factory=list)
+    dependents: List[ManifestDependency] = Field(default_factory=list)
     jenkins: Optional[ManifestJenkinsConfig] = None
     deployments: List[ManifestDeployment] = Field(default_factory=list)
 

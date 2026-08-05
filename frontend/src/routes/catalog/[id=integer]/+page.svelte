@@ -396,23 +396,55 @@
             </button>
           </div>
 
-          {#if component.dependencies.length === 0}
-            <p class="t-faint text-[13px]">Nenhuma dependência registrada.</p>
-          {:else}
-            <ul class="flex flex-wrap gap-2">
-              {#each component.dependencies as dep}
-                {#if typeof dep === 'object' && dep.is_external}
-                  <li class="tag t-ok border-emerald-500/30 font-medium">
-                    {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(externo)</span>
-                  </li>
-                {:else if typeof dep === 'object'}
-                  <li class="tag">{dep.name}</li>
-                {:else}
-                  <li class="tag">{dep}</li>
-                {/if}
-              {/each}
-            </ul>
-          {/if}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Dependências -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="label text-[11px]">{$t('graph.dependsOn')} ({component.dependencies.length})</span>
+              </div>
+              {#if component.dependencies.length === 0}
+                <p class="t-faint text-xs">Nenhuma dependência registrada.</p>
+              {:else}
+                <ul class="flex flex-wrap gap-1.5">
+                  {#each component.dependencies as dep}
+                    {#if typeof dep === 'object' && dep.is_external}
+                      <li class="tag t-ok border-emerald-500/30 text-xs">
+                        {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(externo)</span>
+                      </li>
+                    {:else if typeof dep === 'object'}
+                      <li class="tag text-xs">{dep.name}</li>
+                    {:else}
+                      <li class="tag text-xs">{dep}</li>
+                    {/if}
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+
+            <!-- Dependentes -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="label text-[11px]">{$t('graph.consumedBy')} ({component.dependents?.length || 0})</span>
+              </div>
+              {#if !component.dependents || component.dependents.length === 0}
+                <p class="t-faint text-xs">Nenhum dependente registrado.</p>
+              {:else}
+                <ul class="flex flex-wrap gap-1.5">
+                  {#each component.dependents as dep}
+                    {#if typeof dep === 'object' && dep.is_external}
+                      <li class="tag t-ok border-emerald-500/30 text-xs">
+                        {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(externo)</span>
+                      </li>
+                    {:else if typeof dep === 'object'}
+                      <li class="tag text-xs">{dep.name}</li>
+                    {:else}
+                      <li class="tag text-xs">{dep}</li>
+                    {/if}
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+          </div>
         </section>
       </div>
     </div>

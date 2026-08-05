@@ -958,17 +958,29 @@ class GitLabCrawlerService:
                 for link in manifest.spec.links:
                     db.add(ComponentLink(component_id=component.id, title=link.title, url=link.url, icon=link.icon))
 
-            # Clear & Update Dependencies
+            # Clear & Update Dependencies and Dependents
             await db.execute(delete(ComponentDependency).where(ComponentDependency.source_component_id == component.id))
-            if manifest and manifest.spec.dependencies:
-                for dep in manifest.spec.dependencies:
-                    target_name = dep.get_target_name()
-                    if target_name:
-                        db.add(ComponentDependency(
-                            source_component_id=component.id,
-                            target_component_name=target_name,
-                            is_external=dep.is_external_dep()
-                        ))
+            if manifest:
+                if manifest.spec.dependencies:
+                    for dep in manifest.spec.dependencies:
+                        target_name = dep.get_target_name()
+                        if target_name:
+                            db.add(ComponentDependency(
+                                source_component_id=component.id,
+                                target_component_name=target_name,
+                                is_external=dep.is_external_dep(),
+                                is_dependent=False
+                            ))
+                if manifest.spec.dependents:
+                    for dep in manifest.spec.dependents:
+                        target_name = dep.get_target_name()
+                        if target_name:
+                            db.add(ComponentDependency(
+                                source_component_id=component.id,
+                                target_component_name=target_name,
+                                is_external=dep.is_external_dep(),
+                                is_dependent=True
+                            ))
 
             # Clear & Update Jenkins Pipelines
             await db.execute(delete(ComponentJenkinsPipeline).where(ComponentJenkinsPipeline.component_id == component.id))

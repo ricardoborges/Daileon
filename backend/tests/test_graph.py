@@ -15,6 +15,7 @@ from app.api.graph import build_graph
 class FakeDependency:
     target_component_name: str
     is_external: bool = False
+    is_dependent: bool = False
 
 
 @dataclass
@@ -128,3 +129,27 @@ def test_dependencia_externa_sinalizada_no_grafo():
     assert "IDEA 2" in by_name
     assert by_name["IDEA 2"]["is_external"] is True
     assert graph["edges"][0]["is_external"] is True
+
+
+def test_bloco_dependents_inverte_aresta_no_grafo():
+    catalogo = [
+        FakeComponent(1, "BCadastro", [
+            FakeDependency("BDados", is_dependent=False),
+            FakeDependency("IDEA 2", is_dependent=True)
+        ]),
+    ]
+    graph = build_graph(catalogo, include_isolated=True)
+    by_name = {n["name"]: n for n in graph["nodes"]}
+
+    assert "BDados" in by_name
+    assert "IDEA 2" in by_name
+    assert by_name["IDEA 2"]["is_external"] is True
+
+    # BCadastro -> BDados (BCadastro depende de BDados)
+    # IDEA 2 -> BCadastro (IDEA 2 depende de BCadastro)
+    edges = {(e["source"], e["target"]) for e in graph["edges"]}
+    idea_id = by_name["IDEA 2"]["id"]
+    bdados_id = by_name["BDados"]["id"]
+
+    assert ("c1", bdados_id) in edges
+    assert (idea_id, "c1") in edges

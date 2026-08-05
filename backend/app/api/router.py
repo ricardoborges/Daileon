@@ -143,7 +143,14 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
                 "name": d.target_component_name,
                 "is_external": getattr(d, "is_external", False)
             }
-            for d in c.dependencies
+            for d in c.dependencies if not getattr(d, "is_dependent", False)
+        ],
+        "dependents": [
+            {
+                "name": d.target_component_name,
+                "is_external": getattr(d, "is_external", False)
+            }
+            for d in c.dependencies if getattr(d, "is_dependent", False)
         ],
         "jenkins_pipelines": [
             {

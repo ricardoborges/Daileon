@@ -139,25 +139,30 @@ Lista de objetos:
 
 Omitir `url` ou `title` em qualquer item **invalida o manifesto inteiro** e o componente vira sintético.
 
-### 3.6. `spec.dependencies`
+### 3.6. `spec.dependencies` e `spec.dependents`
 
-Lista de objetos declarando dependências internas ou de projetos externos:
+Declaração de dependências diretas (o que este projeto consome) e dependentes downstream (projetos internos ou externos que consomem este projeto):
 
 ```yaml
 spec:
   dependencies:
     - component: BCadastro
-    - external: IDEA 2
+
+  dependents:
+    - component: IDEA 2
 ```
 
 | Campo | Tipo | Obrigatório | Efeito |
 | --- | --- | --- | --- |
-| `component` | string | Não* | Nome do componente interno catalogado do qual este projeto depende. |
-| `external` | string | Não* | Nome do projeto ou sistema externo do qual este depende (exibido em cor destacada no grafo). |
+| `component` | string | Não* | Nome do componente catalogado ou dependente. |
+| `external` | string | Não* | Nome do projeto/sistema externo de outra empresa (sinalizado com cor destacada no grafo). |
 
 *\* Cada item deve informar `component` ou `external`.*
 
-A dependência é gravada por nome. Quando definida com `external: <nome>`, o Daileon sinaliza o projeto com cor própria (verde/destaque) e forma diferenciada no grafo de dependências.
+- **`dependencies`**: Componentes dos quais o nosso projeto depende (`MeuProjeto ---> Target`).
+- **`dependents`**: Componentes ou sistemas externos que dependem do nosso projeto (`Dependent ---> MeuProjeto`).
+
+Quando um sistema externo de outra empresa é declarado sob `dependents` (ou com `external: <nome>`), ele é inserido no grafo com direção apontando para o nosso projeto e sinalizado em cor de destaque (verde/externo).
 
 ### 3.7. `spec.jenkins`
 
