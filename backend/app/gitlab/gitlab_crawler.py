@@ -962,7 +962,13 @@ class GitLabCrawlerService:
             await db.execute(delete(ComponentDependency).where(ComponentDependency.source_component_id == component.id))
             if manifest and manifest.spec.dependencies:
                 for dep in manifest.spec.dependencies:
-                    db.add(ComponentDependency(source_component_id=component.id, target_component_name=dep.component))
+                    target_name = dep.get_target_name()
+                    if target_name:
+                        db.add(ComponentDependency(
+                            source_component_id=component.id,
+                            target_component_name=target_name,
+                            is_external=dep.is_external_dep()
+                        ))
 
             # Clear & Update Jenkins Pipelines
             await db.execute(delete(ComponentJenkinsPipeline).where(ComponentJenkinsPipeline.component_id == component.id))

@@ -1,5 +1,5 @@
 from typing import List, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import yaml
 
 class ManifestMetadata(BaseModel):
@@ -20,7 +20,23 @@ class ManifestLink(BaseModel):
 
 
 class ManifestDependency(BaseModel):
-    component: str
+    component: Optional[str] = None
+    external: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def prep_dict_or_str(cls, v):
+        if isinstance(v, str):
+            return {"component": v}
+        return v
+
+    def get_target_name(self) -> Optional[str]:
+        if self.external:
+            return self.external
+        return self.component
+
+    def is_external_dep(self) -> bool:
+        return bool(self.external)
 
 class ManifestJenkinsPipeline(BaseModel):
     name: str

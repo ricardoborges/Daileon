@@ -138,7 +138,13 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "docs_count": c.docs_count,
         "tags": [t.name for t in c.tags],
         "links": [{"title": l.title, "url": l.url, "icon": l.icon} for l in c.links],
-        "dependencies": [d.target_component_name for d in c.dependencies],
+        "dependencies": [
+            {
+                "name": d.target_component_name,
+                "is_external": getattr(d, "is_external", False)
+            }
+            for d in c.dependencies
+        ],
         "jenkins_pipelines": [
             {
                 "id": p.id,

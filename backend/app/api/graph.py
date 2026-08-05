@@ -30,15 +30,16 @@ def _component_node(c: Any) -> Dict[str, Any]:
         "resolved": True,
         "in_scope": True,
         "is_root": False,
+        "is_external": False,
     }
 
 
-def _unresolved_node(node_id: str, name: str) -> Dict[str, Any]:
+def _unresolved_node(node_id: str, name: str, is_external: bool = False) -> Dict[str, Any]:
     """Nó de uma dependência declarada que não casa com nenhum componente.
 
-    Pode ser um serviço externo legítimo (uma API de terceiro) ou um nome
-    errado no manifesto. O grafo não tem como distinguir os dois casos, então
-    mostra o nó e deixa a leitura para quem conhece o ecossistema.
+    Pode ser um serviço externo legítimo (uma API de terceiro ou projeto externo) ou um nome
+    errado no manifesto. O grafo não tem como distinguir os dois casos no nome solto,
+    mas se for marcado como external=True ele fica identificado.
     """
     return {
         "id": node_id,
@@ -53,6 +54,7 @@ def _unresolved_node(node_id: str, name: str) -> Dict[str, Any]:
         "resolved": False,
         "in_scope": True,
         "is_root": False,
+        "is_external": is_external,
     }
 
 
@@ -159,7 +161,9 @@ def build_graph(
             if not target_name:
                 continue
 
-            target = by_name.get(target_name.lower())
+            is_ext = getattr(dep, "is_external", False)
+
+            target = by_name.get(target_name.lower()) if not is_ext else None
             if target is not None:
                 # Auto-dependência é ruído do manifesto, não uma aresta.
                 if target.id == c.id:
@@ -171,8 +175,10 @@ def build_graph(
                     node_id = f"u{len(unresolved_ids) + 1}"
                     unresolved_ids[key] = node_id
                     unresolved_names.append(target_name)
-                    nodes[node_id] = _unresolved_node(node_id, target_name)
+                    nodes[node_id] = _unresolved_node(node_id, target_name, is_external=is_ext)
                 target_id = unresolved_ids[key]
+                if is_ext:
+                    nodes[target_id]["is_external"] = True
 
             if (source_id, target_id) in declared:
                 continue
@@ -184,6 +190,7 @@ def build_graph(
                     "target_name": target_name,
                     "resolved": target is not None,
                     "in_cycle": False,
+                    "is_external": is_ext or nodes.get(target_id, {}).get("is_external", False),
                 }
             )
 

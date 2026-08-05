@@ -401,7 +401,15 @@
           {:else}
             <ul class="flex flex-wrap gap-2">
               {#each component.dependencies as dep}
-                <li class="tag">{dep}</li>
+                {#if typeof dep === 'object' && dep.is_external}
+                  <li class="tag t-ok border-emerald-500/30 font-medium">
+                    {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(externo)</span>
+                  </li>
+                {:else if typeof dep === 'object'}
+                  <li class="tag">{dep.name}</li>
+                {:else}
+                  <li class="tag">{dep}</li>
+                {/if}
               {/each}
             </ul>
           {/if}

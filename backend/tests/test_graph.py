@@ -14,6 +14,7 @@ from app.api.graph import build_graph
 @dataclass
 class FakeDependency:
     target_component_name: str
+    is_external: bool = False
 
 
 @dataclass
@@ -115,3 +116,15 @@ def test_auto_dependencia_e_duplicata_nao_viram_aresta():
     assert len(graph["edges"]) == 1
     assert graph["edges"][0]["source"] == "c1"
     assert graph["edges"][0]["target"] == "c2"
+
+
+def test_dependencia_externa_sinalizada_no_grafo():
+    catalogo = [
+        FakeComponent(1, "BCadastro", [FakeDependency("IDEA 2", is_external=True)]),
+    ]
+    graph = build_graph(catalogo, include_isolated=True)
+    by_name = {n["name"]: n for n in graph["nodes"]}
+
+    assert "IDEA 2" in by_name
+    assert by_name["IDEA 2"]["is_external"] is True
+    assert graph["edges"][0]["is_external"] is True

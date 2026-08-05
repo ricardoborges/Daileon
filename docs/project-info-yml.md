@@ -141,13 +141,23 @@ Omitir `url` ou `title` em qualquer item **invalida o manifesto inteiro** e o co
 
 ### 3.6. `spec.dependencies`
 
-Lista de objetos com um único campo:
+Lista de objetos declarando dependências internas ou de projetos externos:
+
+```yaml
+spec:
+  dependencies:
+    - component: BCadastro
+    - external: IDEA 2
+```
 
 | Campo | Tipo | Obrigatório | Efeito |
 | --- | --- | --- | --- |
-| `component` | string | **Sim** | Nome do componente do qual este depende. |
+| `component` | string | Não* | Nome do componente interno catalogado do qual este projeto depende. |
+| `external` | string | Não* | Nome do projeto ou sistema externo do qual este depende (exibido em cor destacada no grafo). |
 
-A dependência é gravada **por nome, como texto livre** — o Daileon não valida se o componente referenciado existe no catálogo, nem cria vínculo de banco entre eles. Para que a relação faça sentido visualmente, use exatamente o `metadata.name` do componente alvo.
+*\* Cada item deve informar `component` ou `external`.*
+
+A dependência é gravada por nome. Quando definida com `external: <nome>`, o Daileon sinaliza o projeto com cor própria (verde/destaque) e forma diferenciada no grafo de dependências.
 
 ### 3.7. `spec.jenkins`
 

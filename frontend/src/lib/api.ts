@@ -130,6 +130,11 @@ export interface RiskItem {
   created_at?: string | null;
 }
 
+export interface DependencyItemDetail {
+  name: string;
+  is_external: boolean;
+}
+
 export interface ComponentItem {
   id: number;
   gitlab_project_id: number;
@@ -150,7 +155,7 @@ export interface ComponentItem {
   docs_count?: number;
   tags: string[];
   links: Array<{ title: string; url: string; icon?: string }>;
-  dependencies: string[];
+  dependencies: Array<string | DependencyItemDetail>;
   deployments?: DeploymentItem[];
   risks?: RiskItem[];
   critical_risks_count?: number;
@@ -180,6 +185,7 @@ export interface GraphNode {
   /** `false` para vizinhos trazidos só como contexto, fora do recorte pedido. */
   in_scope: boolean;
   is_root: boolean;
+  is_external?: boolean;
 }
 
 export interface GraphEdge {
@@ -188,6 +194,7 @@ export interface GraphEdge {
   target_name: string;
   resolved: boolean;
   in_cycle: boolean;
+  is_external?: boolean;
 }
 
 export interface GraphCycle {

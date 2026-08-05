@@ -44,7 +44,9 @@
   }
 
   export interface DependencyItem {
-    component: string;
+    component?: string;
+    external?: string;
+    isExternal?: boolean;
   }
 
   // Layout mode state: 'cols' (Side by Side) | 'rows' (Top / Bottom Horizontal) | 'drawer' (Sticky Floating Drawer)
@@ -208,7 +210,9 @@
       lines.push('  ');
       lines.push('  dependencies:');
       data.dependencies.forEach((d: DependencyItem) => {
-        if (d.component) {
+        if (d.isExternal || d.external) {
+          lines.push(`    - external: ${d.external || d.component || ''}`);
+        } else if (d.component) {
           lines.push(`    - component: ${d.component}`);
         }
       });
@@ -917,10 +921,36 @@
                 <div class="flex items-center gap-2">
                   <input
                     type="text"
-                    bind:value={dep.component}
-                    placeholder={$t('tools.builder.depComponent')}
+                    value={dep.isExternal ? (dep.external || '') : (dep.component || '')}
+                    on:input={(e) => {
+                      const val = e.currentTarget.value;
+                      if (dep.isExternal) {
+                        dep.external = val;
+                      } else {
+                        dep.component = val;
+                      }
+                    }}
+                    placeholder={dep.isExternal ? "Nome do projeto externo (ex: IDEA 2)" : $t('tools.builder.depComponent')}
                     class="field field-mono flex-1"
                   />
+                  <label class="flex items-center gap-1 text-xs t-muted cursor-pointer select-none px-2 py-1 rounded bg-[var(--card)] border border-[var(--line)]">
+                    <input
+                      type="checkbox"
+                      checked={!!dep.isExternal}
+                      on:change={(e) => {
+                        const checked = e.currentTarget.checked;
+                        dep.isExternal = checked;
+                        if (checked) {
+                          dep.external = dep.component || dep.external || '';
+                          dep.component = '';
+                        } else {
+                          dep.component = dep.external || dep.component || '';
+                          dep.external = '';
+                        }
+                      }}
+                    />
+                    <span>Externo</span>
+                  </label>
                   <button
                     on:click={() => removeDependency(d)}
                     title="Remover Dependência"
