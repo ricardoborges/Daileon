@@ -1,6 +1,10 @@
+# Daileon
+
 Portal de desenvolvedores para catalogação de componentes.
 
+![Daileon Developer Portal](docs/images/dashboard.png)
 
+## Configuração e Variáveis de Ambiente
 
 #### 1. Integração com GitLab
 Usado para sincronização de repositórios e projetos no catálogo.
