@@ -1,70 +1,70 @@
 # Daileon
 
-Portal de desenvolvedores para catalogação de componentes.
+Developer portal for component cataloging.
 
 ![Daileon Developer Portal](docs/images/dashboard.png)
 
-## Configuração e Variáveis de Ambiente
+## Configuration & Environment Variables
 
-#### 1. Integração com GitLab
-Usado para sincronização de repositórios e projetos no catálogo.
+#### 1. GitLab Integration
+Used for synchronizing repositories and projects in the catalog.
 
-| Variável | Descrição | Valor Padrão | Obrigatório? |
+| Variable | Description | Default Value | Required? |
 | :--- | :--- | :--- | :--- |
-| `GITLAB_URL` | URL da instância do GitLab. | `https://gitlab.com` | Não |
-| `GITLAB_READ_TOKEN` | Personal Access Token (PAT) com escopo de leitura (`read_api` / `read_repository`). Também aceita `GITLAB_TOKEN`. | `""` | Sim (para sincronizar com GitLab) |
-| `GITLAB_GROUP_ID` | ID ou caminho do grupo/organização no GitLab cujos projetos serão importados. | `""` | Recomendado |
+| `GITLAB_URL` | GitLab instance URL. | `https://gitlab.com` | No |
+| `GITLAB_READ_TOKEN` | Personal Access Token (PAT) with read scope (`read_api` / `read_repository`). Also accepts `GITLAB_TOKEN`. | `""` | Yes (to sync with GitLab) |
+| `GITLAB_GROUP_ID` | ID or path of the group/organization in GitLab whose projects will be imported. | `""` | Recommended |
 
-#### 2. Integração com Jenkins
-Usado para consulta de status de pipelines CI/CD.
+#### 2. Jenkins Integration
+Used for querying CI/CD pipeline status.
 
-| Variável | Descrição | Valor Padrão | Obrigatório? |
+| Variable | Description | Default Value | Required? |
 | :--- | :--- | :--- | :--- |
-| `JENKINS_URL` | URL da instância do Jenkins. | `https://jenkins.example.com` | Não |
-| `JENKINS_USER` | Nome do usuário para autenticação na API do Jenkins. | `""` | Sim (se Jenkins estiver configurado) |
-| `JENKINS_API_TOKEN` | Token de API do usuário do Jenkins. | `""` | Sim (se Jenkins estiver configurado) |
+| `JENKINS_URL` | Jenkins instance URL. | `https://jenkins.example.com` | No |
+| `JENKINS_USER` | Username for Jenkins API authentication. | `""` | Yes (if Jenkins is configured) |
+| `JENKINS_API_TOKEN` | Jenkins user API token. | `""` | Yes (if Jenkins is configured) |
 
-#### 3. Banco de Dados
-| Variável | Descrição | Valor Padrão | Obrigatório? |
+#### 3. Database
+| Variable | Description | Default Value | Required? |
 | :--- | :--- | :--- | :--- |
-| `DATABASE_URL` | String de conexão SQLAlchemy. | `sqlite+aiosqlite:///./data/daileon.db` | Não |
+| `DATABASE_URL` | SQLAlchemy connection string. | `sqlite+aiosqlite:///./data/daileon.db` | No |
 
-#### 4. Autenticação e Segurança Local (Break-Glass)
-Credenciais do administrador local e chave para assinatura de tokens JWT.
+#### 4. Local Authentication & Security (Break-Glass)
+Local administrator credentials and secret key for signing JWT tokens.
 
-| Variável | Descrição | Valor Padrão | Obrigatório? |
+| Variable | Description | Default Value | Required? |
 | :--- | :--- | :--- | :--- |
-| `ADMIN_USERNAME` | Usuário da conta de administração local. | `admin` | Não |
-| `ADMIN_PASSWORD` | Senha da conta de administração local. | `admin123` | **Sim (alterar em produção)** |
-| `SECRET_KEY` | Chave secreta para geração e validação dos JWTs. | `daileon-breakglass-secret-key-change-in-prod` | **Sim (alterar em produção)** |
+| `ADMIN_USERNAME` | Username for the local admin account. | `admin` | No |
+| `ADMIN_PASSWORD` | Password for the local admin account. | `admin123` | **Yes (change in production)** |
+| `SECRET_KEY` | Secret key for JWT generation and validation. | `daileon-breakglass-secret-key-change-in-prod` | **Yes (change in production)** |
 
-#### 5. Autenticação LDAP / Active Directory
-Configurações para integração com servidor LDAP corporativo.
+#### 5. LDAP / Active Directory Authentication
+Configuration for corporate LDAP server integration.
 
-| Variável | Descrição | Valor Padrão | Obrigatório? |
+| Variable | Description | Default Value | Required? |
 | :--- | :--- | :--- | :--- |
-| `LDAP_ENABLED` | Habilita autenticação via LDAP (`true` ou `false`). | `false` | Não |
-| `LDAP_SERVER_HOST` | Host ou IP do servidor LDAP. | `""` | Sim (se `LDAP_ENABLED=true`) |
-| `LDAP_SERVER_PORT` | Porta de conexão do servidor LDAP. | `389` | Não |
-| `LDAP_USE_SSL` | Habilita conexão SSL (`true` ou `false`). | `false` | Não |
-| `LDAP_BIND_DN` | DN da conta de serviço usada para efetuar buscas no LDAP. | `""` | Sim (se LDAP exigir autenticação) |
-| `LDAP_BIND_PASSWORD` | Senha da conta de serviço para o bind LDAP. | `""` | Sim (se LDAP exigir autenticação) |
-| `LDAP_BASE_DN` | Base DN onde os usuários serão pesquisados (ex: `ou=users,dc=empresa,dc=com`). | `""` | Sim (se `LDAP_ENABLED=true`) |
-| `LDAP_USER_ATTRIBUTE` | Atributo LDAP referente ao login do usuário (ex: `uid`, `sAMAccountName`). | `uid` | Não |
+| `LDAP_ENABLED` | Enables LDAP authentication (`true` or `false`). | `false` | No |
+| `LDAP_SERVER_HOST` | Host or IP of the LDAP server. | `""` | Yes (if `LDAP_ENABLED=true`) |
+| `LDAP_SERVER_PORT` | LDAP server connection port. | `389` | No |
+| `LDAP_USE_SSL` | Enables SSL connection (`true` or `false`). | `false` | No |
+| `LDAP_BIND_DN` | Service account DN used for performing searches in LDAP. | `""` | Yes (if LDAP requires authentication) |
+| `LDAP_BIND_PASSWORD` | Service account password for LDAP bind. | `""` | Yes (if LDAP requires authentication) |
+| `LDAP_BASE_DN` | Base DN where users will be searched (e.g., `ou=users,dc=company,dc=com`). | `""` | Yes (if `LDAP_ENABLED=true`) |
+| `LDAP_USER_ATTRIBUTE` | LDAP attribute corresponding to the user login (e.g., `uid`, `sAMAccountName`). | `uid` | No |
 
-#### 6. Organização
-| Variável | Descrição | Valor Padrão | Obrigatório? |
+#### 6. Organization
+| Variable | Description | Default Value | Required? |
 | :--- | :--- | :--- | :--- |
-| `ORGANIZATION_NAME` | Nome da organização exibido na interface. Também aceita `ORG_NAME`. | `""` | Não |
-| `ORGANIZATION_ACRONYM` | Sigla da organização. Também aceita `ORG_ACRONYM`. | `""` | Não |
+| `ORGANIZATION_NAME` | Organization name displayed in the UI. Also accepts `ORG_NAME`. | `""` | No |
+| `ORGANIZATION_ACRONYM` | Organization acronym. Also accepts `ORG_ACRONYM`. | `""` | No |
 
 ---
 
-## Como Executar
+## How to Run
 
-### Via Docker Compose (Recomendado)
+### Via Docker Compose (Recommended)
 
-Suba o backend e o frontend simultaneamente:
+Start the backend and frontend simultaneously:
 
 ```bash
 docker compose up -d --build
@@ -72,16 +72,16 @@ docker compose up -d --build
 
 - **Frontend:** `http://localhost:5173`
 - **Backend API:** `http://localhost:8000`
-- **Documentação Swagger:** `http://localhost:8000/docs`
+- **Swagger Documentation:** `http://localhost:8000/docs`
 
-### Execução Manual para Desenvolvimento
+### Manual Execution for Development
 
 #### Backend
 ```bash
 cd backend
 python -m venv .venv
-# No Linux/macOS: source .venv/bin/activate
-# No Windows: .venv\Scripts\activate
+# On Linux/macOS: source .venv/bin/activate
+# On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
