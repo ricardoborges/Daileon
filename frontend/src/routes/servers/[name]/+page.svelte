@@ -340,7 +340,7 @@
                   <th class="py-3 px-4 font-bold">{$t('serverDetail.colPort')}</th>
                   <th class="py-3 px-4 font-bold">{$t('serverDetail.colOs')}</th>
                   <th class="py-3 px-4 font-bold">{$t('serverDetail.colUrl')}</th>
-                  <th class="py-3 px-4 font-bold text-right">Ação</th>
+                  <th class="py-3 px-4 font-bold text-right">{$t('serverDetail.colActions')}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[var(--line)]">

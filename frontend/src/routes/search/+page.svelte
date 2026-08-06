@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { globalSearch, type SearchResults } from '$lib/api';
   import { Search, Layers, FileText, ArrowRight, CornerDownLeft } from 'lucide-svelte';
   import { t } from '$lib/i18n';
@@ -7,6 +8,11 @@
   let results: SearchResults | null = null;
   let searching = false;
   let lastQuery = '';
+  let searchInput: HTMLInputElement;
+
+  onMount(() => {
+    searchInput?.focus();
+  });
 
   async function handleSearch() {
     if (!query.trim()) return;
@@ -40,6 +46,7 @@
     <Search class="w-4 h-4 t-faint shrink-0 sm:hidden" />
     <input
       type="text"
+      bind:this={searchInput}
       bind:value={query}
       placeholder={$t('search.placeholder')}
       aria-label={$t('search.placeholder')}

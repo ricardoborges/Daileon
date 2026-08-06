@@ -32,6 +32,7 @@
   let entity: CatalogEntity = 'projects';
   let viewMode: ViewMode = 'cards';
   let ready = false;
+  let searchInput: HTMLInputElement;
 
   let components: ComponentItem[] = [];
   let solutions: SolutionItem[] = [];
@@ -63,6 +64,7 @@
       selectedRisk = 'only';
     }
     ready = true;
+    searchInput?.focus();
     // Os contadores das abas saem das próprias listas: carregamos as três já
     // na abertura para os números aparecerem sem precisar visitar cada aba.
     // A aba ativa vai primeiro para não disputar a rede com as de fundo.
@@ -298,6 +300,7 @@
           <input
             id="f-query"
             type="text"
+            bind:this={searchInput}
             bind:value={searchQuery}
             placeholder={$t('catalog.filterQueryPlaceholder')}
             class="field font-mono pl-9"
