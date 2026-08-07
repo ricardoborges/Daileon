@@ -45,6 +45,10 @@
 
   let statsTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** Chave de um container. Inclui o servidor: com mais de um Portainer, o id
+   *  do container sozinho não identifica de forma única de onde ele veio. */
+  const ckey = (c: PortainerContainer) => `${c.server_id}:${c.id}`;
+
   async function loadData() {
     loading = true;
     actionError = null;
@@ -66,8 +70,8 @@
     for (const c of data.containers) {
       if (c.state === 'running') {
         try {
-          const stats = await fetchPortainerContainerStats(c.endpoint_id, c.id);
-          containerStats[c.id] = stats;
+          const stats = await fetchPortainerContainerStats(c.server_id, c.endpoint_id, c.id);
+          containerStats[ckey(c)] = stats;
           containerStats = { ...containerStats };
         } catch (e) {
           console.warn(`Não foi possível obter estatísticas do container ${c.name}:`, e);
@@ -77,17 +81,17 @@
   }
 
   async function handleAction(container: PortainerContainer, action: 'start' | 'stop' | 'restart') {
-    actionLoading[container.id] = true;
+    actionLoading[ckey(container)] = true;
     actionError = null;
     actionSuccess = null;
     try {
-      const res = await postPortainerContainerAction(container.endpoint_id, container.id, action);
+      const res = await postPortainerContainerAction(container.server_id, container.endpoint_id, container.id, action);
       actionSuccess = res.message;
       await loadData();
     } catch (e: any) {
       actionError = e.message || `Erro ao executar ação '${action}' no container ${container.name}`;
     } finally {
-      actionLoading[container.id] = false;
+      actionLoading[ckey(container)] = false;
       actionLoading = { ...actionLoading };
     }
   }
@@ -98,7 +102,7 @@
     logsText = '';
     copiedLogs = false;
     try {
-      const res = await fetchPortainerContainerLogs(container.endpoint_id, container.id, logTail);
+      const res = await fetchPortainerContainerLogs(container.server_id, container.endpoint_id, container.id, logTail);
       logsText = res.logs || 'Nenhum log retornado para este container.';
     } catch (e: any) {
       logsText = `Erro ao carregar logs: ${e.message}`;
@@ -180,19 +184,18 @@
         <RotateCw class="w-3.5 h-3.5 {loading ? 'animate-spin' : ''}" />
         <span>Atualizar</span>
       </button>
-
-      {#if data?.portainer_url}
-        <a
-          href={data.portainer_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="btn btn-sm btn-crest flex items-center gap-1.5 text-xs"
-        >
-          <ExternalLink class="w-3.5 h-3.5" /> Abrir Portainer
-        </a>
-      {/if}
     </div>
   </div>
+
+  <!-- Servidores que não responderam. Os demais seguem listados abaixo. -->
+  {#if data?.errors && data.errors.length > 0}
+    {#each data.errors as err (err.server_id)}
+      <div class="chip chip-alert !w-full !whitespace-normal text-xs p-3 flex items-center gap-2">
+        <AlertTriangle class="w-4 h-4 flex-none" />
+        <span>Portainer <b>{err.server_name}</b> indisponível: {err.error}</span>
+      </div>
+    {/each}
+  {/if}
 
   {#if actionSuccess}
     <div class="chip chip-ok !w-full !whitespace-normal text-xs p-3 flex items-center gap-2">
@@ -235,9 +238,9 @@
   {:else}
     <!-- Grid de Containers -->
     <div class="grid grid-cols-1 gap-5">
-      {#each data.containers as container (container.id)}
-        {@const stats = containerStats[container.id]}
-        {@const isBusy = actionLoading[container.id]}
+      {#each data.containers as container (ckey(container))}
+        {@const stats = containerStats[ckey(container)]}
+        {@const isBusy = actionLoading[ckey(container)]}
 
         <div class="plate p-6 space-y-5" style="--chamfer: 16px;">
           <!-- Cabeçalho do Container -->
@@ -251,6 +254,9 @@
                 {#if container.stack_name}
                   <span class="chip chip-sm font-mono">Stack: {container.stack_name}</span>
                 {/if}
+                <span class="chip chip-sm chip-visor font-mono" title="Servidor Portainer de origem">
+                  <Server class="w-3 h-3" /> {container.server_name}
+                </span>
                 <span class="chip chip-sm text-faint font-mono">Endpoint: {container.endpoint_name}</span>
               </div>
               <h4 class="text-base font-bold t-txt font-mono flex items-center gap-2">
@@ -261,6 +267,17 @@
 
             <!-- Botões de Ação do Container -->
             <div class="flex items-center gap-2">
+              {#if container.server_url}
+                <a
+                  href={container.server_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-sm btn-ghost text-xs flex items-center gap-1.5"
+                  title="Abrir {container.server_name}"
+                >
+                  <ExternalLink class="w-3.5 h-3.5" />
+                </a>
+              {/if}
               <button
                 type="button"
                 on:click={() => openLogsModal(container)}

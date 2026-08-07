@@ -1,0 +1,30 @@
+.git
+.gitignore
+.claude
+.pytest_cache
+**/.pytest_cache
+**/__pycache__
+**/*.py[cod]
+
+# Dependências e artefatos reconstruídos dentro da imagem
+**/node_modules
+frontend/.svelte-kit
+frontend/build
+backend/.venv
+backend/venv
+
+# Dados locais — o banco vem de volume, nunca da imagem
+backend/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite*
+
+# Segredos: as variáveis chegam pelo compose, não pela imagem
+.env
+.env.*
+!.env.example
+
+docs
+*.md
+!frontend/**/*.md

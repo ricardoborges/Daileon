@@ -637,13 +637,27 @@ export async function fetchBackendPlugins(): Promise<PluginBackendInfo[]> {
 
 // -- Portainer Plugin API ---------------------------------------------------
 
-export interface PortainerConfig {
+/** Um servidor Portainer cadastrado. `id` só falta em servidor ainda não
+ *  gravado — o backend sorteia ao salvar. Segredos chegam como `******`. */
+export interface PortainerServer {
+  id?: string;
+  name: string;
   url: string;
   api_key?: string;
-  api_key_masked?: string;
   username?: string;
   password?: string;
   enabled: boolean;
+}
+
+export interface PortainerConfig {
+  servers: PortainerServer[];
+}
+
+/** Servidor que não respondeu. A resposta traz o que os demais devolveram. */
+export interface PortainerServerError {
+  server_id: string;
+  server_name: string;
+  error: string;
 }
 
 export interface PortainerContainer {
@@ -653,6 +667,10 @@ export interface PortainerContainer {
   all_names: string[];
   endpoint_id: number;
   endpoint_name: string;
+  /** Origem do container. Necessário para não agir no Portainer errado. */
+  server_id: string;
+  server_name: string;
+  server_url?: string;
   image: string;
   state: 'running' | 'exited' | 'paused' | 'restarting' | 'created' | string;
   status: string;
@@ -667,11 +685,11 @@ export interface PortainerComponentResponse {
   component_id: number;
   component_name: string;
   configured: boolean;
-  portainer_url?: string;
   message?: string;
   error?: string;
   containers_count?: number;
   containers: PortainerContainer[];
+  errors?: PortainerServerError[];
 }
 
 export interface PortainerContainerStats {
@@ -699,7 +717,7 @@ export async function fetchPortainerConfig(): Promise<PortainerConfig> {
   return res.json();
 }
 
-export async function savePortainerConfig(config: PortainerConfig): Promise<{ message: string }> {
+export async function savePortainerConfig(config: PortainerConfig): Promise<{ message: string; servers: PortainerServer[] }> {
   const res = await authFetch(`${API_BASE}/plugins/portainer/config`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -712,11 +730,12 @@ export async function savePortainerConfig(config: PortainerConfig): Promise<{ me
   return res.json();
 }
 
-export async function testPortainerConfig(config: PortainerConfig): Promise<{ success: boolean; message: string; version?: string; endpoints_count?: number }> {
+/** Testa um servidor isolado — o que está aberto no formulário, gravado ou não. */
+export async function testPortainerConfig(server: PortainerServer): Promise<{ success: boolean; message: string; version?: string; endpoints_count?: number }> {
   const res = await authFetch(`${API_BASE}/plugins/portainer/test-connection`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config)
+    body: JSON.stringify(server)
   });
   if (!res.ok) {
     const detail = await res.json().then(b => b?.detail).catch(() => null);
@@ -731,20 +750,23 @@ export async function fetchComponentPortainer(componentId: number): Promise<Port
   return res.json();
 }
 
-export async function fetchPortainerContainerStats(endpointId: number, containerId: string): Promise<PortainerContainerStats> {
-  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${endpointId}/${containerId}/stats`);
+// As três rotas abaixo levam `serverId` no caminho. Com mais de um Portainer
+// cadastrado, `endpointId` sozinho é ambíguo: o ambiente 1 existe em todos.
+
+export async function fetchPortainerContainerStats(serverId: string, endpointId: number, containerId: string): Promise<PortainerContainerStats> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${serverId}/${endpointId}/${containerId}/stats`);
   if (!res.ok) throw new Error('Falha ao carregar métricas do container');
   return res.json();
 }
 
-export async function fetchPortainerContainerLogs(endpointId: number, containerId: string, tail = 150): Promise<PortainerContainerLogs> {
-  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${endpointId}/${containerId}/logs?tail=${tail}`);
+export async function fetchPortainerContainerLogs(serverId: string, endpointId: number, containerId: string, tail = 150): Promise<PortainerContainerLogs> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${serverId}/${endpointId}/${containerId}/logs?tail=${tail}`);
   if (!res.ok) throw new Error('Falha ao buscar logs do container');
   return res.json();
 }
 
-export async function postPortainerContainerAction(endpointId: number, containerId: string, action: 'start' | 'stop' | 'restart'): Promise<{ success: boolean; message: string }> {
-  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${endpointId}/${containerId}/action`, {
+export async function postPortainerContainerAction(serverId: string, endpointId: number, containerId: string, action: 'start' | 'stop' | 'restart'): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${serverId}/${endpointId}/${containerId}/action`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action })

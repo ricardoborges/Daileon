@@ -72,8 +72,10 @@ async def test_portainer_plugin_config_flow():
     async with AsyncSessionLocal() as db:
         from app.plugins.portainer.service import get_effective_portainer_config, PortainerService
 
+        # A configuração é uma lista de servidores; cada um traz sua própria URL.
         cfg = await get_effective_portainer_config(db)
-        assert "url" in cfg
+        assert "servers" in cfg
+        assert all("url" in s and "id" in s for s in cfg["servers"])
 
         test_res = await PortainerService.test_connection({"url": ""})
         assert test_res["success"] is False

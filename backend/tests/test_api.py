@@ -101,10 +101,19 @@ def component(client):
         engine.dispose()
 
 
-def test_root(client):
-    response = client.get("/")
+def test_health(client):
+    response = client.get("/api/health")
     assert response.status_code == 200
-    assert "Daileon API" in response.json()["message"]
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["service"] == settings.PROJECT_NAME
+
+
+def test_unknown_api_path_is_not_swallowed_by_the_spa(client):
+    """O catch-all da SPA responde por qualquer caminho livre. Um `/api/...`
+    inexistente precisa continuar sendo 404, e não a interface em HTML."""
+    response = client.get("/api/nao-existe")
+    assert response.status_code == 404
 
 def test_list_catalog(client, component):
     response = client.get("/api/catalog")

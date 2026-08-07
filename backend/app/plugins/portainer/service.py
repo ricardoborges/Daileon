@@ -1,8 +1,10 @@
+import asyncio
 import json
 import logging
 import re
 import urllib.parse
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
+from uuid import uuid4
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -39,23 +41,128 @@ async def set_system_setting(db: AsyncSession, key: str, value: dict):
     await db.commit()
 
 
-async def get_effective_portainer_config(db: AsyncSession) -> dict:
-    config = await get_system_setting(db, "portainer_config")
-    if config is not None:
-        return config
+#: Valor devolvido no lugar de um segredo já gravado. O cliente reenvia essa
+#: máscara quando o campo não foi editado, e o servidor repõe o valor real.
+SECRET_MASK = "******"
 
-    default_config = {
-        "url": settings.PORTAINER_URL or "http://localhost:9000",
-        "api_key": settings.PORTAINER_API_KEY or "",
-        "username": settings.PORTAINER_USER or "",
-        "password": settings.PORTAINER_PASSWORD or "",
-        "enabled": bool(settings.PORTAINER_API_KEY or (settings.PORTAINER_USER and settings.PORTAINER_PASSWORD))
+
+def _new_server_id() -> str:
+    return uuid4().hex[:8]
+
+
+def _normalize_server(raw: dict, index: int = 0) -> dict:
+    """Um servidor com todos os campos presentes e um `id` estável.
+
+    O `id` é o que as rotas de container usam para saber a qual Portainer
+    falar, então precisa sobreviver a renomeações — daí ser sorteado, e não
+    derivado do nome ou da URL.
+    """
+    return {
+        "id": str(raw.get("id") or "").strip() or _new_server_id(),
+        "name": str(raw.get("name") or "").strip() or f"Portainer {index + 1}",
+        "url": str(raw.get("url") or ""),
+        "api_key": str(raw.get("api_key") or ""),
+        "username": str(raw.get("username") or ""),
+        "password": str(raw.get("password") or ""),
+        "enabled": bool(raw.get("enabled", True)),
     }
 
-    if settings.PORTAINER_API_KEY or settings.PORTAINER_USER:
-        await set_system_setting(db, "portainer_config", default_config)
 
-    return default_config
+def normalize_portainer_config(raw: Optional[dict]) -> dict:
+    """Formato canônico da configuração: `{"servers": [...]}`.
+
+    Aceita também o formato antigo — um único servidor com `url` na raiz —,
+    convertendo-o numa lista de um elemento. Instalações que já gravaram a
+    configuração antiga continuam funcionando sem migração manual.
+    """
+    if not isinstance(raw, dict):
+        return {"servers": []}
+
+    if isinstance(raw.get("servers"), list):
+        servers = raw["servers"]
+    elif raw.get("url") or raw.get("api_key") or raw.get("username"):
+        servers = [raw]
+    else:
+        servers = []
+
+    return {
+        "servers": [
+            _normalize_server(s, i)
+            for i, s in enumerate(servers)
+            if isinstance(s, dict)
+        ]
+    }
+
+
+async def get_effective_portainer_config(db: AsyncSession) -> dict:
+    stored = await get_system_setting(db, "portainer_config")
+
+    if stored is not None:
+        config = normalize_portainer_config(stored)
+        # Regrava quando a leitura migrou o formato antigo ou sorteou ids: sem
+        # isso cada requisição geraria ids novos e as rotas por servidor
+        # deixariam de resolver o servidor entre uma chamada e a seguinte.
+        if stored != config:
+            await set_system_setting(db, "portainer_config", config)
+        return config
+
+    config = normalize_portainer_config({
+        "servers": [{
+            "name": "Portainer",
+            "url": settings.PORTAINER_URL or "http://localhost:9000",
+            "api_key": settings.PORTAINER_API_KEY or "",
+            "username": settings.PORTAINER_USER or "",
+            "password": settings.PORTAINER_PASSWORD or "",
+            "enabled": bool(
+                settings.PORTAINER_API_KEY
+                or (settings.PORTAINER_USER and settings.PORTAINER_PASSWORD)
+            ),
+        }]
+    })
+
+    if settings.PORTAINER_API_KEY or settings.PORTAINER_USER:
+        await set_system_setting(db, "portainer_config", config)
+
+    return config
+
+
+def list_servers(config: dict) -> List[dict]:
+    return config.get("servers", []) or []
+
+
+def find_server(config: dict, server_id: str) -> Optional[dict]:
+    return next((s for s in list_servers(config) if s.get("id") == server_id), None)
+
+
+def enabled_servers(config: dict) -> List[dict]:
+    """Servidores que valem uma chamada: habilitados e com URL preenchida."""
+    return [
+        s for s in list_servers(config)
+        if s.get("enabled", True) and _clean_base_url(s.get("url", ""))
+    ]
+
+
+def mask_server(server: dict) -> dict:
+    """Cópia sem segredos, para devolver ao cliente."""
+    masked = dict(server)
+    if masked.get("api_key"):
+        masked["api_key"] = SECRET_MASK
+    if masked.get("password"):
+        masked["password"] = SECRET_MASK
+    return masked
+
+
+def unmask_server(incoming: dict, stored: Optional[dict]) -> dict:
+    """Repõe os segredos que o cliente devolveu mascarados.
+
+    Um servidor novo não tem `stored`; nesse caso a máscara não representa
+    segredo nenhum e vira string vazia.
+    """
+    result = dict(incoming)
+    for field in ("api_key", "password"):
+        if result.get(field) == SECRET_MASK:
+            result[field] = (stored or {}).get(field, "")
+    return result
 
 
 def _clean_base_url(url: str) -> str:
@@ -232,19 +339,80 @@ class PortainerService:
             return all_containers
 
     @staticmethod
+    def _tag(items: List[dict], server: dict) -> List[dict]:
+        """Carimba a origem em cada item.
+
+        Sem isso um `endpoint_id` seria ambíguo: o ambiente 1 existe em todos
+        os Portainers, e parar o container errado é um clique de distância.
+        """
+        for item in items:
+            item["server_id"] = server.get("id")
+            item["server_name"] = server.get("name")
+            item["server_url"] = _clean_base_url(server.get("url", ""))
+        return items
+
+    @staticmethod
+    async def _gather_over_servers(config: dict, call) -> Tuple[List[dict], List[dict]]:
+        """Roda `call(server)` em todos os servidores habilitados, em paralelo.
+
+        Um servidor fora do ar devolve erro na lista `errors` em vez de
+        derrubar a resposta inteira — com vários Portainers, a chance de um
+        estar indisponível deixa de ser desprezível.
+        """
+        servers = enabled_servers(config)
+        if not servers:
+            return [], []
+
+        results = await asyncio.gather(
+            *(call(s) for s in servers), return_exceptions=True
+        )
+
+        items: List[dict] = []
+        errors: List[dict] = []
+        for server, result in zip(servers, results):
+            if isinstance(result, BaseException):
+                logger.warning(
+                    f"Portainer '{server.get('name')}' ({server.get('url')}) falhou: {result}"
+                )
+                errors.append({
+                    "server_id": server.get("id"),
+                    "server_name": server.get("name"),
+                    "error": str(result),
+                })
+                continue
+            items.extend(PortainerService._tag(result, server))
+
+        return items, errors
+
+    @staticmethod
+    async def fetch_all_endpoints(config: dict) -> Tuple[List[dict], List[dict]]:
+        return await PortainerService._gather_over_servers(
+            config, PortainerService.fetch_endpoints
+        )
+
+    @staticmethod
+    async def fetch_all_containers(
+        config: dict, endpoint_id: Optional[int] = None
+    ) -> Tuple[List[dict], List[dict]]:
+        return await PortainerService._gather_over_servers(
+            config, lambda s: PortainerService.fetch_containers(s, endpoint_id=endpoint_id)
+        )
+
+    @staticmethod
     def match_containers_for_component(
         containers: List[dict],
         component_name: str,
-        spec_portainer: Optional[dict] = None,
         deployments: Optional[List[Any]] = None
     ) -> List[dict]:
+        """Containers que pertencem a um componente.
+
+        A associação vem dos deployments do catálogo (IP e porta) e da
+        convenção de nomes — o `project-info.yml` não declara nada de
+        Portainer.
+        """
         matched = []
         matched_ids = set()
         name_lower = component_name.lower().replace("_", "-")
-
-        explicit_container = (spec_portainer.get("container_name") or "").lower() if spec_portainer else ""
-        explicit_stack = (spec_portainer.get("stack_name") or "").lower() if spec_portainer else ""
-        explicit_ep = spec_portainer.get("endpoint_id") if spec_portainer else None
 
         # Processa deployments do catálogo (extrai IPs e Portas alvos)
         parsed_deployments = []
@@ -290,26 +458,17 @@ class PortainerService:
 
         for c in containers:
             c_id = c.get("id")
-            if not c_id or c_id in matched_ids:
+            # A chave inclui o servidor: dois Portainers podem devolver o mesmo
+            # id de container sem que sejam o mesmo container.
+            dedup_key = (c.get("server_id"), c_id)
+            if not c_id or dedup_key in matched_ids:
                 continue
 
             c_name = c["name"].lower().replace("_", "-")
             c_stack = (c.get("stack_name") or "").lower().replace("_", "-")
             c_service = (c.get("service_name") or "").lower().replace("_", "-")
 
-            # 1. Checa correspondência explícita do manifesto (spec.portainer)
-            if spec_portainer:
-                if explicit_ep is None or c.get("endpoint_id") == explicit_ep:
-                    if explicit_container and explicit_container in c_name:
-                        matched.append(c)
-                        matched_ids.add(c_id)
-                        continue
-                    if explicit_stack and explicit_stack == c_stack:
-                        matched.append(c)
-                        matched_ids.add(c_id)
-                        continue
-
-            # 2. Checa correspondência via Deployments do Catálogo (IP e Porta)
+            # 1. Checa correspondência via Deployments do Catálogo (IP e Porta)
             if parsed_deployments:
                 c_ports = set()
                 for rp in c.get("raw_ports", []) or []:
@@ -382,21 +541,21 @@ class PortainerService:
 
                 if dep_matched:
                     matched.append(c)
-                    matched_ids.add(c_id)
+                    matched_ids.add(dedup_key)
                     continue
 
-            # 3. Checa correspondência por convenção (nome do componente igual ao container, serviço docker-compose ou stack)
+            # 2. Checa correspondência por convenção (nome do componente igual ao container, serviço docker-compose ou stack)
             if c_name == name_lower or c_name.startswith(f"{name_lower}-") or c_name.endswith(f"-{name_lower}") or f"-{name_lower}-" in c_name:
                 matched.append(c)
-                matched_ids.add(c_id)
+                matched_ids.add(dedup_key)
                 continue
             if c_stack == name_lower:
                 matched.append(c)
-                matched_ids.add(c_id)
+                matched_ids.add(dedup_key)
                 continue
             if c_service == name_lower:
                 matched.append(c)
-                matched_ids.add(c_id)
+                matched_ids.add(dedup_key)
                 continue
 
         return matched

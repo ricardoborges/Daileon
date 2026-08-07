@@ -41,13 +41,13 @@ spec:
 
   deployments:
     - environment: production
-      url: http://localhost:5173
+      url: http://localhost:8000
       server_name: srv-prod-portal01
       server_ip: 192.168.10.100
       os: "Linux Ubuntu 22.04 LTS"
       execution_type: Docker
-      port: 5173
-      notes: "Ambiente principal de produção do Daileon"
+      port: 8000
+      notes: "Ambiente principal de produção do Daileon — contêiner único servindo interface e API"
       
     - environment: test
       url: http://localhost:8000

@@ -23,38 +23,56 @@ cp .env.example .env
 | `JENKINS_USER` | Usuário/service account para API do Jenkins | `daileon-service` |
 | `JENKINS_API_TOKEN` | Token de API REST do Jenkins para consultar status de builds | `11a2b3c4d5e6f7g8h9` |
 | `DATABASE_URL` | String de conexão SQLAlchemy do banco | `sqlite+aiosqlite:///./data/daileon.db` |
-| `API_URL` | Destino do proxy `/api` do frontend SvelteKit. No Docker Compose, use o hostname do serviço | `http://localhost:8000` / `http://backend:8000` |
+| `API_URL` | Só em desenvolvimento: destino do proxy `/api` do Vite. Em produção não existe proxy — interface e API são a mesma origem | `http://localhost:8000` |
 
 
 ---
 
 ## 🐳 2. Implantação via Docker Compose (Recomendado)
 
-A forma mais rápida de colocar o Daileon no ar é utilizando o `docker-compose`.
+O Daileon é distribuído como **um único contêiner**. O processo FastAPI atende
+a API REST e também entrega a interface já compilada — não há servidor Node em
+produção, nem porta separada para o frontend.
 
-### 2.1. Executar os Contêineres
+O `Dockerfile` na raiz faz isso em dois estágios: o primeiro compila o
+SvelteKit para arquivos estáticos, o segundo monta a aplicação Python e copia
+esses arquivos para `static_site/`, de onde o `main.py` os serve.
+
+### 2.1. Executar o Contêiner
 
 ```bash
 # 1. Configurar o token no .env
 echo "GITLAB_READ_TOKEN=seu_token_aqui" > .env
 
-# 2. Subir a stack completa (Backend + Frontend)
-docker-compose up -d --build
+# 2. Subir a aplicação
+docker compose up -d --build
 ```
 
-### 2.2. Verificar a Saúde dos Serviços
+### 2.2. Verificar a Saúde do Serviço
 
 ```bash
-docker-compose ps
-docker-compose logs -f
+docker compose ps
+docker compose logs -f
+curl http://localhost:8000/api/health
 ```
 
-- **Portal Web UI**: [http://localhost:5173](http://localhost:5173)
+- **Portal Web UI**: [http://localhost:8000](http://localhost:8000)
 - **API FastAPI / Swagger**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### 2.3. Volumes
+
+| Caminho no host | No contêiner | Para quê |
+| :--- | :--- | :--- |
+| `./backend/data` | `/app/data` | Banco SQLite e dados persistentes |
+| `./plugins` | `/app/plugins` | Plugins drop-in — **reservado**, ver [`plugins/README.md`](../plugins/README.md) |
 
 ---
 
 ## 💻 3. Execução em Modo de Desenvolvimento (Sem Docker)
+
+Em desenvolvimento as duas metades sobem separadas, para aproveitar o
+hot-reload do Vite. O navegador continua enxergando uma origem só: o Vite
+encaminha `/api` para o FastAPI (ver `frontend/vite.config.js`).
 
 ### 3.1. Subindo o Backend (Python FastAPI)
 
@@ -95,6 +113,23 @@ npm install
 npm run dev
 ```
 *A interface abrirá em `http://localhost:5173`.*
+
+> Se o backend não estiver em `http://localhost:8000`, aponte o proxy com
+> `API_URL` antes de subir o Vite.
+
+### 3.3. Testando o Modo Produção Localmente
+
+Para conferir o comportamento de porta única sem construir a imagem Docker:
+
+```bash
+cd frontend && npm run build
+cp -r build ../backend/static_site
+cd ../backend && uvicorn main:app --port 8000
+```
+
+O portal passa a responder em `http://localhost:8000`. `GET /api/health`
+informa em `ui` se o backend encontrou a interface compilada. Apague
+`backend/static_site/` para voltar ao modo só-API.
 
 ---
 
