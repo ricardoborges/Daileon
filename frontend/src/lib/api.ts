@@ -756,6 +756,89 @@ export async function postPortainerContainerAction(endpointId: number, container
   return res.json();
 }
 
+// -- GitLab Plugin API -----------------------------------------------------
+
+export interface GitLabConfig {
+  url: string;
+  read_token?: string;
+  group_id?: string;
+  enabled?: boolean;
+}
+
+export async function fetchGitLabConfig(): Promise<GitLabConfig> {
+  const res = await authFetch(`${API_BASE}/plugins/gitlab/config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações do GitLab');
+  return res.json();
+}
+
+export async function saveGitLabConfig(config: GitLabConfig): Promise<{ message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/gitlab/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configurações do GitLab');
+  }
+  return res.json();
+}
+
+export async function testGitLabConfig(config: GitLabConfig): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/gitlab/config/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao testar conexão com o GitLab');
+  }
+  return res.json();
+}
+
+// -- Jenkins Plugin API ----------------------------------------------------
+
+export interface JenkinsConfig {
+  url: string;
+  user?: string;
+  api_token?: string;
+  enabled?: boolean;
+}
+
+export async function fetchJenkinsConfig(): Promise<JenkinsConfig> {
+  const res = await authFetch(`${API_BASE}/plugins/jenkins/config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações do Jenkins');
+  return res.json();
+}
+
+export async function saveJenkinsConfig(config: JenkinsConfig): Promise<{ message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/jenkins/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configurações do Jenkins');
+  }
+  return res.json();
+}
+
+export async function testJenkinsConfig(config: JenkinsConfig): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/jenkins/config/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao testar conexão com o Jenkins');
+  }
+  return res.json();
+}
+
+
 
 
 

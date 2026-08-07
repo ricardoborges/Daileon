@@ -29,9 +29,10 @@
     Image as ImageIcon,
     RotateCw,
     Blocks,
+    ArrowLeft,
   } from "lucide-svelte";
   import { t } from "$lib/i18n";
-  import { pluginRegistry } from "$lib/plugins/registry";
+  import { pluginRegistry } from "$lib/plugins";
   import PluginCenter from "$lib/plugins/PluginCenter.svelte";
 
   interface Operation {
@@ -362,31 +363,13 @@
       <button
         type="button"
         role="tab"
-        aria-selected={activeTab === "plugins"}
-        class="seg-item cursor-pointer {activeTab === 'plugins' ? 'is-active' : ''}"
+        aria-selected={activeTab === "plugins" || configurablePlugins.some(p => p.id === activeTab)}
+        class="seg-item cursor-pointer {activeTab === 'plugins' || configurablePlugins.some(p => p.id === activeTab) ? 'is-active' : ''}"
         on:click={() => (activeTab = "plugins")}
       >
         <Blocks class="w-4 h-4 t-visor" />
         <span>Plugins</span>
       </button>
-
-      <!-- Abas Dinâmicas de Plugins Configuráveis -->
-      {#each configurablePlugins as plugin (plugin.id)}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === plugin.id}
-          class="seg-item cursor-pointer {activeTab === plugin.id ? 'is-active' : ''}"
-          on:click={() => (activeTab = plugin.id)}
-        >
-          {#if plugin.icon}
-            <svelte:component this={plugin.icon} class="w-4 h-4" />
-          {:else}
-            <Settings class="w-4 h-4" />
-          {/if}
-          <span>{plugin.name}</span>
-        </button>
-      {/each}
     </div>
   </div>
 
@@ -839,10 +822,25 @@
       </div>
     </section>
   {:else}
-    <!-- Aba Dinâmica de Plugin -->
+    <!-- Configuração de Plugin Específico -->
     {#each configurablePlugins as plugin (plugin.id)}
       {#if activeTab === plugin.id && plugin.configComponent}
-        <svelte:component this={plugin.configComponent} />
+        <div class="space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+            <button
+              type="button"
+              on:click={() => (activeTab = "plugins")}
+              class="btn btn-sm btn-ghost flex items-center gap-2 text-xs font-semibold t-dim hover:t-txt"
+            >
+              <ArrowLeft class="w-4 h-4" />
+              <span>Voltar para Central de Plugins</span>
+            </button>
+            <span class="chip chip-visor text-xs font-mono font-bold">
+              Configurando: {plugin.name}
+            </span>
+          </div>
+          <svelte:component this={plugin.configComponent} />
+        </div>
       {/if}
     {/each}
   {/if}

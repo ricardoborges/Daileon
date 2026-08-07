@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import get_db
 from app.db.models import SystemSetting
-from app.plugins.ldap import LDAPAuthService
+from app.plugins.ldap.service import LDAPAuthService, get_effective_ldap_config
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -69,27 +69,6 @@ async def set_system_setting(db: AsyncSession, key: str, value: dict):
         setting = SystemSetting(key=key, value=json_str)
         db.add(setting)
     await db.commit()
-
-async def get_effective_ldap_config(db: AsyncSession) -> dict:
-    config = await get_system_setting(db, "ldap_config")
-    if config is not None:
-        return config
-
-    default_config = {
-        "enabled": settings.LDAP_ENABLED,
-        "server_host": settings.LDAP_SERVER_HOST,
-        "server_port": settings.LDAP_SERVER_PORT,
-        "use_ssl": settings.LDAP_USE_SSL,
-        "bind_dn": settings.LDAP_BIND_DN,
-        "bind_password": settings.LDAP_BIND_PASSWORD,
-        "base_dn": settings.LDAP_BASE_DN,
-        "user_attribute": settings.LDAP_USER_ATTRIBUTE or "uid"
-    }
-
-    if settings.LDAP_SERVER_HOST or settings.LDAP_ENABLED:
-        await set_system_setting(db, "ldap_config", default_config)
-
-    return default_config
 
 @auth_router.post("/login")
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):

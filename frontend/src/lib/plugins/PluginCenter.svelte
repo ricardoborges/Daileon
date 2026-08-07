@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { pluginRegistry, type PluginDefinition } from './registry';
+  import { pluginRegistry, type PluginDefinition } from './index';
   import { fetchBackendPlugins, type PluginBackendInfo } from '$lib/api';
   import {
     Blocks,

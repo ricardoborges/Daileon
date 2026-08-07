@@ -1,6 +1,8 @@
 import { pluginRegistry } from './registry';
 import JenkinsTab from './jenkins/JenkinsTab.svelte';
+import JenkinsConfig from './jenkins/JenkinsConfig.svelte';
 import CommitsTab from './gitlab/CommitsTab.svelte';
+import GitLabConfig from './gitlab/GitLabConfig.svelte';
 import LdapConfig from './ldap/LdapConfig.svelte';
 import PortainerConfig from './portainer/PortainerConfig.svelte';
 import PortainerTab from './portainer/PortainerTab.svelte';
@@ -27,6 +29,7 @@ export function initializeFrontendPlugins() {
     description: 'Descoberta automatizada de projetos, leitura de project-info.yml e varredura de riscos.',
     category: 'scm',
     icon: FolderGit2,
+    configComponent: GitLabConfig,
     tabs: [
       {
         id: 'commits',
@@ -45,6 +48,7 @@ export function initializeFrontendPlugins() {
     description: 'Monitoramento em tempo real do status de jobs e pipelines de integração contínua.',
     category: 'cicd',
     icon: PlayCircle,
+    configComponent: JenkinsConfig,
     tabs: [
       {
         id: 'jenkins',
@@ -74,7 +78,6 @@ export function initializeFrontendPlugins() {
     ]
   });
 }
-
 
 initializeFrontendPlugins();
 

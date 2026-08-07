@@ -1,8 +1,59 @@
 import json
 import logging
 from typing import Dict, Any, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from app.core.config import settings
+from app.db.models import SystemSetting
 
 logger = logging.getLogger(__name__)
+
+
+async def get_system_setting(db: AsyncSession, key: str) -> Optional[dict]:
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+    setting = result.scalar_one_or_none()
+    if setting and setting.value:
+        try:
+            return json.loads(setting.value)
+        except Exception:
+            return None
+    return None
+
+
+async def set_system_setting(db: AsyncSession, key: str, value: dict):
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+    setting = result.scalar_one_or_none()
+    json_str = json.dumps(value)
+    if setting:
+        setting.value = json_str
+    else:
+        setting = SystemSetting(key=key, value=json_str)
+        db.add(setting)
+    await db.commit()
+
+
+async def get_effective_ldap_config(db: AsyncSession) -> dict:
+    config = await get_system_setting(db, "ldap_config")
+    if config is not None:
+        return config
+
+    default_config = {
+        "enabled": settings.LDAP_ENABLED,
+        "server_host": settings.LDAP_SERVER_HOST,
+        "server_port": settings.LDAP_SERVER_PORT,
+        "use_ssl": settings.LDAP_USE_SSL,
+        "bind_dn": settings.LDAP_BIND_DN,
+        "bind_password": settings.LDAP_BIND_PASSWORD,
+        "base_dn": settings.LDAP_BASE_DN,
+        "user_attribute": settings.LDAP_USER_ATTRIBUTE or "uid",
+    }
+
+    if settings.LDAP_SERVER_HOST or settings.LDAP_ENABLED:
+        await set_system_setting(db, "ldap_config", default_config)
+
+    return default_config
+
 
 class LDAPAuthService:
     @staticmethod

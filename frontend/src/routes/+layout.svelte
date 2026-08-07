@@ -7,6 +7,7 @@
   import { initTheme } from '$lib/theme';
   import { auth } from '$lib/auth';
   import { initLocale, t } from '$lib/i18n';
+import '$lib/plugins';
 
   onMount(() => {
     initTheme();

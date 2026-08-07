@@ -226,10 +226,10 @@
       <Activity class="w-8 h-8 mx-auto t-faint" />
       <h4 class="font-medium t-txt text-base">Nenhum container Docker associado</h4>
       <p class="t-dim text-xs max-w-md mx-auto leading-relaxed">
-        Não foram encontrados containers no Portainer com o nome <code class="font-mono bg-surface-3 px-1.5 py-0.5 rounded text-visor">{component.name}</code> ou rotulados no Docker Compose.
+        Não foram encontrados containers no Portainer com o IP/Porta dos deployments do catálogo, nome <code class="font-mono bg-surface-3 px-1.5 py-0.5 rounded text-visor">{component.name}</code> ou rotulados no Docker Compose.
       </p>
       <p class="t-faint text-[11px]">
-        Dica: Você também pode declarar a seção <code class="font-mono bg-surface-3 px-1.5 py-0.5 rounded">portainer</code> no arquivo <code class="font-mono bg-surface-3 px-1.5 py-0.5 rounded">project-info.yml</code>.
+        Dica: Configure o IP e Porta na aba <b>Deployments</b> do componente ou declare a seção <code class="font-mono bg-surface-3 px-1.5 py-0.5 rounded">portainer</code> no arquivo <code class="font-mono bg-surface-3 px-1.5 py-0.5 rounded">project-info.yml</code>.
       </p>
     </div>
   {:else}

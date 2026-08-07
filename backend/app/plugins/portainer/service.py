@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import urllib.parse
 from typing import Dict, Any, Optional, List
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -157,15 +158,24 @@ class PortainerService:
 
             target_endpoints = []
             if endpoint_id is not None:
-                target_endpoints.append({"id": endpoint_id, "name": f"Endpoint #{endpoint_id}"})
+                target_endpoints.append({"id": endpoint_id, "name": f"Endpoint #{endpoint_id}", "public_url": ""})
             else:
                 endpoints_list = await PortainerService.fetch_endpoints(config)
-                target_endpoints = [{"id": ep["id"], "name": ep["name"]} for ep in endpoints_list if ep["status"] == 1 or ep["status"] is None]
+                target_endpoints = [
+                    {
+                        "id": ep["id"],
+                        "name": ep["name"],
+                        "public_url": ep.get("public_url", "")
+                    }
+                    for ep in endpoints_list
+                    if ep.get("status") == 1 or ep.get("status") is None
+                ]
 
             all_containers = []
             for ep in target_endpoints:
                 ep_id = ep["id"]
                 ep_name = ep["name"]
+                ep_public_url = ep.get("public_url", "")
                 try:
                     c_resp = await client.get(f"{url}/api/endpoints/{ep_id}/docker/containers/json?all=true", headers=headers)
                     if c_resp.status_code != 200:
@@ -179,7 +189,8 @@ class PortainerService:
                             labels = c.get("Labels", {}) or {}
 
                             ports = []
-                            for p in c.get("Ports", []) or []:
+                            raw_ports = c.get("Ports", []) or []
+                            for p in raw_ports:
                                 pub = p.get("PublicPort")
                                 priv = p.get("PrivatePort")
                                 ptype = p.get("Type", "tcp")
@@ -188,6 +199,14 @@ class PortainerService:
                                 elif priv:
                                     ports.append(f"{priv}/{ptype}")
 
+                            network_settings = c.get("NetworkSettings", {}) or {}
+                            networks = network_settings.get("Networks", {}) or {}
+                            network_ips = []
+                            if isinstance(networks, dict):
+                                for net_val in networks.values():
+                                    if isinstance(net_val, dict) and net_val.get("IPAddress"):
+                                        network_ips.append(net_val.get("IPAddress"))
+
                             all_containers.append({
                                 "id": c.get("Id"),
                                 "short_id": c.get("Id", "")[:12],
@@ -195,6 +214,9 @@ class PortainerService:
                                 "all_names": [n.lstrip("/") for n in names],
                                 "endpoint_id": ep_id,
                                 "endpoint_name": ep_name,
+                                "endpoint_public_url": ep_public_url,
+                                "raw_ports": raw_ports,
+                                "network_ips": network_ips,
                                 "image": c.get("Image"),
                                 "state": c.get("State", "unknown").lower(), # running, exited, paused, restarting
                                 "status": c.get("Status", ""), # "Up 2 hours", "Exited (0) 5 minutes ago"
@@ -210,39 +232,171 @@ class PortainerService:
             return all_containers
 
     @staticmethod
-    def match_containers_for_component(containers: List[dict], component_name: str, spec_portainer: Optional[dict] = None) -> List[dict]:
+    def match_containers_for_component(
+        containers: List[dict],
+        component_name: str,
+        spec_portainer: Optional[dict] = None,
+        deployments: Optional[List[Any]] = None
+    ) -> List[dict]:
         matched = []
+        matched_ids = set()
         name_lower = component_name.lower().replace("_", "-")
 
         explicit_container = (spec_portainer.get("container_name") or "").lower() if spec_portainer else ""
         explicit_stack = (spec_portainer.get("stack_name") or "").lower() if spec_portainer else ""
         explicit_ep = spec_portainer.get("endpoint_id") if spec_portainer else None
 
+        # Processa deployments do catálogo (extrai IPs e Portas alvos)
+        parsed_deployments = []
+        if deployments:
+            for dep in deployments:
+                if isinstance(dep, dict):
+                    server_ip = dep.get("server_ip")
+                    port = dep.get("port")
+                    server_name = dep.get("server_name")
+                    url = dep.get("url")
+                else:
+                    server_ip = getattr(dep, "server_ip", None)
+                    port = getattr(dep, "port", None)
+                    server_name = getattr(dep, "server_name", None)
+                    url = getattr(dep, "url", None)
+
+                target_ips = set()
+                if server_ip and str(server_ip).strip():
+                    target_ips.add(str(server_ip).strip().lower())
+                if server_name and str(server_name).strip():
+                    target_ips.add(str(server_name).strip().lower())
+
+                target_ports = set()
+                if port is not None and str(port).strip():
+                    for p_str in re.findall(r'\d+', str(port)):
+                        target_ports.add(p_str)
+
+                if url and str(url).strip():
+                    try:
+                        parsed = urllib.parse.urlparse(str(url).strip())
+                        if parsed.hostname:
+                            target_ips.add(parsed.hostname.lower())
+                        if parsed.port:
+                            target_ports.add(str(parsed.port))
+                    except Exception:
+                        pass
+
+                if target_ips or target_ports:
+                    parsed_deployments.append({
+                        "target_ips": target_ips,
+                        "target_ports": target_ports
+                    })
+
         for c in containers:
-            if explicit_ep is not None and c.get("endpoint_id") != explicit_ep:
+            c_id = c.get("id")
+            if not c_id or c_id in matched_ids:
                 continue
 
             c_name = c["name"].lower().replace("_", "-")
             c_stack = (c.get("stack_name") or "").lower().replace("_", "-")
             c_service = (c.get("service_name") or "").lower().replace("_", "-")
 
-            # 1. Checa correspondência explícita do manifesto
-            if explicit_container and explicit_container in c_name:
-                matched.append(c)
-                continue
-            if explicit_stack and explicit_stack == c_stack:
-                matched.append(c)
-                continue
+            # 1. Checa correspondência explícita do manifesto (spec.portainer)
+            if spec_portainer:
+                if explicit_ep is None or c.get("endpoint_id") == explicit_ep:
+                    if explicit_container and explicit_container in c_name:
+                        matched.append(c)
+                        matched_ids.add(c_id)
+                        continue
+                    if explicit_stack and explicit_stack == c_stack:
+                        matched.append(c)
+                        matched_ids.add(c_id)
+                        continue
 
-            # 2. Checa correspondência por convenção (nome do componente igual ao container, serviço docker-compose ou stack)
+            # 2. Checa correspondência via Deployments do Catálogo (IP e Porta)
+            if parsed_deployments:
+                c_ports = set()
+                for rp in c.get("raw_ports", []) or []:
+                    if rp.get("PublicPort"):
+                        c_ports.add(str(rp["PublicPort"]))
+                    if rp.get("PrivatePort"):
+                        c_ports.add(str(rp["PrivatePort"]))
+                for p_str in c.get("ports", []) or []:
+                    for num in re.findall(r'\d+', str(p_str)):
+                        c_ports.add(num)
+
+                c_hosts_ips = set()
+                if c.get("endpoint_name"):
+                    c_hosts_ips.add(str(c["endpoint_name"]).lower())
+                if c.get("endpoint_public_url"):
+                    ep_url = str(c["endpoint_public_url"]).lower()
+                    c_hosts_ips.add(ep_url)
+                    try:
+                        p_url = urllib.parse.urlparse(ep_url if "://" in ep_url else f"http://{ep_url}")
+                        if p_url.hostname:
+                            c_hosts_ips.add(p_url.hostname.lower())
+                    except Exception:
+                        pass
+
+                for net_ip in c.get("network_ips", []) or []:
+                    c_hosts_ips.add(str(net_ip).lower())
+
+                for rp in c.get("raw_ports", []) or []:
+                    rp_ip = rp.get("IP")
+                    if rp_ip and rp_ip not in ("0.0.0.0", "::", "127.0.0.1"):
+                        c_hosts_ips.add(str(rp_ip).lower())
+
+                dep_matched = False
+                for p_dep in parsed_deployments:
+                    t_ips = p_dep["target_ips"]
+                    t_ports = p_dep["target_ports"]
+
+                    port_matched = bool(t_ports and t_ports.intersection(c_ports))
+                    ip_matched = False
+
+                    if t_ips:
+                        for tip in t_ips:
+                            if tip in ("0.0.0.0", "*"):
+                                ip_matched = True
+                                break
+                            if tip in c_hosts_ips:
+                                ip_matched = True
+                                break
+                            for c_host in c_hosts_ips:
+                                if tip in c_host or c_host in tip:
+                                    ip_matched = True
+                                    break
+                            if ip_matched:
+                                break
+                    else:
+                        ip_matched = True
+
+                    if t_ips and t_ports:
+                        if ip_matched and port_matched:
+                            dep_matched = True
+                            break
+                    elif t_ports and not t_ips:
+                        if port_matched:
+                            dep_matched = True
+                            break
+                    elif t_ips and not t_ports:
+                        if ip_matched and (c_name == name_lower or name_lower in c_name or c_stack == name_lower or c_service == name_lower):
+                            dep_matched = True
+                            break
+
+                if dep_matched:
+                    matched.append(c)
+                    matched_ids.add(c_id)
+                    continue
+
+            # 3. Checa correspondência por convenção (nome do componente igual ao container, serviço docker-compose ou stack)
             if c_name == name_lower or c_name.startswith(f"{name_lower}-") or c_name.endswith(f"-{name_lower}") or f"-{name_lower}-" in c_name:
                 matched.append(c)
+                matched_ids.add(c_id)
                 continue
             if c_stack == name_lower:
                 matched.append(c)
+                matched_ids.add(c_id)
                 continue
             if c_service == name_lower:
                 matched.append(c)
+                matched_ids.add(c_id)
                 continue
 
         return matched

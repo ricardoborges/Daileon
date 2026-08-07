@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.db.models import Component
 from app.api.auth import get_current_user
@@ -14,8 +15,6 @@ from app.plugins.portainer.service import (
 )
 
 portainer_router = APIRouter(prefix="/plugins/portainer", tags=["portainer"])
-
-
 class PortainerConfigRequest(BaseModel):
     url: str
     api_key: str = ""
@@ -121,7 +120,11 @@ async def get_component_containers(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user)
 ):
-    result = await db.execute(select(Component).where(Component.id == component_id))
+    result = await db.execute(
+        select(Component)
+        .options(selectinload(Component.deployments))
+        .where(Component.id == component_id)
+    )
     c = result.scalar_one_or_none()
     if not c:
         raise HTTPException(status_code=404, detail="Componente não encontrado")
@@ -140,7 +143,8 @@ async def get_component_containers(
         all_containers = await PortainerService.fetch_containers(config)
         matched = PortainerService.match_containers_for_component(
             all_containers,
-            component_name=c.name
+            component_name=c.name,
+            deployments=c.deployments
         )
 
         return {

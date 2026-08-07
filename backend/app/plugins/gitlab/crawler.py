@@ -238,21 +238,46 @@ class SyncResult:
 
 
 class GitLabCrawlerService:
-    def __init__(self, gitlab_url: Optional[str] = None, token: Optional[str] = None):
-        self.base_url = (gitlab_url or settings.GITLAB_URL).rstrip("/")
-        self.token = token or settings.GITLAB_READ_TOKEN
+    def __init__(
+        self,
+        gitlab_url: Optional[str] = None,
+        token: Optional[str] = None,
+        group_id: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+    ):
+        if config:
+            self.base_url = (config.get("url") or settings.GITLAB_URL).rstrip("/")
+            self.token = config.get("read_token") or settings.GITLAB_READ_TOKEN
+            self.group_id = config.get("group_id") or settings.GITLAB_GROUP_ID
+        else:
+            self.base_url = (gitlab_url or settings.GITLAB_URL).rstrip("/")
+            self.token = token or settings.GITLAB_READ_TOKEN
+            self.group_id = group_id or settings.GITLAB_GROUP_ID
+
         self.headers = {}
-        if self.token:
+        if self.token and self.token != "******":
             self.headers["PRIVATE-TOKEN"] = self.token
+
+    @classmethod
+    async def create(
+        cls,
+        db: AsyncSession,
+        gitlab_url: Optional[str] = None,
+        token: Optional[str] = None,
+        group_id: Optional[str] = None,
+    ):
+        from app.plugins.gitlab.service import get_effective_gitlab_config
+        config = await get_effective_gitlab_config(db)
+        return cls(gitlab_url=gitlab_url, token=token, group_id=group_id, config=config)
 
     async def fetch_projects(self, group_id: Optional[str] = None) -> List[Dict[str, Any]]:
         projects = []
         page = 1
         per_page = 100
+        target_group = group_id or self.group_id or settings.GITLAB_GROUP_ID
         async with httpx.AsyncClient(headers=self.headers, timeout=20.0) as client:
             while True:
-                if group_id or settings.GITLAB_GROUP_ID:
-                    target_group = group_id or settings.GITLAB_GROUP_ID
+                if target_group:
                     url = f"{self.base_url}/api/v4/groups/{target_group}/projects?include_subgroups=true&page={page}&per_page={per_page}"
                 else:
                     url = f"{self.base_url}/api/v4/projects?membership=true&page={page}&per_page={per_page}"
