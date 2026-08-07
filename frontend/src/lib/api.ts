@@ -619,5 +619,144 @@ export async function fetchSolutionDetail(solutionName: string): Promise<Solutio
   return res.json();
 }
 
+export interface PluginBackendInfo {
+  id: string;
+  name: string;
+  version: string;
+  type: string;
+  category: string;
+  has_router: boolean;
+  status: string;
+}
+
+export async function fetchBackendPlugins(): Promise<PluginBackendInfo[]> {
+  const res = await authFetch(`${API_BASE}/plugins`);
+  if (!res.ok) throw new Error('Falha ao consultar plugins registrados no backend');
+  return res.json();
+}
+
+// -- Portainer Plugin API ---------------------------------------------------
+
+export interface PortainerConfig {
+  url: string;
+  api_key?: string;
+  api_key_masked?: string;
+  username?: string;
+  password?: string;
+  enabled: boolean;
+}
+
+export interface PortainerContainer {
+  id: string;
+  short_id: string;
+  name: string;
+  all_names: string[];
+  endpoint_id: number;
+  endpoint_name: string;
+  image: string;
+  state: 'running' | 'exited' | 'paused' | 'restarting' | 'created' | string;
+  status: string;
+  created: number;
+  ports: string[];
+  stack_name?: string;
+  service_name?: string;
+  labels?: Record<string, string>;
+}
+
+export interface PortainerComponentResponse {
+  component_id: number;
+  component_name: string;
+  configured: boolean;
+  portainer_url?: string;
+  message?: string;
+  error?: string;
+  containers_count?: number;
+  containers: PortainerContainer[];
+}
+
+export interface PortainerContainerStats {
+  container_id: string;
+  endpoint_id: number;
+  cpu_percent: number;
+  memory_usage_mb: number;
+  memory_limit_mb: number;
+  memory_percent: number;
+  rx_kb: number;
+  tx_kb: number;
+  online_cpus: number;
+}
+
+export interface PortainerContainerLogs {
+  container_id: string;
+  endpoint_id: number;
+  lines_count: number;
+  logs: string;
+}
+
+export async function fetchPortainerConfig(): Promise<PortainerConfig> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações do Portainer');
+  return res.json();
+}
+
+export async function savePortainerConfig(config: PortainerConfig): Promise<{ message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configurações do Portainer');
+  }
+  return res.json();
+}
+
+export async function testPortainerConfig(config: PortainerConfig): Promise<{ success: boolean; message: string; version?: string; endpoints_count?: number }> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/test-connection`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao testar conexão com o Portainer');
+  }
+  return res.json();
+}
+
+export async function fetchComponentPortainer(componentId: number): Promise<PortainerComponentResponse> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/catalog/${componentId}/containers`);
+  if (!res.ok) throw new Error('Falha ao carregar containers do Portainer');
+  return res.json();
+}
+
+export async function fetchPortainerContainerStats(endpointId: number, containerId: string): Promise<PortainerContainerStats> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${endpointId}/${containerId}/stats`);
+  if (!res.ok) throw new Error('Falha ao carregar métricas do container');
+  return res.json();
+}
+
+export async function fetchPortainerContainerLogs(endpointId: number, containerId: string, tail = 150): Promise<PortainerContainerLogs> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${endpointId}/${containerId}/logs?tail=${tail}`);
+  if (!res.ok) throw new Error('Falha ao buscar logs do container');
+  return res.json();
+}
+
+export async function postPortainerContainerAction(endpointId: number, containerId: string, action: 'start' | 'stop' | 'restart'): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${endpointId}/${containerId}/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action })
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || `Falha ao executar ação '${action}' no container`);
+  }
+  return res.json();
+}
+
+
+
 
 

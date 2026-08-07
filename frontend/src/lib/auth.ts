@@ -51,7 +51,7 @@ function createAuthStore() {
         update(s => ({ ...s, user: null, token: null, loading: false }));
       }
     },
-    login: async (username: string, password: str) => {
+    login: async (username: string, password: string) => {
       update(s => ({ ...s, loading: true, error: null }));
       try {
         const res = await fetch('/api/auth/login', {

@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     JENKINS_URL: str = os.getenv("JENKINS_URL", "https://jenkins.example.com")
     JENKINS_USER: str = os.getenv("JENKINS_USER", "")
     JENKINS_API_TOKEN: str = os.getenv("JENKINS_API_TOKEN", "")
+
+    # Portainer API Configuration
+    PORTAINER_URL: str = os.getenv("PORTAINER_URL", "http://localhost:9000")
+    PORTAINER_API_KEY: str = os.getenv("PORTAINER_API_KEY", "")
+    PORTAINER_USER: str = os.getenv("PORTAINER_USER", "")
+    PORTAINER_PASSWORD: str = os.getenv("PORTAINER_PASSWORD", "")
+
     # Break-Glass Admin Configuration
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"

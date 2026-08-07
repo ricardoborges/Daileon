@@ -1,6 +1,6 @@
 import pytest
 from app.catalog.manifest import DaileonManifest, ManifestSpec, ManifestJenkinsPipeline
-from app.jenkins.jenkins_service import format_jenkins_job_url, fetch_jenkins_job_status, get_jenkins_candidate_api_urls, normalize_jenkins_url
+from app.plugins.jenkins.service import format_jenkins_job_url, fetch_jenkins_job_status, get_jenkins_candidate_api_urls, normalize_jenkins_url
 
 def test_jenkins_url_candidate_generation():
     base = "https://jenkins.csi.mpba.mp.br"

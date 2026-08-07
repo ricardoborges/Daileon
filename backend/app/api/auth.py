@@ -10,7 +10,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import get_db
 from app.db.models import SystemSetting
-from app.auth.ldap import LDAPAuthService
+from app.plugins.ldap import LDAPAuthService
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 

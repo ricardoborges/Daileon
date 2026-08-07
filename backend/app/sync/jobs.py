@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.db.session import AsyncSessionLocal
-from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode, SyncOptions
+from app.plugins.gitlab import GitLabCrawlerService, SyncMode, SyncOptions
 
 logger = logging.getLogger(__name__)
 

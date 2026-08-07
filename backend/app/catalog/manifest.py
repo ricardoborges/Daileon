@@ -48,6 +48,11 @@ class ManifestJenkinsConfig(BaseModel):
     server_url: Optional[str] = None
     pipelines: List[ManifestJenkinsPipeline] = Field(default_factory=list)
 
+class ManifestPortainerConfig(BaseModel):
+    container_name: Optional[str] = None
+    stack_name: Optional[str] = None
+    endpoint_id: Optional[int] = None
+
 class ManifestDeployment(BaseModel):
     environment: str = "production"
     url: Optional[str] = None
@@ -75,7 +80,9 @@ class ManifestSpec(BaseModel):
     dependencies: List[ManifestDependency] = Field(default_factory=list)
     dependents: List[ManifestDependency] = Field(default_factory=list)
     jenkins: Optional[ManifestJenkinsConfig] = None
+    portainer: Optional[ManifestPortainerConfig] = None
     deployments: List[ManifestDeployment] = Field(default_factory=list)
+
 
     def get_solution(self) -> Optional[str]:
         return self.solution or self.system

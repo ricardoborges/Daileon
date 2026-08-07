@@ -1,5 +1,5 @@
 import pytest
-from app.gitlab.risk_scanner import scan_repository_tree, scan_file_content
+from app.plugins.gitlab.risk_scanner import scan_repository_tree, scan_file_content
 
 def test_scan_repository_tree_detects_versioned_env():
     tree = [
