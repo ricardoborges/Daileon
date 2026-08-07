@@ -183,7 +183,7 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
     config: {
       eyebrow: 'Console de Administração',
       title: 'Configurações do Sistema',
-      tabSync: 'Sincronização & GitLab',
+      tabSync: 'Sync',
       tabLdap: 'Configurações LDAP',
       tabOrg: 'Organização',
       opUpdateLabel: 'Sincronizar',
@@ -683,7 +683,7 @@ const translations: Record<SupportedLocale, Record<string, any>> = {
     config: {
       eyebrow: 'Admin Console',
       title: 'System Settings',
-      tabSync: 'Sync & GitLab',
+      tabSync: 'Sync',
       tabLdap: 'LDAP Settings',
       tabOrg: 'Organization',
       opUpdateLabel: 'Synchronize',
