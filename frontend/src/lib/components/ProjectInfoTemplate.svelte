@@ -2,6 +2,8 @@
   import { t } from '$lib/i18n';
   import { Copy, Check, Download, FileCode, BookOpen, Layers, Server, Terminal, Shield, Workflow, Link as LinkIcon, Cpu } from 'lucide-svelte';
 
+  let activeMode: 'component' | 'resource' = 'component';
+
   const defaultTemplateYaml = `apiVersion: daileon/v1
 kind: Component
 metadata:
@@ -65,20 +67,67 @@ spec:
       notes: "Servidor de testes local"
 `;
 
+  const resourceTemplateYaml = `apiVersion: daileon/v1
+kind: Resource
+metadata:
+  name: bc-ccs
+  description: "Serviço e recurso compartilhado de consulta de relacionamentos no CCS do BACEN."
+  tags:
+    - resource
+    - bacen
+    - ccs
+    - shared-service
+  owner: team-platform-engineering
+  domain: banking-services
+
+spec:
+  type: service
+  lifecycle: production
+  solution: bacen-integration
+  
+  docs:
+    dir: /docs
+    index: index.md
+  
+  links:
+    - url: https://bc-ccs.empresa.com/status
+      title: Painel de Monitoramento CCS
+      icon: dashboard
+
+  dependencies:
+    - resource: Credilink
+    - resource: enviosms
+
+  dependents:
+    - component: strix-api
+
+  deployments:
+    - environment: production
+      url: https://bc-ccs.empresa.com
+      server_name: srv-prod-res01
+      server_ip: 10.0.5.10
+      os: "Linux Ubuntu 22.04 LTS"
+      execution_type: Docker
+      port: 8443
+      notes: "Serviço de infraestrutura de consulta CCS"
+`;
+
+  $: activeYaml = activeMode === 'resource' ? resourceTemplateYaml : defaultTemplateYaml;
+
   let copied = false;
 
   function copyTemplate() {
-    navigator.clipboard.writeText(defaultTemplateYaml);
+    navigator.clipboard.writeText(activeYaml);
     copied = true;
     setTimeout(() => (copied = false), 2500);
   }
 
   function downloadTemplate() {
-    const blob = new Blob([defaultTemplateYaml], { type: 'text/yaml;charset=utf-8;' });
+    const blob = new Blob([activeYaml], { type: 'text/yaml;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'project-info.yml';
+    link.download = activeMode === 'resource' ? 'project-info-resource.yml' : 'project-info.yml';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -97,11 +146,28 @@ spec:
           <div class="flex items-center gap-2">
             <FileCode class="w-4 h-4 t-visor" />
             <span class="text-sm font-bold tracking-tight text-[var(--txt)]">
-              project-info.yml (Template de Referência)
+              project-info.yml ({activeMode === 'resource' ? 'Template de Recurso' : 'Template de Componente'})
             </span>
           </div>
 
           <div class="flex items-center gap-2">
+            <div class="inline-flex rounded-lg p-0.5 bg-[var(--bg)] border border-[var(--line)] mr-2">
+              <button
+                type="button"
+                on:click={() => (activeMode = 'component')}
+                class="px-2.5 py-1 text-xs font-semibold rounded transition-colors {activeMode === 'component' ? 'bg-[var(--card)] t-visor shadow-sm' : 't-faint hover:t-txt'}"
+              >
+                Componente
+              </button>
+              <button
+                type="button"
+                on:click={() => (activeMode = 'resource')}
+                class="px-2.5 py-1 text-xs font-semibold rounded transition-colors {activeMode === 'resource' ? 'bg-[var(--card)] t-visor shadow-sm' : 't-faint hover:t-txt'}"
+              >
+                Recurso (Resource)
+              </button>
+            </div>
+
             <button
               on:click={copyTemplate}
               class="btn btn-sm btn-ghost flex items-center gap-1.5 text-xs font-mono border border-[var(--line)]"
@@ -126,7 +192,7 @@ spec:
         </div>
 
         <div class="rounded border border-[var(--line)] code-slab overflow-hidden">
-          <pre class="p-5 font-mono text-xs t-txt overflow-x-auto max-h-[580px] leading-relaxed select-all"><code>{defaultTemplateYaml}</code></pre>
+          <pre class="p-5 font-mono text-xs t-txt overflow-x-auto max-h-[580px] leading-relaxed select-all"><code>{activeYaml}</code></pre>
         </div>
       </div>
     </div>
@@ -215,7 +281,7 @@ spec:
           <span>spec & docs</span>
         </div>
         <ul class="text-xs space-y-1.5 t-dim font-mono">
-          <li><b class="t-txt font-sans">type:</b> Tipo da aplicação (service/website/etc).</li>
+          <li><b class="t-txt font-sans">type:</b> Tipo da aplicação (service, website, database, library, etc).</li>
           <li><b class="t-txt font-sans">lifecycle:</b> Fase do ciclo (production/etc).</li>
           <li><b class="t-txt font-sans">solution:</b> Solução à qual o componente pertence (ex: Strix).</li>
           <li><b class="t-txt font-sans">docs.dir:</b> Pasta com docs Markdown (/docs).</li>

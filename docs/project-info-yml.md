@@ -318,14 +318,14 @@ O que muda entre eles é **o quanto o resto do sistema reconhece o valor**:
 
 Ou seja: hoje `kind` é praticamente decorativo. Fica reservado para quando o catálogo passar a separar APIs e bibliotecas em visões próprias. **Recomendação:** fique nos três valores da convenção para não gerar dívida quando esse filtro existir.
 
-### `type` — aberto, com efeito real de filtro
+### `type` — aberto, com efeito real de filtro e no grafo de dependências
 
 | | |
 | --- | --- |
 | Validação | Nenhuma |
 | Padrão | `service` (quando o manifesto existe e omite o campo) |
-| Convenção do projeto | `service`, `website`, `library`, `cronjob` |
-| Uso atual | Exibido como chip no card e na página do componente; alimenta o filtro **"Tipo"** do catálogo e o contador "Serviços" na home. |
+| Convenção do projeto | `service`, `website`, `library`, `cronjob`, `database` |
+| Uso atual | Exibido como chip no card e na página do componente; alimenta o filtro **"Tipo"** do catálogo e o contador "Serviços" na home. **Componentes com `type: database` ganham representação em formato de cilindro (banco de dados) no grafo de dependências.** |
 
 O filtro é montado **dinamicamente a partir dos valores presentes no catálogo** — então um `type: lambda` novo simplesmente aparece como mais uma opção no dropdown. Isso é flexível, mas significa que erros de digitação viram categorias fantasma (`servcie` vira um filtro próprio). Padronize dentro do time.
 

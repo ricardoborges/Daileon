@@ -38,6 +38,12 @@ IGNORE_MARKER = ".daileon-ignore"
 DOC_EXTENSIONS = {
     ".md": "markdown",
     ".markdown": "markdown",
+    ".mdown": "markdown",
+    ".mkdn": "markdown",
+    ".txt": "markdown",
+    ".rst": "markdown",
+    ".adoc": "markdown",
+    ".asciidoc": "markdown",
     ".pdf": "pdf",
     ".docx": "docx",
     ".png": "image",
@@ -46,6 +52,12 @@ DOC_EXTENSIONS = {
     ".gif": "image",
     ".webp": "image",
     ".bmp": "image",
+    ".svg": "image",
+    ".json": "markdown",
+    ".yaml": "markdown",
+    ".yml": "markdown",
+    ".html": "markdown",
+    ".htm": "markdown",
 }
 
 BINARY_DOC_TYPES = frozenset({"pdf", "image", "docx"})
@@ -329,31 +341,43 @@ class GitLabCrawlerService:
         self, project_id: int, docs_dir: str, ref: str = "main"
     ) -> Optional[List[Dict[str, Any]]]:
         clean_dir = docs_dir.strip("/")
+        candidate_dirs = [clean_dir] if clean_dir else [""]
+        if clean_dir and clean_dir.lower() in ("docs", "doc"):
+            for alt in ["docs", "Docs", "DOCS", "documentation", "Documentation"]:
+                if alt not in candidate_dirs:
+                    candidate_dirs.append(alt)
+
         blobs = []
         page = 1
         per_page = 100
         max_pages = 20
 
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
-            while page <= max_pages:
-                if clean_dir:
-                    url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={quote(clean_dir, safe='')}&recursive=true&ref={ref}&page={page}&per_page={per_page}"
-                else:
-                    url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?recursive=true&ref={ref}&page={page}&per_page={per_page}"
-                try:
-                    resp = await client.get(url)
-                    if resp.status_code == 200:
-                        tree = resp.json()
-                        if not tree or not isinstance(tree, list):
-                            break
-                        blobs.extend(i for i in tree if i.get("type") == "blob")
-                        page += 1
-                        if len(tree) < per_page:
-                            break
+            for target_dir in candidate_dirs:
+                page = 1
+                blobs = []
+                while page <= max_pages:
+                    if target_dir:
+                        url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?path={quote(target_dir, safe='')}&recursive=true&ref={ref}&page={page}&per_page={per_page}"
                     else:
+                        url = f"{self.base_url}/api/v4/projects/{project_id}/repository/tree?recursive=true&ref={ref}&page={page}&per_page={per_page}"
+                    try:
+                        resp = await client.get(url)
+                        if resp.status_code == 200:
+                            tree = resp.json()
+                            if not tree or not isinstance(tree, list):
+                                break
+                            blobs.extend(i for i in tree if i.get("type") == "blob")
+                            page += 1
+                            if len(tree) < per_page:
+                                break
+                        else:
+                            break
+                    except Exception as e:
+                        logger.error(f"Error fetching docs tree for project {project_id}: {e}")
                         break
-                except Exception as e:
-                    logger.error(f"Error fetching docs tree for project {project_id}: {e}")
+                if blobs:
+                    clean_dir = target_dir
                     break
             else:
                 logger.warning(
@@ -927,7 +951,7 @@ class GitLabCrawlerService:
 
             for doc_item in docs_tree:
                 file_path = doc_item["path"]
-                if file_path.lower().endswith("readme.md") and readme_content:
+                if (file_path.lower() == readme_path.lower() or file_path.lower() == "readme.md") and readme_content:
                     continue
                 if any(file_path.startswith(prefix) for prefix in foreign_prefixes):
                     continue
@@ -955,11 +979,11 @@ class GitLabCrawlerService:
                 else:
                     doc_bytes = None
                     doc_content = await self.fetch_file_content(project_id, file_path, ref=default_branch)
-                    if not doc_content:
+                    if doc_content is None:
                         continue
 
                 clean_dir = component.docs_dir.strip("/")
-                if is_fallback or not clean_dir or not file_path.startswith(clean_dir):
+                if is_fallback or not clean_dir or not file_path.lower().startswith(clean_dir.lower()):
                     rel_path = file_path[len(sub_dir):].lstrip("/") if sub_dir and file_path.startswith(sub_dir) else file_path
                 else:
                     rel_path = file_path[len(clean_dir):].lstrip("/")
@@ -978,7 +1002,10 @@ class GitLabCrawlerService:
 
             await db.execute(delete(ComponentRisk).where(ComponentRisk.component_id == component.id))
             
-            risk_findings = scan_repository_tree(repo_tree)
+            catalog_type = component.type if (component.type and component.type != "unknown") else component.kind
+            if component.kind and component.kind.lower() == "resource":
+                catalog_type = "resource"
+            risk_findings = scan_repository_tree(repo_tree, catalog_type=catalog_type)
 
             target_config_files = []
             for item in repo_tree:

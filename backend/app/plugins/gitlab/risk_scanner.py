@@ -51,7 +51,10 @@ class RiskFinding:
         }
 
 
-def scan_repository_tree(tree: List[Dict[str, Any]]) -> List[RiskFinding]:
+def scan_repository_tree(
+    tree: List[Dict[str, Any]],
+    catalog_type: Optional[str] = None
+) -> List[RiskFinding]:
     """Escaneia a lista de caminhos de arquivos do repositório."""
     findings: List[RiskFinding] = []
     has_gitignore = False
@@ -132,7 +135,9 @@ def scan_repository_tree(tree: List[Dict[str, Any]]) -> List[RiskFinding]:
                     file_path=path
                 ))
 
-    if not has_gitignore and len(paths) > 0:
+    is_resource = bool(catalog_type and catalog_type.lower().strip() == "resource")
+
+    if not has_gitignore and len(paths) > 0 and not is_resource:
         findings.append(RiskFinding(
             severity="warning",
             category="unignored_env",

@@ -136,6 +136,10 @@
         {$t('graph.legendResource')}
       </span>
       <span class="flex items-center gap-1.5">
+        <span class="inline-block w-3 h-2.5 border-2 rounded-sm" style="border-color: var(--visor);"></span>
+        {$t('graph.legendDatabase')}
+      </span>
+      <span class="flex items-center gap-1.5">
         <span class="inline-block w-3 h-2.5 border" style="border-color: var(--alert);"></span>
         {$t('graph.legendDeprecated')}
       </span>

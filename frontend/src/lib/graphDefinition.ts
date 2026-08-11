@@ -37,6 +37,7 @@ export function mermaidLabel(text: string): string {
 /** A classe visual de um nó, na ordem em que os estados se sobrepõem. */
 export function nodeClass(node: GraphNode): string {
   if (node.is_root) return 'raiz';
+  if ((node.type || '').toLowerCase() === 'database' || (node.type || '').toLowerCase() === 'db') return 'database';
   if (node.is_resource) return 'recurso';
   if (node.is_external) return 'externo';
   if (!node.resolved) return 'fantasma';
@@ -51,8 +52,11 @@ export function buildGraphDefinition(graph: DependencyGraph, palette: GraphPalet
 
   for (const node of graph.nodes) {
     const label = mermaidLabel(node.name);
-    // Alvo externo, recurso ou não resolvido ganha outra forma:
-    if (node.is_resource) {
+    const isDb = (node.type || '').toLowerCase() === 'database' || (node.type || '').toLowerCase() === 'db';
+    // Banco de dados ganha forma de cilindro [("label")], recursos hexagon, externos retângulos duplos:
+    if (isDb) {
+      lines.push(`  ${node.id}[("${label}")]`);
+    } else if (node.is_resource) {
       lines.push(`  ${node.id}{{"${label}"}}`);
     } else if (node.is_external) {
       lines.push(`  ${node.id}[["${label}"]]`);
@@ -83,7 +87,8 @@ export function buildGraphDefinition(graph: DependencyGraph, palette: GraphPalet
     `  classDef fantasma fill:${p.surface},stroke:${p.crest},stroke-width:1.5px,color:${p.crest},stroke-dasharray: 4 3`,
     `  classDef depreciado fill:${p.surface2},stroke:${p.alert},stroke-width:1.5px,color:${p.alert}`,
     `  classDef externo fill:${p.surface3},stroke:${p.ok},stroke-width:2px,color:${p.ok}`,
-    `  classDef recurso fill:${p.surface3},stroke:${p.visor},stroke-width:2px,color:${p.visor}`
+    `  classDef recurso fill:${p.surface3},stroke:${p.visor},stroke-width:2px,color:${p.visor}`,
+    `  classDef database fill:${p.surface3},stroke:${p.visor},stroke-width:2px,color:${p.visor}`
   );
 
   const grouped = new Map<string, string[]>();

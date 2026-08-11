@@ -129,7 +129,7 @@
   let copied = false;
 
   const kindOptions = ['Component', 'API', 'Library', 'Resource', 'System'];
-  const typeOptions = ['service', 'website', 'library', 'cronjob', 'mobile', 'cli'];
+  const typeOptions = ['service', 'website', 'library', 'cronjob', 'database', 'mobile', 'cli'];
   const lifecycleOptions = ['production', 'experimental', 'deprecated'];
   const executionTypeOptions = ['Docker', 'VM', 'Bare-Metal', 'Serverless', 'Static'];
   const environmentOptions = ['production', 'staging', 'test', 'development'];
@@ -295,7 +295,7 @@
     URL.revokeObjectURL(url);
   }
 
-  function loadPreset(preset: 'web' | 'api' | 'job' | 'clear') {
+  function loadPreset(preset: 'web' | 'api' | 'job' | 'resource' | 'clear') {
     if (preset === 'clear') {
       kind = 'Component';
       name = '';
@@ -312,6 +312,7 @@
       jenkinsPipelines = [];
       links = [];
       dependencies = [];
+      dependents = [];
       return;
     }
 
@@ -425,6 +426,41 @@
       ];
       links = [];
       dependencies = [];
+    } else if (preset === 'resource') {
+      kind = 'Resource';
+      name = 'bc-ccs';
+      description = 'Serviço e recurso compartilhado de consulta de relacionamentos no CCS do BACEN.';
+      owner = 'team-platform-engineering';
+      domain = 'banking-services';
+      tags = 'resource, bacen, ccs, shared-service';
+      type = 'service';
+      lifecycle = 'production';
+      solution = 'bacen-integration';
+      docsDir = '/docs';
+      docsIndex = 'index.md';
+      deployments = [
+        {
+          environment: 'production',
+          server_name: 'srv-prod-res01',
+          server_ip: '10.0.5.10',
+          os: 'Linux Ubuntu 22.04 LTS',
+          execution_type: 'Docker',
+          port: '8443',
+          url: 'https://bc-ccs.empresa.com',
+          notes: 'Serviço de infraestrutura de consulta CCS'
+        }
+      ];
+      jenkinsPipelines = [];
+      links = [
+        { title: 'Painel BACEN CCS', url: 'https://bc-ccs.empresa.com/status', icon: 'dashboard' }
+      ];
+      dependencies = [
+        { resource: 'Credilink', isResource: true, type: 'resource' },
+        { resource: 'enviosms', isResource: true, type: 'resource' }
+      ];
+      dependents = [
+        { component: 'strix-api' }
+      ];
     }
   }
 
@@ -501,6 +537,9 @@
       </button>
       <button on:click={() => loadPreset('job')} class="btn btn-sm btn-ghost text-xs">
         {$t('tools.builder.presetJob')}
+      </button>
+      <button on:click={() => loadPreset('resource')} class="btn btn-sm btn-ghost text-xs">
+        Recurso / Infra
       </button>
       <button on:click={() => loadPreset('clear')} class="btn btn-sm px-2 text-xs opacity-75 hover:opacity-100 flex items-center gap-1">
         <RefreshCw class="w-3 h-3" />
@@ -1018,36 +1057,37 @@
                 <div class="flex items-center gap-2">
                   <input
                     type="text"
-                    value={dep.isExternal ? (dep.external || '') : (dep.component || '')}
+                    value={dep.isResource ? (dep.resource || '') : dep.isExternal ? (dep.external || '') : (dep.component || '')}
                     on:input={(e) => {
                       const val = e.currentTarget.value;
-                      if (dep.isExternal) {
+                      if (dep.isResource) {
+                        dep.resource = val;
+                      } else if (dep.isExternal) {
                         dep.external = val;
                       } else {
                         dep.component = val;
                       }
                     }}
-                    placeholder={dep.isExternal ? "Nome do projeto externo (ex: IDEA 2)" : "Nome do componente dependente (ex: IDEA 2)"}
+                    placeholder={dep.isResource ? "Nome do recurso dependente (ex: bc-ccs)" : dep.isExternal ? "Nome do projeto externo dependente (ex: IDEA 2)" : "Nome do componente dependente (ex: strix-api)"}
                     class="field field-mono flex-1"
                   />
-                  <label class="flex items-center gap-1 text-xs t-muted cursor-pointer select-none px-2 py-1 rounded bg-[var(--card)] border border-[var(--line)]">
-                    <input
-                      type="checkbox"
-                      checked={!!dep.isExternal}
-                      on:change={(e) => {
-                        const checked = e.currentTarget.checked;
-                        dep.isExternal = checked;
-                        if (checked) {
-                          dep.external = dep.component || dep.external || '';
-                          dep.component = '';
-                        } else {
-                          dep.component = dep.external || dep.component || '';
-                          dep.external = '';
-                        }
-                      }}
-                    />
-                    <span>Externo</span>
-                  </label>
+                  <select
+                    value={dep.isResource ? 'resource' : dep.isExternal ? 'external' : 'component'}
+                    on:change={(e) => {
+                      const mode = e.currentTarget.value;
+                      const currentVal = dep.resource || dep.external || dep.component || '';
+                      dep.isResource = mode === 'resource';
+                      dep.isExternal = mode === 'external';
+                      dep.resource = mode === 'resource' ? currentVal : '';
+                      dep.external = mode === 'external' ? currentVal : '';
+                      dep.component = mode === 'component' ? currentVal : '';
+                    }}
+                    class="field text-xs py-1 px-2 select-none bg-[var(--card)] border border-[var(--line)] rounded"
+                  >
+                    <option value="component">Componente</option>
+                    <option value="external">Externo</option>
+                    <option value="resource">Recurso</option>
+                  </select>
                   <button
                     on:click={() => removeDependent(d)}
                     title="Remover Dependente"
