@@ -130,7 +130,7 @@ def test_get_component_detail(client, component):
     assert data["name"] == component["name"]
     assert data["docs_count"] == 5
     assert "python" in data["tags"]
-    assert data["dependencies"] == [{"name": "outro-componente", "is_external": False}]
+    assert data["dependencies"] == [{"name": "outro-componente", "is_external": False, "is_resource": False}]
 
 def test_get_component_detail_inexistente(client):
     assert client.get("/api/catalog/99999").status_code == 404

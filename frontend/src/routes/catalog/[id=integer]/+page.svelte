@@ -412,7 +412,11 @@
               {:else}
                 <ul class="flex flex-wrap gap-1.5">
                   {#each component.dependencies as dep}
-                    {#if typeof dep === 'object' && dep.is_external}
+                    {#if typeof dep === 'object' && dep.is_resource}
+                      <li class="tag t-visor border-cyan-500/30 text-xs">
+                        {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(recurso)</span>
+                      </li>
+                    {:else if typeof dep === 'object' && dep.is_external}
                       <li class="tag t-ok border-emerald-500/30 text-xs">
                         {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(externo)</span>
                       </li>
@@ -436,7 +440,11 @@
               {:else}
                 <ul class="flex flex-wrap gap-1.5">
                   {#each component.dependents as dep}
-                    {#if typeof dep === 'object' && dep.is_external}
+                    {#if typeof dep === 'object' && dep.is_resource}
+                      <li class="tag t-visor border-cyan-500/30 text-xs">
+                        {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(recurso)</span>
+                      </li>
+                    {:else if typeof dep === 'object' && dep.is_external}
                       <li class="tag t-ok border-emerald-500/30 text-xs">
                         {dep.name} <span class="text-[10px] opacity-75 font-mono ml-1">(externo)</span>
                       </li>

@@ -43,6 +43,7 @@ class ComponentDependency(Base):
     source_component_id: Mapped[int] = mapped_column(Integer, ForeignKey("components.id", ondelete="CASCADE"), index=True)
     target_component_name: Mapped[str] = mapped_column(String(100))
     is_external: Mapped[bool] = mapped_column(default=False)
+    is_resource: Mapped[bool] = mapped_column(default=False)
     is_dependent: Mapped[bool] = mapped_column(default=False)
 
     component: Mapped["Component"] = relationship("Component", back_populates="dependencies", lazy="raise")

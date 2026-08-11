@@ -262,7 +262,9 @@ spec:
           <li><b class="t-txt font-sans">links[].url:</b> Endereço web externo/interno.</li>
           <li><b class="t-txt font-sans">links[].title:</b> Título exibido no card.</li>
           <li><b class="t-txt font-sans">links[].icon:</b> api, docs, dashboard, etc.</li>
-          <li><b class="t-txt font-sans">dependencies[].component:</b> Nome de dependência.</li>
+          <li><b class="t-txt font-sans">dependencies[].component:</b> Nome de componente catalogado.</li>
+          <li><b class="t-txt font-sans">dependencies[].external:</b> Nome de sistema externo.</li>
+          <li><b class="t-txt font-sans">dependencies[].resource:</b> Nome de recurso/infraestrutura (ex: bc-ccs, Credilink).</li>
         </ul>
       </div>
 

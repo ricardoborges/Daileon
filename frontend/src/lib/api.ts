@@ -133,6 +133,7 @@ export interface RiskItem {
 export interface DependencyItemDetail {
   name: string;
   is_external: boolean;
+  is_resource?: boolean;
 }
 
 export interface ComponentItem {
@@ -187,6 +188,7 @@ export interface GraphNode {
   in_scope: boolean;
   is_root: boolean;
   is_external?: boolean;
+  is_resource?: boolean;
 }
 
 export interface GraphEdge {
@@ -196,6 +198,7 @@ export interface GraphEdge {
   resolved: boolean;
   in_cycle: boolean;
   is_external?: boolean;
+  is_resource?: boolean;
 }
 
 export interface GraphCycle {

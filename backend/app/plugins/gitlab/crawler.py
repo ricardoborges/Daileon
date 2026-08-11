@@ -805,6 +805,7 @@ class GitLabCrawlerService:
                                 source_component_id=component.id,
                                 target_component_name=target_name,
                                 is_external=dep.is_external_dep(),
+                                is_resource=dep.is_resource_dep(),
                                 is_dependent=False
                             ))
                 if manifest.spec.dependents:
@@ -815,6 +816,7 @@ class GitLabCrawlerService:
                                 source_component_id=component.id,
                                 target_component_name=target_name,
                                 is_external=dep.is_external_dep(),
+                                is_resource=dep.is_resource_dep(),
                                 is_dependent=True
                             ))
 

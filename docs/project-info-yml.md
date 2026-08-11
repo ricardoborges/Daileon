@@ -141,12 +141,16 @@ Omitir `url` ou `title` em qualquer item **invalida o manifesto inteiro** e o co
 
 ### 3.6. `spec.dependencies` e `spec.dependents`
 
-Declaração de dependências diretas (o que este projeto consome) e dependentes downstream (projetos internos ou externos que consomem este projeto):
+Declaração de dependências diretas (o que este projeto consome) e dependentes downstream (projetos internos, externos ou recursos de infraestrutura/serviços):
 
 ```yaml
 spec:
   dependencies:
-    - component: BCadastro
+    - component: Redmine
+    - resource: bc-ccs
+    - resource: Credilink
+    - resource: enviosms
+    - resource: bcadastro
 
   dependents:
     - component: IDEA 2
@@ -155,14 +159,15 @@ spec:
 | Campo | Tipo | Obrigatório | Efeito |
 | --- | --- | --- | --- |
 | `component` | string | Não* | Nome do componente catalogado ou dependente. |
-| `external` | string | Não* | Nome do projeto/sistema externo de outra empresa (sinalizado com cor destacada no grafo). |
+| `external` | string | Não* | Nome do projeto/sistema externo de outra empresa (sinalizado em verde/destacado no grafo). |
+| `resource` | string | Não* | Nome do recurso, serviço ou infraestrutura (ex: `bc-ccs`, `Credilink`, `enviosms`, `bcadastro`). Renderizado em formato de cilindro/recurso no grafo. |
 
-*\* Cada item deve informar `component` ou `external`.*
+*\* Cada item deve informar `component`, `external` ou `resource`.*
 
-- **`dependencies`**: Componentes dos quais o nosso projeto depende (`MeuProjeto ---> Target`).
-- **`dependents`**: Componentes ou sistemas externos que dependem do nosso projeto (`Dependent ---> MeuProjeto`).
+- **`dependencies`**: Componentes, sistemas externos ou recursos dos quais o nosso projeto depende (`MeuProjeto ---> Target`).
+- **`dependents`**: Componentes, sistemas externos ou recursos que dependem do nosso projeto (`Dependent ---> MeuProjeto`).
 
-Quando um sistema externo de outra empresa é declarado sob `dependents` (ou com `external: <nome>`), ele é inserido no grafo com direção apontando para o nosso projeto e sinalizado em cor de destaque (verde/externo).
+Quando um sistema externo é declarado com `external: <nome>`, ele é inserido no grafo e sinalizado como projeto externo. Quando um recurso/serviço é declarado com `resource: <nome>`, ele é exibido em formato característico de recurso (`[( "recurso" )]`) no grafo Mermaid.
 
 ### 3.7. `spec.jenkins`
 

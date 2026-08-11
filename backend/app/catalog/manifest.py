@@ -22,6 +22,7 @@ class ManifestLink(BaseModel):
 class ManifestDependency(BaseModel):
     component: Optional[str] = None
     external: Optional[str] = None
+    resource: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -33,10 +34,15 @@ class ManifestDependency(BaseModel):
     def get_target_name(self) -> Optional[str]:
         if self.external:
             return self.external
+        if self.resource:
+            return self.resource
         return self.component
 
     def is_external_dep(self) -> bool:
         return bool(self.external)
+
+    def is_resource_dep(self) -> bool:
+        return bool(self.resource)
 
 class ManifestJenkinsPipeline(BaseModel):
     name: str

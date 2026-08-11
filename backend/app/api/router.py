@@ -142,14 +142,16 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "dependencies": [
             {
                 "name": d.target_component_name,
-                "is_external": getattr(d, "is_external", False)
+                "is_external": getattr(d, "is_external", False),
+                "is_resource": getattr(d, "is_resource", False)
             }
             for d in c.dependencies if not getattr(d, "is_dependent", False)
         ],
         "dependents": [
             {
                 "name": d.target_component_name,
-                "is_external": getattr(d, "is_external", False)
+                "is_external": getattr(d, "is_external", False),
+                "is_resource": getattr(d, "is_resource", False)
             }
             for d in c.dependencies if getattr(d, "is_dependent", False)
         ],

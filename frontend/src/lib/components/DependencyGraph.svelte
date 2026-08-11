@@ -132,6 +132,10 @@
         {$t('graph.legendExternal')}
       </span>
       <span class="flex items-center gap-1.5">
+        <span class="inline-block w-3 h-2.5 border-2" style="border-color: var(--visor);"></span>
+        {$t('graph.legendResource')}
+      </span>
+      <span class="flex items-center gap-1.5">
         <span class="inline-block w-3 h-2.5 border" style="border-color: var(--alert);"></span>
         {$t('graph.legendDeprecated')}
       </span>
@@ -160,6 +164,8 @@
                   <li>
                     {#if nodeHref(node)}
                       <a href={nodeHref(node)} class="tag hover:t-visor transition-colors">{node.name}</a>
+                    {:else if node.is_resource}
+                      <span class="tag t-visor border-cyan-500/30" title={$t('graph.legendResource')}>{node.name} (recurso)</span>
                     {:else if node.is_external}
                       <span class="tag t-ok border-emerald-500/30" title={$t('graph.legendExternal')}>{node.name} (externo)</span>
                     {:else}
