@@ -4,7 +4,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
-from sqlalchemy.orm import joinedload, undefer
+from sqlalchemy.orm import joinedload, selectinload, undefer
 
 from app.api.aggregations import build_group_detail, group_components
 from app.api.graph import build_graph
@@ -374,6 +374,65 @@ async def get_solution_detail(solution_name: str, db: AsyncSession = Depends(get
     if not detail:
         raise HTTPException(status_code=404, detail="Solução não encontrada")
     return detail
+
+
+@protected_router.get("/resources")
+async def list_resources(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Component)
+        .options(
+            selectinload(Component.dependencies),
+            selectinload(Component.docs)
+        )
+    )
+    all_components = result.scalars().all()
+
+    resource_names = set()
+    for c in all_components:
+        for dep in c.dependencies:
+            if getattr(dep, "is_resource", False):
+                resource_names.add(dep.target_component_name.lower())
+
+    resources = []
+    for c in all_components:
+        is_res_entity = (
+            (c.kind and c.kind.lower() == "resource") or
+            (c.type and c.type.lower() == "resource") or
+            c.name.lower() in resource_names
+        )
+        if not is_res_entity:
+            continue
+
+        consumers = []
+        for other in all_components:
+            if other.id == c.id:
+                continue
+            for dep in other.dependencies:
+                if dep.target_component_name.lower() == c.name.lower() and not getattr(dep, "is_dependent", False):
+                    consumers.append({
+                        "id": other.id,
+                        "name": other.name,
+                        "type": other.type,
+                        "owner": other.owner
+                    })
+                    break
+
+        resources.append({
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+            "kind": c.kind or "Resource",
+            "type": c.type or "resource",
+            "owner": c.owner,
+            "has_manifest": c.has_manifest,
+            "docs_count": len(c.docs) if c.docs else 0,
+            "docs_dir": c.docs_dir,
+            "consumers": consumers,
+            "created_at": c.created_at.isoformat() if getattr(c, "created_at", None) else None
+        })
+
+    resources.sort(key=lambda r: r["name"].lower())
+    return resources
 
 
 

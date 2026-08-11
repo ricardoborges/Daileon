@@ -1,9 +1,9 @@
 /** Estado compartilhado das listagens do catálogo (aba e modo de visão). */
 
-export type CatalogEntity = 'projects' | 'solutions' | 'domains';
+export type CatalogEntity = 'projects' | 'solutions' | 'domains' | 'resources';
 export type ViewMode = 'cards' | 'table';
 
-export const CATALOG_ENTITIES: CatalogEntity[] = ['projects', 'solutions', 'domains'];
+export const CATALOG_ENTITIES: CatalogEntity[] = ['projects', 'solutions', 'domains', 'resources'];
 
 const LAST_ENTITY_KEY = 'daileon_catalog_entity';
 const VIEW_MODE_KEY = 'daileon_view_mode';

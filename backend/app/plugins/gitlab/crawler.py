@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Iterable, List, Dict, Any, Optional
 from urllib.parse import quote
 import httpx
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -801,6 +801,27 @@ class GitLabCrawlerService:
                     for dep in manifest.spec.dependencies:
                         target_name = dep.get_target_name()
                         if target_name:
+                            if dep.is_resource_dep():
+                                res_query = await db.execute(select(Component).where(func.lower(Component.name) == target_name.lower()))
+                                existing_res = res_query.scalars().first()
+                                if not existing_res:
+                                    new_res = Component(
+                                        gitlab_project_id=0,
+                                        manifest_path="",
+                                        name=target_name,
+                                        description="Recurso de infraestrutura / serviço compartilhado",
+                                        kind="Resource",
+                                        type="resource",
+                                        lifecycle="production",
+                                        owner="unassigned",
+                                        has_manifest=False,
+                                        docs_dir="/docs",
+                                        docs_index="index.md",
+                                        gitlab_url=""
+                                    )
+                                    db.add(new_res)
+                                    await db.flush()
+
                             db.add(ComponentDependency(
                                 source_component_id=component.id,
                                 target_component_name=target_name,
@@ -812,6 +833,27 @@ class GitLabCrawlerService:
                     for dep in manifest.spec.dependents:
                         target_name = dep.get_target_name()
                         if target_name:
+                            if dep.is_resource_dep():
+                                res_query = await db.execute(select(Component).where(func.lower(Component.name) == target_name.lower()))
+                                existing_res = res_query.scalars().first()
+                                if not existing_res:
+                                    new_res = Component(
+                                        gitlab_project_id=0,
+                                        manifest_path="",
+                                        name=target_name,
+                                        description="Recurso de infraestrutura / serviço compartilhado",
+                                        kind="Resource",
+                                        type="resource",
+                                        lifecycle="production",
+                                        owner="unassigned",
+                                        has_manifest=False,
+                                        docs_dir="/docs",
+                                        docs_index="index.md",
+                                        gitlab_url=""
+                                    )
+                                    db.add(new_res)
+                                    await db.flush()
+
                             db.add(ComponentDependency(
                                 source_component_id=component.id,
                                 target_component_name=target_name,

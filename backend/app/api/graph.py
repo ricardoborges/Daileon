@@ -167,7 +167,7 @@ def build_graph(
             is_res = getattr(dep, "is_resource", False)
             is_dependent = getattr(dep, "is_dependent", False)
 
-            target = by_name.get(target_name.lower()) if not (is_ext or is_res) else None
+            target = by_name.get(target_name.lower()) if not is_ext else None
             if target is not None:
                 # Auto-dependência é ruído do manifesto, não uma aresta.
                 if target.id == c.id:

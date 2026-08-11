@@ -622,6 +622,26 @@ export async function fetchSolutionDetail(solutionName: string): Promise<Solutio
   return res.json();
 }
 
+export interface ResourceItem {
+  id: number;
+  name: string;
+  description?: string;
+  kind: string;
+  type: string;
+  owner: string;
+  has_manifest: boolean;
+  docs_count: number;
+  docs_dir?: string;
+  consumers: Array<{ id: number; name: string; type: string; owner: string }>;
+  created_at?: string;
+}
+
+export async function fetchResources(): Promise<ResourceItem[]> {
+  const res = await authFetch(`${API_BASE}/resources`);
+  if (!res.ok) throw new Error('Falha ao carregar lista de recursos');
+  return res.json();
+}
+
 export interface PluginBackendInfo {
   id: string;
   name: string;
