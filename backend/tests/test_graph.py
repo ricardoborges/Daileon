@@ -180,3 +180,19 @@ def test_dependencia_recurso_sinalizada_no_grafo():
 
     resource_edges = [e for e in graph["edges"] if e.get("is_resource")]
     assert len(resource_edges) == 4
+
+
+def test_aresta_entre_nos_fora_do_escopo_nao_vaza_no_recorte():
+    """Projeto fora do escopo que depende de um nó também fora do escopo não deve aparecer no diagrama."""
+    catalogo = [
+        FakeComponent(1, "Strix", [FakeDependency("Redmine")], solution="Strix"),
+        FakeComponent(2, "Redmine", [], solution="Redmine"),
+        FakeComponent(3, "Centurião Backend", [FakeDependency("Redmine")], solution="Centurião"),
+    ]
+    graph = build_graph(catalogo, solution="Strix")
+    nomes = [n["name"] for n in graph["nodes"]]
+
+    assert "Strix" in nomes
+    assert "Redmine" in nomes
+    assert "Centurião Backend" not in nomes
+

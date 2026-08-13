@@ -50,17 +50,24 @@ const HUB_LABEL_SIDE_PAD = 3;
  * mas preserva U+2800 intacto, permitindo que o Dagre meça a largura e desenhe
  * as caixas e setas com as dimensões corretas.
  */
-const MIN_LABEL_LEN = 16;
-const MIN_HUB_LABEL_LEN = 22;
+/**
+ * Largura mínima do rótulo, em caracteres.
+ *
+ * Garante que nomes curtos (`STRIX`, `DB`) tenham um tamanho de caixa agradável
+ * sem distorcer o traçado de arestas nem criar caixas desproporcionalmente largas.
+ */
+const MIN_LABEL_LEN = 10;
+const MIN_HUB_LABEL_LEN = 14;
 
-/** Centraliza o rótulo dentro da largura mínima usando U+2800. */
+/** Centraliza o rótulo dentro da largura mínima usando espaço não-quebrável (NBSP). */
 export function padLabel(label: string, isHub: boolean): string {
   const sidePad = isHub ? HUB_LABEL_SIDE_PAD : LABEL_SIDE_PAD;
   const minLen = isHub ? MIN_HUB_LABEL_LEN : MIN_LABEL_LEN;
   const total = Math.max(label.length + sidePad * 2, minLen);
   const extra = total - label.length;
+  if (extra <= 0) return label;
   const left = Math.ceil(extra / 2);
-  const padChar = String.fromCharCode(0x2800);
+  const padChar = '\u00A0';
   return padChar.repeat(left) + label + padChar.repeat(extra - left);
 }
 
@@ -120,11 +127,7 @@ export function buildGraphDefinition(graph: DependencyGraph, palette: GraphPalet
     const isHub = hubNodeIds.has(node.id);
     const label = padLabel(rawLabel, isHub);
     const isDb = isDatabaseType(node.type);
-    if (isDb) {
-      lines.push(`  ${node.id}[("${label}")]`);
-    } else if (node.is_resource) {
-      lines.push(`  ${node.id}{{"${label}"}}`);
-    } else if (node.is_external) {
+    if (node.is_external) {
       lines.push(`  ${node.id}[["${label}"]]`);
     } else if (!node.resolved) {
       lines.push(`  ${node.id}(["${label}"])`);

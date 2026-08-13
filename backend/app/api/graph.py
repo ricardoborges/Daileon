@@ -263,6 +263,28 @@ def build_graph(
         focus = set(nodes)
         visible = set(nodes)
 
+    # Quando há recorte por escopo (raiz, domínio ou solução), filtramos as arestas
+    # para incluir apenas aquelas em que ao menos uma das pontas está em foco (`in_scope`).
+    # Arestas entre dois nós fora do escopo (ex: Centurião Backend -> Redmine,
+    # quando ambos são externos à solução Strix) não pertencem ao diagrama do grupo.
+    if focus != set(nodes):
+        visible_edges = [
+            e
+            for e in edges
+            if e["source"] in visible
+            and e["target"] in visible
+            and (e["source"] in focus or e["target"] in focus)
+        ]
+        # Nós fora de escopo só entram no diagrama se estiverem conectados a
+        # algum nó do escopo por uma aresta visível.
+        connected_visible = set(focus)
+        for e in visible_edges:
+            connected_visible.add(e["source"])
+            connected_visible.add(e["target"])
+        visible = visible & connected_visible
+    else:
+        visible_edges = [e for e in edges if e["source"] in visible and e["target"] in visible]
+
     # Projeto sem nenhuma dependência declarada não vira caixa solta no
     # diagrama; vira número no rodapé.
     isolated = {
@@ -280,8 +302,6 @@ def build_graph(
         node["is_root"] = node_id == root_node_id
         visible_nodes.append(node)
     visible_nodes.sort(key=lambda n: (not n["is_root"], str(n["name"]).lower()))
-
-    visible_edges = [e for e in edges if e["source"] in visible and e["target"] in visible]
 
     visible_cycles = [
         {"nodes": cycle, "names": [nodes[n]["name"] for n in cycle]} for cycle in cycles
