@@ -1,33 +1,33 @@
-# 📄 Referência do `project-info.yml`
+# 📄 `project-info.yml` Reference
 
-> **Contrato de metadados que cada repositório mantém junto ao código.** É a partir dele que o Daileon monta o registro do componente no catálogo, os links, as dependências e a origem das TechDocs.
+> **The metadata contract each repository keeps next to its code.** It is what Daileon uses to build the component record in the catalog, the links, the dependencies and the source of the TechDocs.
 
 ---
 
-## 1. Onde colocar o arquivo
+## 1. Where to place the file
 
-| Item | Valor |
+| Item | Value |
 | --- | --- |
-| **Nome do arquivo** | `project-info.yml` (exatamente assim — não há fallback para `.yaml` ou outros nomes) |
-| **Local** | Raiz do repositório ou em subpastas de **Monorepos** (ex: `apps/strix-web/project-info.yml`, `apps/strix-api/project-info.yml`) |
-| **Branch lida** | A `default_branch` do projeto no GitLab (normalmente `main`) |
-| **Quando é lido** | A cada sincronização (botão de Sync no portal ou crawler agendado) |
+| **File name** | `project-info.yml` (exactly that — there is no fallback to `.yaml` or any other name) |
+| **Location** | Repository root or in subfolders of **monorepos** (e.g. `apps/strix-web/project-info.yml`, `apps/strix-api/project-info.yml`) |
+| **Branch read** | The project's `default_branch` in GitLab (usually `main`) |
+| **When it is read** | On every synchronization (Sync button in the portal or scheduled crawler) |
 
-💡 **Suporte a Monorepos:** O Daileon varre recursivamente todo o repositório GitLab. Caso o repositório possua múltiplos arquivos `project-info.yml` em subpastas, cada manifesto gerará um componente independente no catálogo, todos podendo ser agrupados na mesma `solution`!
+💡 **Monorepo support:** Daileon scans the whole GitLab repository recursively. If the repository holds multiple `project-info.yml` files in subfolders, each manifest produces an independent component in the catalog — and all of them can be grouped under the same `solution`!
 
-Se o arquivo **não existir** — ou existir mas **falhar no parse** — o Daileon não quebra: ele cria um **registro sintético** com os dados nativos do GitLab (nome do repositório, descrição, tags do projeto) e marca o componente com `has_manifest = false`. Na interface isso aparece como *"Fallback sintético"* no lugar do selo `project-info.yml`.
+If the file **does not exist** — or exists but **fails to parse** — Daileon does not break: it creates a **synthetic record** with GitLab's native data (repository name, description, project tags) and marks the component with `has_manifest = false`. In the interface this shows up as *"Synthetic fallback"* instead of the `project-info.yml` badge.
 
 ---
 
-## 2. Estrutura completa
+## 2. Full structure
 
 ```yaml
 apiVersion: daileon/v1
 kind: Component
 
 metadata:
-  name: pagamento-service
-  description: "Serviço responsável pelo processamento de pagamentos e liquidação PIX."
+  name: payment-service
+  description: "Service responsible for payment processing and PIX settlement."
   tags: [java, spring-boot, pix, finance]
   owner: team-payments
   domain: checkout
@@ -42,106 +42,106 @@ spec:
     index: index.md
 
   links:
-    - url: https://grafana.empresa.com/d/pagamentos
+    - url: https://grafana.company.com/d/payments
       title: Grafana Dashboard
       icon: dashboard
 
   dependencies:
-    - component: usuario-service
-    - component: notificacao-service
+    - component: user-service
+    - component: notification-service
 
   jenkins:
     pipelines:
-      - name: Pipeline de Produção
+      - name: Production Pipeline
         environment: production
-        job: "deployments/pagamento-prod"
-      - name: Testes Automáticos
+        job: "deployments/payment-prod"
+      - name: Automated Tests
         environment: test
-        job: "ci/pagamento-ci"
+        job: "ci/payment-ci"
 ```
 
 
-### 2.1. Mínimo viável
+### 2.1. Minimum viable manifest
 
-Só existe **um campo obrigatório**: `metadata.name`. Todo o resto tem valor padrão.
+There is only **one required field**: `metadata.name`. Everything else has a default value.
 
 ```yaml
 metadata:
-  name: pagamento-service
+  name: payment-service
 ```
 
-Esse arquivo é válido e produz um componente `Component` / `service` / `production`, dono `unassigned`, docs em `/docs`.
+That file is valid and produces a `Component` / `service` / `production` component, owner `unassigned`, docs under `/docs`.
 
 ---
 
-## 3. Campos
+## 3. Fields
 
-### 3.1. Raiz
+### 3.1. Root
 
-| Campo | Tipo | Obrigatório | Padrão | Observações |
+| Field | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `apiVersion` | string | Não | `daileon/v1` | **Não é validado.** Qualquer string é aceita. Existe por convenção/versionamento futuro. |
-| `kind` | string | Não | `Component` | **Conjunto aberto** — veja a seção 5. |
-| `metadata` | objeto | **Sim** | — | |
-| `spec` | objeto | Não | objeto vazio (tudo default) | |
+| `apiVersion` | string | No | `daileon/v1` | **Not validated.** Any string is accepted. It exists by convention / for future versioning. |
+| `kind` | string | No | `Component` | **Open set** — see section 5. |
+| `metadata` | object | **Yes** | — | |
+| `spec` | object | No | empty object (all defaults) | |
 
 ### 3.2. `metadata`
 
-| Campo | Tipo | Obrigatório | Padrão | Efeito |
+| Field | Type | Required | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `name` | string | **Sim** | — | Nome exibido no catálogo. **Sobrescreve o nome do repositório no GitLab.** |
-| `description` | string | Não | descrição do projeto no GitLab | Se omitido ou vazio, cai para a descrição do GitLab. |
-| `tags` | lista de strings | Não | `[]` | Vira filtro e entra na busca global. |
-| `owner` | string | Não | `unassigned` | Time/pessoa responsável. É filtro no catálogo. |
-| `domain` | string | Não | `null` | Agrupamento de negócio. |
+| `name` | string | **Yes** | — | Name shown in the catalog. **Overrides the repository name in GitLab.** |
+| `description` | string | No | the project description in GitLab | If omitted or empty, falls back to the GitLab description. |
+| `tags` | list of strings | No | `[]` | Becomes a filter and feeds the global search. |
+| `owner` | string | No | `unassigned` | Team/person responsible. Acts as a catalog filter. |
+| `domain` | string | No | `null` | Business grouping. |
 
 ### 3.3. `spec`
 
-| Campo | Tipo | Obrigatório | Padrão | Efeito |
+| Field | Type | Required | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `type` | string | Não | `service` | **Conjunto aberto** — veja a seção 5. Alimenta o filtro "Tipo". |
-| `lifecycle` | string | Não | `production` | **Conjunto aberto, mas com 3 valores privilegiados** — veja a seção 5. |
-| `solution` | string | Não | `null` | Solução à qual o componente pertence (agrupador de projetos). |
-| `docs` | objeto | Não | `{dir: /docs, index: index.md}` | Ver 3.4. |
-| `links` | lista | Não | `[]` | Ver 3.5. |
-| `dependencies` | lista | Não | `[]` | Ver 3.6. |
-| `jenkins` | objeto / lista | Não | `null` | Configuração de pipelines do Jenkins. Ver 3.7. |
-| `deployments` | lista | Não | `[]` | Lista de ambientes e servidores de instalação. Ver 3.8. |
+| `type` | string | No | `service` | **Open set** — see section 5. Feeds the "Type" filter. |
+| `lifecycle` | string | No | `production` | **Open set, but with 3 privileged values** — see section 5. |
+| `solution` | string | No | `null` | Solution the component belongs to (project grouper). |
+| `docs` | object | No | `{dir: /docs, index: index.md}` | See 3.4. |
+| `links` | list | No | `[]` | See 3.5. |
+| `dependencies` | list | No | `[]` | See 3.6. |
+| `jenkins` | object / list | No | `null` | Jenkins pipeline configuration. See 3.7. |
+| `deployments` | list | No | `[]` | List of environments and installation servers. See 3.8. |
 
 ### 3.4. `spec.docs`
 
-| Campo | Tipo | Padrão | Efeito |
+| Field | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `dir` | string | `/docs` | Pasta varrida recursivamente atrás de documentos. Barras no início/fim são ignoradas — `/docs`, `docs` e `docs/` são equivalentes. Aceita subpastas (`documentacao/tecnica`). |
-| `index` | string | `index.md` | Arquivo de entrada da documentação. ⚠️ Ver o alerta abaixo. |
+| `dir` | string | `/docs` | Folder scanned recursively for documents. Leading/trailing slashes are ignored — `/docs`, `docs` and `docs/` are equivalent. Subfolders are accepted (`documentation/technical`). |
+| `index` | string | `index.md` | Entry file of the documentation. ⚠️ See the warning below. |
 
-> ⚠️ **Hoje o `index` não é honrado pela interface.** O valor é lido, gravado e exposto na API (`docs_index`), mas o frontend abre sempre `index.md` como página inicial das TechDocs. Se a sua pasta de docs não tiver um `index.md`, o link "Documentação" cairá em página vazia. Até que isso seja ajustado, **mantenha um `index.md`** na raiz do `docs.dir`.
+> ⚠️ **Today `index` is not honored by the interface.** The value is read, stored and exposed in the API (`docs_index`), but the frontend always opens `index.md` as the TechDocs home page. If your docs folder has no `index.md`, the "Documentation" link will land on an empty page. Until this is fixed, **keep an `index.md`** at the root of `docs.dir`.
 
-Além da pasta de docs, o **`README.md` da raiz do repositório é sempre indexado**, tenha manifesto ou não.
+Besides the docs folder, the **repository root `README.md` is always indexed**, with or without a manifest.
 
-**Extensões indexadas:** `.md`, `.markdown`, `.pdf` e imagens (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`). Qualquer outra coisa dentro da pasta — `.html`, `.xlsx`, `.txt`, `.css`, `.js`, fontes — é ignorada. `.svg` fica de fora de propósito, por poder carregar script embutido. PDFs e imagens acima de 25 MB são descartados com aviso no log.
+**Indexed extensions:** `.md`, `.markdown`, `.pdf` and images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`). Anything else inside the folder — `.html`, `.xlsx`, `.txt`, `.css`, `.js`, fonts — is ignored. `.svg` is left out on purpose, since it can carry embedded script. PDFs and images over 25 MB are discarded with a warning in the log.
 
-> ⚠️ **Uma pasta de docs sem nenhum `.md` some da interface.** Se o `docs.dir` só tem planilha, HTML ou imagem, o componente aparece sem documentação navegável mesmo com o manifesto correto — as imagens ficam indexadas, mas não há página que as apresente. Comece pelo `index.md`.
+> ⚠️ **A docs folder without any `.md` disappears from the interface.** If `docs.dir` only holds a spreadsheet, HTML or images, the component shows up without navigable documentation even with a correct manifest — the images stay indexed, but there is no page presenting them. Start with `index.md`.
 
-**Quando a pasta não existe:** o Daileon cai num fallback e varre o repositório inteiro (ou a subpasta do componente, em monorepo) atrás de `.md` e `.pdf`. Imagens **não** entram nesse modo — sem a pasta delimitando o escopo, todo `src/assets/` viraria documentação. Diretórios ocultos (`.git`, `.github`) e de dependência/build (`node_modules`, `dist`, `target`, …) são pulados nos dois modos.
+**When the folder does not exist:** Daileon falls back to scanning the whole repository (or the component's subfolder, in a monorepo) for `.md` and `.pdf`. Images do **not** take part in this mode — without the folder bounding the scope, every `src/assets/` would turn into documentation. Hidden directories (`.git`, `.github`) and dependency/build ones (`node_modules`, `dist`, `target`, …) are skipped in both modes.
 
-Para excluir uma pasta específica da varredura, veja a seção 4.
+To exclude a specific folder from the scan, see section 4.
 
 ### 3.5. `spec.links`
 
-Lista de objetos:
+List of objects:
 
-| Campo | Tipo | Obrigatório | Efeito |
+| Field | Type | Required | Effect |
 | --- | --- | --- | --- |
-| `url` | string | **Sim** | Destino do link (abre em nova aba). |
-| `title` | string | **Sim** | Texto exibido. |
-| `icon` | string | Não | **Aceito e armazenado, mas ainda não usado na renderização.** Todos os links exibem o mesmo ícone de link externo. |
+| `url` | string | **Yes** | Link target (opens in a new tab). |
+| `title` | string | **Yes** | Displayed text. |
+| `icon` | string | No | **Accepted and stored, but not used in rendering yet.** Every link shows the same external-link icon. |
 
-Omitir `url` ou `title` em qualquer item **invalida o manifesto inteiro** e o componente vira sintético.
+Omitting `url` or `title` in any item **invalidates the whole manifest** and the component becomes synthetic.
 
-### 3.6. `spec.dependencies` e `spec.dependents`
+### 3.6. `spec.dependencies` and `spec.dependents`
 
-Declaração de dependências diretas (o que este projeto consome) e dependentes downstream (projetos internos, externos ou recursos de infraestrutura/serviços):
+Declaration of direct dependencies (what this project consumes) and downstream dependents (internal or external projects, or infrastructure/service resources):
 
 ```yaml
 spec:
@@ -156,233 +156,233 @@ spec:
     - component: IDEA 2
 ```
 
-| Campo | Tipo | Obrigatório | Efeito |
+| Field | Type | Required | Effect |
 | --- | --- | --- | --- |
-| `component` | string | Não* | Nome do componente catalogado ou dependente. |
-| `external` | string | Não* | Nome do projeto/sistema externo de outra empresa (sinalizado em verde/destacado no grafo). |
-| `resource` | string | Não* | Nome do recurso, serviço ou infraestrutura (ex: `bc-ccs`, `Credilink`, `enviosms`, `bcadastro`). Renderizado em formato de cilindro/recurso no grafo. |
+| `component` | string | No* | Name of the catalogued component or dependent. |
+| `external` | string | No* | Name of the external project/system from another company (highlighted in green in the graph). |
+| `resource` | string | No* | Name of the resource, service or infrastructure (e.g. `bc-ccs`, `Credilink`, `enviosms`, `bcadastro`). Rendered as a cylinder/resource shape in the graph. |
 
-*\* Cada item deve informar `component`, `external` ou `resource`.*
+*\* Each item must provide `component`, `external` or `resource`.*
 
-- **`dependencies`**: Componentes, sistemas externos ou recursos dos quais o nosso projeto depende (`MeuProjeto ---> Target`).
-- **`dependents`**: Componentes, sistemas externos ou recursos que dependem do nosso projeto (`Dependent ---> MeuProjeto`).
+- **`dependencies`**: Components, external systems or resources our project depends on (`MyProject ---> Target`).
+- **`dependents`**: Components, external systems or resources that depend on our project (`Dependent ---> MyProject`).
 
-Quando um sistema externo é declarado com `external: <nome>`, ele é inserido no grafo e sinalizado como projeto externo. Quando um recurso/serviço é declarado com `resource: <nome>`, ele é exibido em formato característico de recurso (`[( "recurso" )]`) no grafo Mermaid.
+When an external system is declared with `external: <name>`, it is inserted into the graph and flagged as an external project. When a resource/service is declared with `resource: <name>`, it is drawn with the characteristic resource shape (`[( "resource" )]`) in the Mermaid graph.
 
 ### 3.7. `spec.jenkins`
 
-Mapeamento de pipelines CI/CD do Jenkins para exibição de status do último build, duração, gatilho, branch e indicador visual de sucesso/falha na aba **Pipelines (Jenkins)** do componente.
+Mapping of Jenkins CI/CD pipelines used to display the latest build status, duration, trigger, branch and a visual success/failure indicator on the component's **Pipelines (Jenkins)** tab.
 
-Permite dois formatos de escrita no YAML:
+Two YAML formats are supported:
 
-#### Formato com objeto e chave `pipelines`:
+#### Object format with a `pipelines` key:
 
 ```yaml
 spec:
   jenkins:
-    server_url: "https://jenkins.suaempresa.com" # (Opcional) Override da URL base do Jenkins
+    server_url: "https://jenkins.yourcompany.com" # (Optional) Override of the Jenkins base URL
     pipelines:
-      - name: Pipeline de Produção
+      - name: Production Pipeline
         environment: production
-        job: "deployments/pagamento-prod"
-      - name: Testes Automáticos
+        job: "deployments/payment-prod"
+      - name: Automated Tests
         environment: test
-        job: "ci/pagamento-ci"
+        job: "ci/payment-ci"
 ```
 
-#### Formato direto com lista:
+#### Direct list format:
 
 ```yaml
 spec:
   jenkins:
-    - name: Pipeline de Produção
+    - name: Production Pipeline
       environment: production
-      job: "deployments/pagamento-prod"
-    - name: Testes Automáticos
+      job: "deployments/payment-prod"
+    - name: Automated Tests
       environment: test
-      job: "ci/pagamento-ci"
+      job: "ci/payment-ci"
 ```
 
-| Campo | Tipo | Obrigatório | Padrão | Efeito |
+| Field | Type | Required | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `name` | string | **Sim** | — | Nome de exibição da pipeline na UI. |
-| `environment` | string | Não | `production` | Ambiente associado (ex: `production`, `staging`, `test`). Define a cor do selo visual. |
-| `job` | string | **Sim** | — | Nome ou caminho do job no Jenkins. Pastas são suportadas (ex: `deployments/meu-job`). |
-| `server_url` | string | Não | `null` | URL do servidor Jenkins, caso diferente do padrão configurado no `.env`. |
+| `name` | string | **Yes** | — | Display name of the pipeline in the UI. |
+| `environment` | string | No | `production` | Associated environment (e.g. `production`, `staging`, `test`). Defines the color of the visual badge. |
+| `job` | string | **Yes** | — | Job name or path in Jenkins. Folders are supported (e.g. `deployments/my-job`). |
+| `server_url` | string | No | `null` | Jenkins server URL, when different from the default configured in `.env`. |
 
 ### 3.8. `spec.deployments`
 
-Lista de informações sobre os ambientes de implantação, servidores e infraestrutura onde o projeto está rodando. Permite registrar a URL do ambiente, nome do servidor, IP, Sistema Operacional, modo de execução (VM, Docker, Bare Metal, etc.) e porta do serviço.
+List of information about the deployment environments, servers and infrastructure where the project runs. It lets you record the environment URL, server name, IP, operating system, execution mode (VM, Docker, Bare Metal, etc.) and service port.
 
-> 💡 **Evitando Redundância:** Não é necessário cadastrar as URLs de homologação ou produção na seção `spec.links` — o Daileon agrega automaticamente as URLs de `deployments` na visão geral de links do componente. Use `spec.links` apenas para recursos auxiliares (ex: Grafana Dashboard, Specs OpenAPI, Jira).
+> 💡 **Avoiding redundancy:** There is no need to register staging or production URLs under `spec.links` — Daileon automatically aggregates the `deployments` URLs into the component's link overview. Use `spec.links` only for auxiliary resources (e.g. Grafana Dashboard, OpenAPI specs, Jira).
 
 ```yaml
 spec:
   deployments:
     - environment: production
-      url: https://pagamento.empresa.com
+      url: https://payment.company.com
       server_name: srv-prod-app01
       server_ip: 10.0.1.50
       os: "Linux Ubuntu 22.04 LTS"
       execution_type: Docker
       port: 8080
-      notes: Cluster Kubernetes principal
-    - environment: homologação
-      url: https://homolog-pagamento.empresa.com
+      notes: Main Kubernetes cluster
+    - environment: homologation
+      url: https://homolog-payment.company.com
       server_name: Arya
       server_ip: 10.43.210.55
       os: "Windows Server 2022"
       execution_type: VM
       port: 8080
-      notes: Ambiente de homologação
+      notes: Homologation environment
 ```
 
-| Campo | Tipo | Obrigatório | Padrão | Efeito |
+| Field | Type | Required | Default | Effect |
 | --- | --- | --- | --- | --- |
-| `environment` | string | Não | `production` | Nome do ambiente (ex: `production`, `homologation`, `staging`, `test`, `dev`). |
-| `url` | string | Não | `null` | URL pública ou interna de acesso ao ambiente. |
-| `server_name` | string | Não | `null` | Nome do servidor ou host. Agrupado no catálogo global de Servidores. |
-| `server_ip` | string | Não | `null` | Endereço IP do servidor. |
-| `os` | string | Não | `null` | Sistema Operacional e versão (ex: `Linux Ubuntu 22.04 LTS`, `Windows Server 2022`). |
-| `execution_type` | string | Não | `null` | Modo de execução do serviço (ex: `VM`, `Docker`, `Bare Metal`, `Kubernetes`). |
-| `port` | número / string | Não | `null` | Porta em que o serviço escuta (ex: `8080`, `5173`, `443`). |
-| `notes` | string | Não | `null` | Observações adicionais sobre o ambiente ou infraestrutura. |
+| `environment` | string | No | `production` | Environment name (e.g. `production`, `homologation`, `staging`, `test`, `dev`). |
+| `url` | string | No | `null` | Public or internal URL used to reach the environment. |
+| `server_name` | string | No | `null` | Server or host name. Grouped in the global Servers catalog. |
+| `server_ip` | string | No | `null` | Server IP address. |
+| `os` | string | No | `null` | Operating system and version (e.g. `Linux Ubuntu 22.04 LTS`, `Windows Server 2022`). |
+| `execution_type` | string | No | `null` | Service execution mode (e.g. `VM`, `Docker`, `Bare Metal`, `Kubernetes`). |
+| `port` | number / string | No | `null` | Port the service listens on (e.g. `8080`, `5173`, `443`). |
+| `notes` | string | No | `null` | Additional notes about the environment or infrastructure. |
 
 
 ---
 
-## 4. Excluindo pastas da indexação: `.daileon-ignore`
+## 4. Excluding folders from indexing: `.daileon-ignore`
 
-O manifesto diz onde o Daileon **deve** olhar. O `.daileon-ignore` diz onde ele **não** deve.
+The manifest says where Daileon **should** look. `.daileon-ignore` says where it **should not**.
 
-| Item | Valor |
+| Item | Value |
 | --- | --- |
-| **Nome do arquivo** | `.daileon-ignore` |
-| **Local** | Dentro de qualquer pasta que você queira excluir |
-| **Conteúdo** | **Irrelevante.** O arquivo nunca é lido — pode ficar vazio ou explicar o motivo para quem vier depois |
-| **Escopo** | A pasta que o contém **e tudo abaixo dela**, recursivamente |
-| **Efeito** | Nada ali dentro é indexado como documentação, nem gera componente a partir de um `project-info.yml` |
+| **File name** | `.daileon-ignore` |
+| **Location** | Inside any folder you want to exclude |
+| **Content** | **Irrelevant.** The file is never read — it can be empty or explain the reason to whoever comes next |
+| **Scope** | The folder containing it **and everything below it**, recursively |
+| **Effect** | Nothing in there is indexed as documentation, nor generates a component from a `project-info.yml` |
 
-O caso mais comum é uma pasta de docs que carrega peso morto — protótipo HTML com imagens, anexos de outra época:
+The most common case is a docs folder carrying dead weight — an HTML prototype with images, attachments from another era:
 
 ```
 docs/
 ├── index.md
-├── arquitetura.md
-└── Prototipo/
-    ├── .daileon-ignore        ← só isso
+├── architecture.md
+└── Prototype/
+    ├── .daileon-ignore        ← that's all
     ├── index.html
     └── images/logo.png
 ```
 
-Resultado: as TechDocs mostram `index.md` e `arquitetura.md`; `Prototipo/` some do portal e continua no repositório.
+Result: the TechDocs show `index.md` and `architecture.md`; `Prototype/` disappears from the portal and stays in the repository.
 
-Em monorepo, o marcador também tira um subprojeto inteiro do catálogo:
+In a monorepo, the marker also removes an entire subproject from the catalog:
 
 ```
 apps/
-├── novo/project-info.yml      → vira componente
-└── legado/
-    ├── .daileon-ignore        → não vira componente
+├── new/project-info.yml       → becomes a component
+└── legacy/
+    ├── .daileon-ignore        → does not become a component
     └── project-info.yml
 ```
 
-> ⚠️ **Um `.daileon-ignore` na raiz do repositório remove o projeto do catálogo.** É consistente com a regra — o escopo é a pasta que o contém, e na raiz isso é tudo — mas o efeito é grande e silencioso: no próximo sync o componente e a documentação dele desaparecem do portal. Use quando for exatamente essa a intenção; para excluir só a documentação, marque a pasta de docs.
+> ⚠️ **A `.daileon-ignore` at the repository root removes the project from the catalog.** It is consistent with the rule — the scope is the folder containing it, and at the root that is everything — but the effect is large and silent: on the next sync the component and its documentation vanish from the portal. Use it when that is exactly the intent; to exclude only the documentation, mark the docs folder.
 
-Cada exclusão é registrada no log do backend em nível `INFO`, então um marcador esquecido não vira um sumiço inexplicado:
+Every exclusion is recorded in the backend log at `INFO` level, so a forgotten marker does not turn into an unexplained disappearance:
 
 ```
-Ignoring manifest under .daileon-ignore: apps/legado/project-info.yml
-Skipping docs of project 5: 'docs/Prototipo' is marked with .daileon-ignore.
+Ignoring manifest under .daileon-ignore: apps/legacy/project-info.yml
+Skipping docs of project 5: 'docs/Prototype' is marked with .daileon-ignore.
 Project Strix has .daileon-ignore at the repository root; nothing will be indexed.
 ```
 
-**Marcar a pasta de docs não aciona o fallback.** Uma pasta que não existe faz o Daileon varrer o repositório atrás de documentação (ver 3.4); uma pasta marcada, não — é ausência deliberada, e varrer em volta contrariaria o pedido. O `README.md` da raiz continua sendo indexado nesse caso; para excluí-lo também, o marcador precisa estar na raiz.
+**Marking the docs folder does not trigger the fallback.** A folder that does not exist makes Daileon scan the repository for documentation (see 3.4); a marked folder does not — that is a deliberate absence, and scanning around it would go against the request. The root `README.md` is still indexed in that case; to exclude it too, the marker must be at the root.
 
 ---
 
-## 5. Os conjuntos de valores: abertos ou fechados?
+## 5. The value sets: open or closed?
 
-Esta é a resposta curta: **todos os campos de classificação (`kind`, `type`, `lifecycle`, `apiVersion`) são strings livres.** Não existe enum, `Literal` ou validação de domínio no parser — o que você escrever é aceito e gravado como veio.
+Here is the short answer: **every classification field (`kind`, `type`, `lifecycle`, `apiVersion`) is a free string.** There is no enum, `Literal` or domain validation in the parser — whatever you write is accepted and stored as-is.
 
-O que muda entre eles é **o quanto o resto do sistema reconhece o valor**:
+What differs between them is **how much the rest of the system recognizes the value**:
 
-### `kind` — totalmente aberto, convenção `Component` / `API` / `Library`
-
-| | |
-| --- | --- |
-| Validação | Nenhuma |
-| Padrão | `Component` |
-| Convenção do projeto | `Component`, `API`, `Library` |
-| Uso atual | Apenas armazenado. **Não é exibido, filtrado nem usado em nenhuma tela hoje.** |
-
-Ou seja: hoje `kind` é praticamente decorativo. Fica reservado para quando o catálogo passar a separar APIs e bibliotecas em visões próprias. **Recomendação:** fique nos três valores da convenção para não gerar dívida quando esse filtro existir.
-
-### `type` — aberto, com efeito real de filtro e no grafo de dependências
+### `kind` — fully open, convention `Component` / `API` / `Library`
 
 | | |
 | --- | --- |
-| Validação | Nenhuma |
-| Padrão | `service` (quando o manifesto existe e omite o campo) |
-| Convenção do projeto | `service`, `website`, `library`, `cronjob`, `database` |
-| Uso atual | Exibido como chip no card e na página do componente; alimenta o filtro **"Tipo"** do catálogo e o contador "Serviços" na home. **Componentes com `type: database` ganham representação em formato de cilindro (banco de dados) no grafo de dependências.** |
+| Validation | None |
+| Default | `Component` |
+| Project convention | `Component`, `API`, `Library` |
+| Current usage | Stored only. **It is not displayed, filtered or used on any screen today.** |
 
-O filtro é montado **dinamicamente a partir dos valores presentes no catálogo** — então um `type: lambda` novo simplesmente aparece como mais uma opção no dropdown. Isso é flexível, mas significa que erros de digitação viram categorias fantasma (`servcie` vira um filtro próprio). Padronize dentro do time.
+In other words: today `kind` is practically decorative. It is reserved for when the catalog starts separating APIs and libraries into their own views. **Recommendation:** stick to the three convention values so you don't create debt once that filter exists.
 
-⚠️ **Componentes sintéticos recebem `type: unknown`, não `service`.** O padrão `service` só vale para manifestos que existem e omitem o campo. Repositórios sem `project-info.yml` entram como `unknown` justamente para não inflar o contador de serviços com projetos que nunca se declararam. Se um componente seu aparece como `unknown`, o caminho é declarar o `type` no manifesto.
-
-### `lifecycle` — aberto, mas só 3 valores ganham tratamento visual
+### `type` — open, with a real effect on filters and on the dependency graph
 
 | | |
 | --- | --- |
-| Validação | Nenhuma |
-| Padrão | `production` |
-| Valores reconhecidos | `production`, `experimental`, `deprecated` (comparação *case-insensitive*) |
-| Uso atual | Chip colorido + LED de status; filtro **"Lifecycle"**; contador "Em produção" na home. |
+| Validation | None |
+| Default | `service` (when the manifest exists and omits the field) |
+| Project convention | `service`, `website`, `library`, `cronjob`, `database` |
+| Current usage | Shown as a chip on the card and on the component page; feeds the catalog's **"Type"** filter and the "Services" counter on the home page. **Components with `type: database` get a cylinder (database) shape in the dependency graph.** |
 
-Aqui a diferença importa de verdade:
+The filter is built **dynamically from the values present in the catalog** — so a new `type: lambda` simply shows up as one more option in the dropdown. That is flexible, but it means typos become phantom categories (`servcie` becomes a filter of its own). Standardize within the team.
 
-| Valor | Rótulo exibido | Cor |
+⚠️ **Synthetic components get `type: unknown`, not `service`.** The `service` default only applies to manifests that exist and omit the field. Repositories without a `project-info.yml` come in as `unknown`, precisely so they don't inflate the services counter with projects that never declared themselves. If one of your components shows up as `unknown`, the fix is to declare `type` in the manifest.
+
+### `lifecycle` — open, but only 3 values get visual treatment
+
+| | |
+| --- | --- |
+| Validation | None |
+| Default | `production` |
+| Recognized values | `production`, `experimental`, `deprecated` (*case-insensitive* comparison) |
+| Current usage | Colored chip + status LED; **"Lifecycle"** filter; "In production" counter on the home page. |
+
+Here the difference really matters:
+
+| Value | Displayed label | Color |
 | --- | --- | --- |
-| `production` | Produção | verde (ok) |
-| `experimental` | Experimental | âmbar (crest) |
-| `deprecated` | Depreciado | vermelho (alert) |
-| *qualquer outro* | o texto cru, sem tradução | **sem cor, sem LED** |
+| `production` | Production | green (ok) |
+| `experimental` | Experimental | amber (crest) |
+| `deprecated` | Deprecated | red (alert) |
+| *anything else* | the raw text, untranslated | **no color, no LED** |
 
-Um `lifecycle: homologacao` funciona e é filtrável, mas aparece apagado, sem indicador de status. **Fique nos três valores** salvo necessidade real.
+A `lifecycle: homologation` works and is filterable, but shows up dimmed, with no status indicator. **Stick to the three values** unless you truly need otherwise.
 
-### `apiVersion` — aberto e sem uso
+### `apiVersion` — open and unused
 
-Nenhuma verificação de compatibilidade é feita. Escrever `apiVersion: sei-la/v9` não gera erro nem aviso. Mantenha `daileon/v1`.
-
----
-
-## 6. Comportamentos que costumam surpreender
-
-1. **Campos desconhecidos são silenciosamente ignorados.** Escrever `ownr:` em vez de `owner:` não gera erro — o campo errado é descartado e o `owner` fica `unassigned`. Não há aviso na interface; confira o resultado no catálogo após o sync.
-2. **`metadata.name` sobrescreve o nome do repositório.** O card do catálogo mostra o nome do manifesto, não o do GitLab.
-3. **Tags do GitLab só são usadas quando não há manifesto.** Se o `project-info.yml` existir com `tags` vazio, o componente fica **sem tags** — as tags nativas do projeto no GitLab são ignoradas. É tudo ou nada.
-4. **Links e dependências são recriados a cada sync.** O que sumiu do arquivo some do portal; não há acúmulo histórico.
-5. **Manifesto inválido = componente sintético, sem alarde.** O erro vai para o log do backend (`Could not parse project-info.yml in project <nome>`) e o componente aparece marcado como "Fallback sintético". Se um componente aparecer sem os metadados esperados, esse é o primeiro lugar a olhar.
-6. **Nem todo anexo do `docs.dir` é indexado.** Só `.md`, `.markdown`, `.pdf` e imagens entram — planilhas, HTML e `.txt` são descartados em silêncio. Uma pasta de docs cheia, mas sem nenhum `.md`, resulta em componente sem documentação visível. Ver 3.4.
-7. **`.daileon-ignore` na raiz apaga o componente do catálogo.** O marcador exclui a pasta que o contém — na raiz, isso é o repositório inteiro, e no próximo sync o projeto some do portal. Ver 4.
+No compatibility check is performed. Writing `apiVersion: whatever/v9` raises neither an error nor a warning. Keep `daileon/v1`.
 
 ---
 
-## 7. Limites de tamanho
+## 6. Behaviors that tend to surprise
 
-O banco define limites por coluna. Em SQLite (padrão de desenvolvimento) eles **não são aplicados**; em PostgreSQL, um valor acima do limite **falha a sincronização daquele componente**. Vale respeitá-los desde já:
+1. **Unknown fields are silently ignored.** Writing `ownr:` instead of `owner:` raises no error — the wrong field is discarded and `owner` stays `unassigned`. There is no warning in the interface; check the result in the catalog after the sync.
+2. **`metadata.name` overrides the repository name.** The catalog card shows the manifest name, not the GitLab one.
+3. **GitLab tags are only used when there is no manifest.** If `project-info.yml` exists with an empty `tags`, the component ends up **with no tags** — the project's native GitLab tags are ignored. It's all or nothing.
+4. **Links and dependencies are recreated on every sync.** Whatever left the file leaves the portal; there is no historical accumulation.
+5. **Invalid manifest = synthetic component, no fanfare.** The error goes to the backend log (`Could not parse project-info.yml in project <name>`) and the component appears marked as "Synthetic fallback". If a component shows up without the expected metadata, that is the first place to look.
+6. **Not every attachment under `docs.dir` is indexed.** Only `.md`, `.markdown`, `.pdf` and images get in — spreadsheets, HTML and `.txt` are silently discarded. A full docs folder without a single `.md` results in a component with no visible documentation. See 3.4.
+7. **`.daileon-ignore` at the root erases the component from the catalog.** The marker excludes the folder containing it — at the root, that is the whole repository, and on the next sync the project disappears from the portal. See 4.
 
-| Campo | Limite |
+---
+
+## 7. Size limits
+
+The database defines per-column limits. On SQLite (the development default) they are **not enforced**; on PostgreSQL, a value above the limit **fails the synchronization of that component**. It is worth respecting them from the start:
+
+| Field | Limit |
 | --- | --- |
-| `metadata.name` | 100 caracteres |
-| `metadata.description` | sem limite (texto livre) |
-| cada item de `metadata.tags` | 50 |
+| `metadata.name` | 100 characters |
+| `metadata.description` | no limit (free text) |
+| each item of `metadata.tags` | 50 |
 | `metadata.owner` | 100 |
 | `metadata.domain` | 100 |
-| `kind`, `type`, `lifecycle` | 50 cada |
+| `kind`, `type`, `lifecycle` | 50 each |
 | `spec.solution` | 100 |
-| `spec.docs.dir`, `spec.docs.index` | 100 cada |
+| `spec.docs.dir`, `spec.docs.index` | 100 each |
 | `links[].title` | 100 |
 | `links[].url` | 500 |
 | `links[].icon` | 50 |
@@ -394,17 +394,17 @@ O banco define limites por coluna. Em SQLite (padrão de desenvolvimento) eles *
 
 ---
 
-## 8. Exemplos
+## 8. Examples
 
-### 8.1. Microsserviço com documentação, observabilidade e CI/CD Jenkins
+### 8.1. Microservice with documentation, observability and Jenkins CI/CD
 
 ```yaml
 apiVersion: daileon/v1
 kind: Component
 
 metadata:
-  name: pagamento-service
-  description: "Processamento de pagamentos e liquidação PIX."
+  name: payment-service
+  description: "Payment processing and PIX settlement."
   tags: [java, spring-boot, pix, finance]
   owner: team-payments
   domain: checkout
@@ -419,32 +419,32 @@ spec:
     index: index.md
 
   links:
-    - url: https://grafana.empresa.com/d/pagamentos
+    - url: https://grafana.company.com/d/payments
       title: Grafana Dashboard
       icon: dashboard
-    - url: https://api-docs.empresa.com/pagamento-service
+    - url: https://api-docs.company.com/payment-service
       title: OpenAPI Spec
       icon: api
 
   dependencies:
-    - component: usuario-service
-    - component: notificacao-service
+    - component: user-service
+    - component: notification-service
 
   jenkins:
     pipelines:
-      - name: Pipeline de Produção
+      - name: Production Pipeline
         environment: production
-        job: "deployments/pagamento-prod"
-      - name: Pipeline de Homologação
+        job: "deployments/payment-prod"
+      - name: Staging Pipeline
         environment: staging
-        job: "deployments/pagamento-staging"
-      - name: Testes Automáticos (CI)
+        job: "deployments/payment-staging"
+      - name: Automated Tests (CI)
         environment: test
-        job: "ci/pagamento-ci"
+        job: "ci/payment-ci"
 ```
 
 
-### 8.2. Biblioteca compartilhada, docs fora do padrão
+### 8.2. Shared library, docs outside the default location
 
 ```yaml
 apiVersion: daileon/v1
@@ -452,8 +452,8 @@ kind: Library
 
 metadata:
   name: commons-logging-br
-  description: "Padronização de logs estruturados para os serviços Java."
-  tags: [java, observabilidade, biblioteca]
+  description: "Standardization of structured logs for the Java services."
+  tags: [java, observability, library]
   owner: team-platform-engineering
   domain: internal-tooling
 
@@ -461,48 +461,48 @@ spec:
   type: library
   lifecycle: experimental
   docs:
-    dir: documentacao/tecnica
+    dir: documentation/technical
     index: index.md
 ```
 
-### 8.3. Componente em descontinuação
+### 8.3. Component being discontinued
 
 ```yaml
 metadata:
-  name: relatorio-legado
-  description: "Gerador de relatórios em lote. Substituído por relatorio-service."
+  name: legacy-report
+  description: "Batch report generator. Replaced by report-service."
   owner: team-data
 
 spec:
   type: cronjob
   lifecycle: deprecated
   dependencies:
-    - component: relatorio-service
+    - component: report-service
 ```
 
 ---
 
-## 9. Checklist antes de commitar
+## 9. Checklist before committing
 
-- [ ] Arquivo se chama `project-info.yml` e está na raiz do repositório.
-- [ ] `metadata.name` preenchido e único no catálogo.
-- [ ] `owner` aponta para um time real (evite deixar `unassigned`).
-- [ ] `lifecycle` é `production`, `experimental` ou `deprecated`.
-- [ ] `type` segue a convenção do time (`service`, `website`, `library`, `cronjob`, …).
-- [ ] Existe um `index.md` na raiz da pasta indicada em `docs.dir`.
-- [ ] Se há `.daileon-ignore` no repositório, ele está na pasta certa — e **não** na raiz, salvo se a intenção for tirar o projeto do catálogo.
-- [ ] Todo item de `links` tem `url` **e** `title`.
-- [ ] YAML válido — rode um lint ou cole em um validador antes de commitar.
-- [ ] Após o merge, rode o Sync no portal e confira se o componente aparece com o selo `project-info.yml` (e não como "Fallback sintético").
+- [ ] The file is named `project-info.yml` and sits at the repository root.
+- [ ] `metadata.name` is filled in and unique in the catalog.
+- [ ] `owner` points to a real team (avoid leaving it as `unassigned`).
+- [ ] `lifecycle` is `production`, `experimental` or `deprecated`.
+- [ ] `type` follows the team convention (`service`, `website`, `library`, `cronjob`, …).
+- [ ] There is an `index.md` at the root of the folder given in `docs.dir`.
+- [ ] If there is a `.daileon-ignore` in the repository, it is in the right folder — and **not** at the root, unless the intent is to remove the project from the catalog.
+- [ ] Every `links` item has both `url` **and** `title`.
+- [ ] Valid YAML — run a lint or paste it into a validator before committing.
+- [ ] After the merge, run Sync in the portal and check that the component shows up with the `project-info.yml` badge (and not as "Synthetic fallback").
 
 ---
 
-## 10. Referência do schema no código
+## 10. Schema reference in the code
 
-| O que | Onde |
+| What | Where |
 | --- | --- |
-| Modelo Pydantic do manifesto | [`backend/app/catalog/manifest.py`](../backend/app/catalog/manifest.py) |
-| Leitura do arquivo e mapeamento para o banco | [`backend/app/gitlab/gitlab_crawler.py`](../backend/app/gitlab/gitlab_crawler.py) |
-| Tabelas e limites de coluna | [`backend/app/db/models.py`](../backend/app/db/models.py) |
+| Pydantic model of the manifest | [`backend/app/catalog/manifest.py`](../backend/app/catalog/manifest.py) |
+| File reading and mapping to the database | [`backend/app/gitlab/gitlab_crawler.py`](../backend/app/gitlab/gitlab_crawler.py) |
+| Tables and column limits | [`backend/app/db/models.py`](../backend/app/db/models.py) |
 
-Ver também: [Arquitetura](arquitetura.md) · [Implantação](implantacao.md)
+See also: [Architecture](architecture.md) · [Deployment](deployment.md)

@@ -1,45 +1,45 @@
-# 🚀 Daileon — Developer Portal Interno
+# 🚀 Daileon — Internal Developer Portal
 
-> **Centralizando o Ecossistema de Software, Catálogo de Componentes e Documentação Viva (TechDocs) a partir do GitLab.**
+> **Centralizing the software ecosystem, the component catalog and living documentation (TechDocs) straight from GitLab.**
 
 ---
 
-## 📌 1. Visão Geral
+## 📌 1. Overview
 
-O **Daileon** é uma plataforma de Developer Portal (Developer Experience - DevEx) inspirada no [Spotify Backstage](https://backstage.io/). 
+**Daileon** is a Developer Portal (Developer Experience — DevEx) platform inspired by [Spotify Backstage](https://backstage.io/).
 
-Seu objetivo principal é reduzir a carga cognitiva dos desenvolvedores, oferecendo uma visão unificada e centralizada de todos os microsserviços, bibliotecas, lambdas, APIs e documentações da empresa sem a necessidade de cadastros manuais repetitivos.
+Its main goal is to reduce developers' cognitive load by offering a unified, centralized view of every microservice, library, lambda, API and piece of documentation in the company — with no repetitive manual registration.
 
 ```mermaid
 graph LR
-    A[Repositórios GitLab] -->|Crawler + project-info.yml| B[Engine de Ingestão Daileon]
-    B --> C[Catálogo de Softwares]
+    A[GitLab Repositories] -->|Crawler + project-info.yml| B[Daileon Ingestion Engine]
+    B --> C[Software Catalog]
     B --> D[TechDocs Reader]
-    B --> E[Busca Unificada]
+    B --> E[Unified Search]
 ```
 
 ---
 
-## 💡 2. Como Funciona
+## 💡 2. How It Works
 
-### 2.1. Ingestão Automática ("Documentation & Metadata as Code")
-Cada projeto mantém na raiz do seu repositório um arquivo de manifesto chamado **`project-info.yml`** e uma pasta de documentação (por padrão `/docs`).
+### 2.1. Automatic Ingestion ("Documentation & Metadata as Code")
+Each project keeps a manifest file named **`project-info.yml`** at the root of its repository, plus a documentation folder (`/docs` by default).
 
-O Daileon se conecta à **API REST v4 do GitLab** utilizando o token `GITLAB_READ_TOKEN`:
-1. **Varredura**: Lista todos os projetos acessíveis pelo token (ou filtrados por um grupo específico).
-2. **Parsing do Manifesto**: Baixa e valida o arquivo `project-info.yml`. Se o arquivo não existir, o Daileon gera automaticamente um registro *sintético* com as informações básicas do repositório GitLab.
-3. **Leitura de Docs**: Identifica os arquivos Markdown na pasta `/docs` (ou diretório customizado) e indexa o conteúdo. Pastas com um arquivo `.daileon-ignore` ficam de fora — ver [Referência do `project-info.yml`](project-info-yml.md).
-4. **Atualização**: Mantém o catálogo de serviços e o motor de busca atualizados no banco de dados.
+Daileon connects to the **GitLab REST API v4** using the `GITLAB_READ_TOKEN` token:
+1. **Scan**: Lists every project the token can reach (or only those under a specific group).
+2. **Manifest parsing**: Downloads and validates the `project-info.yml` file. If the file does not exist, Daileon automatically generates a *synthetic* record with the basic information from the GitLab repository.
+3. **Docs reading**: Identifies the Markdown files inside the `/docs` folder (or a custom directory) and indexes their content. Folders containing a `.daileon-ignore` file are left out — see the [`project-info.yml` Reference](project-info-yml.md).
+4. **Update**: Keeps the service catalog and the search engine up to date in the database.
 
-### 2.2. O Manifesto `project-info.yml`
-Exemplo de configuração que cada repositório pode adicionar:
+### 2.2. The `project-info.yml` Manifest
+Example of the configuration each repository can add:
 
 ```yaml
 apiVersion: daileon/v1
 kind: Component
 metadata:
-  name: pagamento-service
-  description: "Serviço responsável pelo processamento de pagamentos e liquidação PIX."
+  name: payment-service
+  description: "Service responsible for payment processing and PIX settlement."
   tags: [java, spring-boot, pix, finance]
   owner: team-payments
   domain: checkout
@@ -54,27 +54,26 @@ spec:
     index: index.md
   
   links:
-    - url: https://grafana.empresa.com/d/pagamentos
+    - url: https://grafana.company.com/d/payments
       title: Grafana Dashboard
       icon: dashboard
-    - url: https://api-docs.empresa.com/pagamento-service
+    - url: https://api-docs.company.com/payment-service
       title: OpenAPI Spec
       icon: api
 
   dependencies:
-    - component: usuario-service
-    - component: notificacao-service
+    - component: user-service
+    - component: notification-service
 ```
 
-📖 **Referência completa dos campos, valores aceitos e comportamentos:** [Referência do `project-info.yml`](project-info-yml.md).
+📖 **Full reference of fields, accepted values and behaviors:** [`project-info.yml` Reference](project-info-yml.md).
 
 ---
 
-## 🔥 3. Principais Funcionalidades
+## 🔥 3. Key Features
 
-- **🗂️ Software Catalog**: Tabela e grid visual de componentes com filtros por Time (Owner), Tipo, Lifecycle e Tags.
-- **📚 TechDocs Engine**: Renderizador interativo de Markdown com suporte a navegação por árvore de pastas e diagramas **Mermaid.js**.
-- **🚦 Jenkins CI/CD Status**: Painel integrado de status de pipelines em tempo real (Produção, Staging, Testes) com métricas de build, gatilhos, duração e branch.
-- **🔎 Busca Centralizada**: Pesquisa rápida em nomes de serviços, tags, responsáveis e conteúdo textual de documentações.
-- **⚙️ Sincronização em 1-Clique**: Botão de Sync manual e crawler agendado no portal.
-
+- **🗂️ Software Catalog**: Table and visual grid of components with filters by Team (Owner), Type, Lifecycle and Tags.
+- **📚 TechDocs Engine**: Interactive Markdown renderer with folder-tree navigation and **Mermaid.js** diagrams.
+- **🚦 Jenkins CI/CD Status**: Built-in real-time pipeline status panel (Production, Staging, Tests) with build metrics, triggers, duration and branch.
+- **🔎 Centralized Search**: Fast search across service names, tags, owners and the text content of the documentation.
+- **⚙️ 1-Click Sync**: Manual Sync button and a scheduled crawler in the portal.
