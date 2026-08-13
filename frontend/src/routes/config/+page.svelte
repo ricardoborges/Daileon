@@ -4,16 +4,12 @@
     startSync,
     fetchSyncStatus,
     fetchSyncableProjects,
-    fetchLDAPConfig,
-    saveLDAPConfig,
-    testLDAPConfig,
     fetchOrgConfig,
     saveOrgConfig,
     type SyncLogLine,
     type SyncMode,
     type SyncStatus,
     type SyncableProject,
-    type LDAPConfig,
     type OrganizationConfig,
   } from "$lib/api";
   import {
@@ -32,8 +28,12 @@
     FolderOpen,
     Image as ImageIcon,
     RotateCw,
+    Blocks,
+    ArrowLeft,
   } from "lucide-svelte";
   import { t } from "$lib/i18n";
+  import { pluginRegistry } from "$lib/plugins";
+  import PluginCenter from "$lib/plugins/PluginCenter.svelte";
 
   interface Operation {
     mode: SyncMode;
@@ -74,7 +74,9 @@
 
   const POLL_MS = 800;
 
-  let activeTab: "sync" | "ldap" | "org" = "sync";
+  let activeTab: string = "sync";
+
+  $: configurablePlugins = pluginRegistry.getConfigurablePlugins();
 
   let status: SyncStatus | null = null;
   let logs: SyncLogLine[] = [];
@@ -189,23 +191,6 @@
             ? "led-visor"
             : "";
 
-  // LDAP Config State
-  let ldapConfig: LDAPConfig = {
-    enabled: false,
-    server_host: "",
-    server_port: 389,
-    use_ssl: false,
-    bind_dn: "",
-    bind_password: "",
-    base_dn: "",
-    user_attribute: "uid",
-  };
-  let ldapLoading = false;
-  let ldapSaving = false;
-  let ldapTesting = false;
-  let ldapMessage = "";
-  let ldapMessageType: "success" | "error" = "success";
-
   // Organization Config State
   let orgConfig: OrganizationConfig = {
     name: "",
@@ -219,7 +204,6 @@
   onMount(() => {
     // Reanexa a uma operação já em andamento (recarregar a página não a cancela).
     poll();
-    loadLDAP();
     loadOrg();
   });
 
@@ -246,47 +230,6 @@
       orgMessageType = "error";
     } finally {
       orgSaving = false;
-    }
-  }
-
-  async function loadLDAP() {
-    ldapLoading = true;
-    try {
-      ldapConfig = await fetchLDAPConfig();
-    } catch (e: any) {
-      // Ignora erro inicial
-    } finally {
-      ldapLoading = false;
-    }
-  }
-
-  async function handleSaveLDAP() {
-    ldapSaving = true;
-    ldapMessage = "";
-    try {
-      const res = await saveLDAPConfig(ldapConfig);
-      ldapMessage = res.message || "Configurações salvas com sucesso!";
-      ldapMessageType = "success";
-    } catch (e: any) {
-      ldapMessage = e.message || "Falha ao salvar configurações do LDAP.";
-      ldapMessageType = "error";
-    } finally {
-      ldapSaving = false;
-    }
-  }
-
-  async function handleTestLDAP() {
-    ldapTesting = true;
-    ldapMessage = "";
-    try {
-      const res = await testLDAPConfig(ldapConfig);
-      ldapMessage = res.message;
-      ldapMessageType = res.success ? "success" : "error";
-    } catch (e: any) {
-      ldapMessage = e.message || "Falha ao testar conexão LDAP.";
-      ldapMessageType = "error";
-    } finally {
-      ldapTesting = false;
     }
   }
 
@@ -395,7 +338,7 @@
 
   <!-- Navegação de Abas -->
   <div class="border-b border-[var(--line)] pb-4">
-    <div class="seg" role="tablist">
+    <div class="seg flex-wrap gap-1" role="tablist">
       <button
         type="button"
         role="tab"
@@ -409,22 +352,23 @@
       <button
         type="button"
         role="tab"
-        aria-selected={activeTab === "ldap"}
-        class="seg-item cursor-pointer {activeTab === 'ldap' ? 'is-active' : ''}"
-        on:click={() => (activeTab = "ldap")}
-      >
-        <Server class="w-4 h-4" />
-        <span>{$t("config.tabLdap")}</span>
-      </button>
-      <button
-        type="button"
-        role="tab"
         aria-selected={activeTab === "org"}
         class="seg-item cursor-pointer {activeTab === 'org' ? 'is-active' : ''}"
         on:click={() => (activeTab = "org")}
       >
         <Building2 class="w-4 h-4" />
         <span>{$t("config.tabOrg")}</span>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeTab === "plugins" || configurablePlugins.some(p => p.id === activeTab)}
+        class="seg-item cursor-pointer {activeTab === 'plugins' || configurablePlugins.some(p => p.id === activeTab) ? 'is-active' : ''}"
+        on:click={() => (activeTab = "plugins")}
+      >
+        <Blocks class="w-4 h-4 t-visor" />
+        <span>Plugins</span>
       </button>
     </div>
   </div>
@@ -791,191 +735,9 @@
         </div>
       </section>
     </div>
-  {:else if activeTab === "ldap"}
-    <!-- ABA 2: LDAP -->
-    <section class="plate p-6 space-y-6" style="--chamfer: 16px;">
-      <div
-        class="form-head"
-      >
-        <div class="space-y-1">
-          <h2 class="text-lg font-bold t-txt flex items-center gap-2">
-            <Server class="w-5 h-5 t-visor" /> {$t("config.ldapTitle")}
-          </h2>
-          <p class="t-dim text-xs">
-            {$t("config.ldapSubtitle")}
-          </p>
-        </div>
-
-        <label
-          class="flex items-center gap-3 cursor-pointer select-none plate plate-deep px-4 py-2"
-          style="--chamfer: 8px;"
-        >
-          <input
-            type="checkbox"
-            bind:checked={ldapConfig.enabled}
-            class="w-4 h-4 rounded text-[var(--visor)] focus:ring-0 cursor-pointer"
-          />
-          <span class="text-xs font-bold uppercase tracking-wider t-txt">
-            {$t("config.ldapEnable")}
-          </span>
-          <span class="led {ldapConfig.enabled ? 'led-ok' : 'led-alert'}"></span>
-        </label>
-      </div>
-
-      {#if ldapMessage}
-        <div
-          class="chip {ldapMessageType === 'success'
-            ? 'chip-ok'
-            : 'chip-alert'} !w-full !whitespace-normal !normal-case !tracking-normal text-xs p-3"
-        >
-          {#if ldapMessageType === "success"}
-            <CheckCircle2 class="w-4 h-4 flex-none" />
-          {:else}
-            <AlertTriangle class="w-4 h-4 flex-none" />
-          {/if}
-          <span>{ldapMessage}</span>
-        </div>
-      {/if}
-
-      <div class="form-grid form-grid-3">
-        <!-- Servidor Host -->
-        <div class="form-row">
-          <label for="ldap_host" class="field-label"
-            >{$t("config.ldapHost")}</label
-          >
-          <input
-            id="ldap_host"
-            type="text"
-            bind:value={ldapConfig.server_host}
-            placeholder={$t("config.ldapHostPlaceholder")}
-            class="field"
-          />
-        </div>
-
-        <!-- Porta -->
-        <div class="form-row">
-          <label for="ldap_port" class="field-label"
-            >{$t("config.ldapPort")}</label
-          >
-          <input
-            id="ldap_port"
-            type="number"
-            bind:value={ldapConfig.server_port}
-            placeholder="389"
-            class="field"
-          />
-        </div>
-
-        <!-- Checkbox SSL -->
-        <div class="form-row justify-end">
-          <label
-            class="flex items-center gap-2 text-xs font-semibold t-txt cursor-pointer py-2.5"
-          >
-            <input
-              type="checkbox"
-              bind:checked={ldapConfig.use_ssl}
-              class="w-4 h-4 rounded text-[var(--visor)]"
-            />
-            <span>{$t("config.ldapUseSsl")}</span>
-          </label>
-        </div>
-
-        <!-- Bind DN -->
-        <div class="form-row lg:col-span-2">
-          <label for="bind_dn" class="field-label"
-            >{$t("config.ldapBindDn")}</label
-          >
-          <input
-            id="bind_dn"
-            type="text"
-            bind:value={ldapConfig.bind_dn}
-            placeholder={$t("config.ldapBindDnPlaceholder")}
-            class="field"
-          />
-        </div>
-
-        <!-- Bind Password -->
-        <div class="form-row">
-          <label for="bind_password" class="field-label"
-            >{$t("config.ldapBindPass")}</label
-          >
-          <input
-            id="bind_password"
-            type="password"
-            bind:value={ldapConfig.bind_password}
-            placeholder={$t("config.ldapBindPassPlaceholder")}
-            class="field"
-          />
-        </div>
-
-        <!-- Base DN -->
-        <div class="form-row lg:col-span-2">
-          <label for="base_dn" class="field-label"
-            >{$t("config.ldapBaseDn")}</label
-          >
-          <input
-            id="base_dn"
-            type="text"
-            bind:value={ldapConfig.base_dn}
-            placeholder={$t("config.ldapBaseDnPlaceholder")}
-            class="field"
-          />
-        </div>
-
-        <!-- Atributo do Usuário -->
-        <div class="form-row">
-          <label for="user_attr" class="field-label"
-            >{$t("config.ldapUserAttr")}</label
-          >
-          <input
-            id="user_attr"
-            type="text"
-            bind:value={ldapConfig.user_attribute}
-            placeholder="uid ou sAMAccountName"
-            class="field"
-          />
-        </div>
-      </div>
-
-      <!-- Botões de Ação -->
-      <div
-        class="form-actions"
-      >
-        <button
-          type="button"
-          on:click={handleTestLDAP}
-          disabled={ldapTesting || !ldapConfig.server_host}
-          class="btn btn-sm px-4 flex items-center gap-2"
-        >
-          {#if ldapTesting}
-            <div
-              class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
-            ></div>
-            <span>{$t("config.ldapTesting")}</span>
-          {:else}
-            <Server class="w-3.5 h-3.5 t-visor" />
-            <span>{$t("config.ldapTest")}</span>
-          {/if}
-        </button>
-
-        <button
-          type="button"
-          on:click={handleSaveLDAP}
-          disabled={ldapSaving}
-          class="btn btn-sm btn-primary px-5 flex items-center gap-2"
-        >
-          {#if ldapSaving}
-            <div
-              class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
-            ></div>
-            <span>{$t("config.ldapSaving")}</span>
-          {:else}
-            <ShieldCheck class="w-3.5 h-3.5" />
-            <span>{$t("config.ldapSave")}</span>
-          {/if}
-        </button>
-      </div>
-    </section>
+  {:else if activeTab === "plugins"}
+    <!-- ABA: Central de Plugins -->
+    <PluginCenter onSelectConfigPlugin={(pluginId) => (activeTab = pluginId)} />
   {:else if activeTab === "org"}
     <!-- ABA 3: Organização -->
     <section class="plate p-6 space-y-6" style="--chamfer: 16px;">
@@ -1059,5 +821,28 @@
         </button>
       </div>
     </section>
+  {:else}
+    <!-- Configuração de Plugin Específico -->
+    {#each configurablePlugins as plugin (plugin.id)}
+      {#if activeTab === plugin.id && plugin.configComponent}
+        <div class="space-y-4">
+          <div class="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+            <button
+              type="button"
+              on:click={() => (activeTab = "plugins")}
+              class="btn btn-sm btn-ghost flex items-center gap-2 text-xs font-semibold t-dim hover:t-txt"
+            >
+              <ArrowLeft class="w-4 h-4" />
+              <span>Voltar para Central de Plugins</span>
+            </button>
+            <span class="chip chip-visor text-xs font-mono font-bold">
+              Configurando: {plugin.name}
+            </span>
+          </div>
+          <svelte:component this={plugin.configComponent} />
+        </div>
+      {/if}
+    {/each}
   {/if}
 </main>
+

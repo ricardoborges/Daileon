@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.db.session import AsyncSessionLocal
-from app.gitlab.gitlab_crawler import GitLabCrawlerService, SyncMode, SyncOptions
+from app.plugins.gitlab import GitLabCrawlerService, SyncMode, SyncOptions
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +152,10 @@ class SyncJobRegistry:
             return job
 
     async def _run(self, job: SyncJob, mode: SyncMode) -> None:
-        crawler = GitLabCrawlerService()
         try:
             # Sessão própria: a do request morre assim que o endpoint responde.
             async with AsyncSessionLocal() as db:
+                crawler = await GitLabCrawlerService.create(db)
                 result = await crawler.run(
                     db,
                     mode=mode,

@@ -4,7 +4,7 @@
    * agregado, só muda qual campo agrupa e qual é a dimensão cruzada — então
    * os dois usam este componente em vez de duas telas quase iguais.
    */
-  import { ChevronRight, ArrowRight, Users, Cpu, Layers } from 'lucide-svelte';
+  import { ChevronRight, ArrowRight, Cpu, Layers } from 'lucide-svelte';
   import type { ComponentType } from 'svelte';
   import type { GroupedComponentItem } from '$lib/api';
   import { t } from '$lib/i18n';
@@ -70,22 +70,6 @@
         <div class="flex flex-wrap gap-1.5">
           {#each crossValues as value}
             <span class="chip text-xs">{value}</span>
-          {/each}
-        </div>
-      </div>
-    {/if}
-
-    {#if owners.length > 0}
-      <div class="space-y-1.5">
-        <span class="text-[11px] uppercase font-mono font-bold tracking-wider t-faint block">
-          {$t('domains.colOwners')}
-        </span>
-        <div class="flex flex-wrap gap-1.5">
-          {#each owners as owner}
-            <span class="chip chip-visor text-xs flex items-center gap-1">
-              <Users class="w-3 h-3" />
-              {owner}
-            </span>
           {/each}
         </div>
       </div>

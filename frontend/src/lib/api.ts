@@ -133,6 +133,7 @@ export interface RiskItem {
 export interface DependencyItemDetail {
   name: string;
   is_external: boolean;
+  is_resource?: boolean;
 }
 
 export interface ComponentItem {
@@ -187,6 +188,7 @@ export interface GraphNode {
   in_scope: boolean;
   is_root: boolean;
   is_external?: boolean;
+  is_resource?: boolean;
 }
 
 export interface GraphEdge {
@@ -196,6 +198,7 @@ export interface GraphEdge {
   resolved: boolean;
   in_cycle: boolean;
   is_external?: boolean;
+  is_resource?: boolean;
 }
 
 export interface GraphCycle {
@@ -618,6 +621,270 @@ export async function fetchSolutionDetail(solutionName: string): Promise<Solutio
   }
   return res.json();
 }
+
+export interface ResourceItem {
+  id: number;
+  name: string;
+  description?: string;
+  kind: string;
+  type: string;
+  owner: string;
+  has_manifest: boolean;
+  docs_count: number;
+  docs_dir?: string;
+  consumers: Array<{ id: number; name: string; type: string; owner: string }>;
+  created_at?: string;
+}
+
+export async function fetchResources(): Promise<ResourceItem[]> {
+  const res = await authFetch(`${API_BASE}/resources`);
+  if (!res.ok) throw new Error('Falha ao carregar lista de recursos');
+  return res.json();
+}
+
+export interface PluginBackendInfo {
+  id: string;
+  name: string;
+  version: string;
+  type: string;
+  category: string;
+  has_router: boolean;
+  status: string;
+}
+
+export async function fetchBackendPlugins(): Promise<PluginBackendInfo[]> {
+  const res = await authFetch(`${API_BASE}/plugins`);
+  if (!res.ok) throw new Error('Falha ao consultar plugins registrados no backend');
+  return res.json();
+}
+
+// -- Portainer Plugin API ---------------------------------------------------
+
+/** Um servidor Portainer cadastrado. `id` só falta em servidor ainda não
+ *  gravado — o backend sorteia ao salvar. Segredos chegam como `******`. */
+export interface PortainerServer {
+  id?: string;
+  name: string;
+  url: string;
+  api_key?: string;
+  username?: string;
+  password?: string;
+  enabled: boolean;
+}
+
+export interface PortainerConfig {
+  servers: PortainerServer[];
+}
+
+/** Servidor que não respondeu. A resposta traz o que os demais devolveram. */
+export interface PortainerServerError {
+  server_id: string;
+  server_name: string;
+  error: string;
+}
+
+export interface PortainerContainer {
+  id: string;
+  short_id: string;
+  name: string;
+  all_names: string[];
+  endpoint_id: number;
+  endpoint_name: string;
+  /** Origem do container. Necessário para não agir no Portainer errado. */
+  server_id: string;
+  server_name: string;
+  server_url?: string;
+  image: string;
+  state: 'running' | 'exited' | 'paused' | 'restarting' | 'created' | string;
+  status: string;
+  created: number;
+  ports: string[];
+  stack_name?: string;
+  service_name?: string;
+  labels?: Record<string, string>;
+}
+
+export interface PortainerComponentResponse {
+  component_id: number;
+  component_name: string;
+  configured: boolean;
+  message?: string;
+  error?: string;
+  containers_count?: number;
+  containers: PortainerContainer[];
+  errors?: PortainerServerError[];
+}
+
+export interface PortainerContainerStats {
+  container_id: string;
+  endpoint_id: number;
+  cpu_percent: number;
+  memory_usage_mb: number;
+  memory_limit_mb: number;
+  memory_percent: number;
+  rx_kb: number;
+  tx_kb: number;
+  online_cpus: number;
+}
+
+export interface PortainerContainerLogs {
+  container_id: string;
+  endpoint_id: number;
+  lines_count: number;
+  logs: string;
+}
+
+export async function fetchPortainerConfig(): Promise<PortainerConfig> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações do Portainer');
+  return res.json();
+}
+
+export async function savePortainerConfig(config: PortainerConfig): Promise<{ message: string; servers: PortainerServer[] }> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configurações do Portainer');
+  }
+  return res.json();
+}
+
+/** Testa um servidor isolado — o que está aberto no formulário, gravado ou não. */
+export async function testPortainerConfig(server: PortainerServer): Promise<{ success: boolean; message: string; version?: string; endpoints_count?: number }> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/test-connection`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(server)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao testar conexão com o Portainer');
+  }
+  return res.json();
+}
+
+export async function fetchComponentPortainer(componentId: number): Promise<PortainerComponentResponse> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/catalog/${componentId}/containers`);
+  if (!res.ok) throw new Error('Falha ao carregar containers do Portainer');
+  return res.json();
+}
+
+// As três rotas abaixo levam `serverId` no caminho. Com mais de um Portainer
+// cadastrado, `endpointId` sozinho é ambíguo: o ambiente 1 existe em todos.
+
+export async function fetchPortainerContainerStats(serverId: string, endpointId: number, containerId: string): Promise<PortainerContainerStats> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${serverId}/${endpointId}/${containerId}/stats`);
+  if (!res.ok) throw new Error('Falha ao carregar métricas do container');
+  return res.json();
+}
+
+export async function fetchPortainerContainerLogs(serverId: string, endpointId: number, containerId: string, tail = 150): Promise<PortainerContainerLogs> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${serverId}/${endpointId}/${containerId}/logs?tail=${tail}`);
+  if (!res.ok) throw new Error('Falha ao buscar logs do container');
+  return res.json();
+}
+
+export async function postPortainerContainerAction(serverId: string, endpointId: number, containerId: string, action: 'start' | 'stop' | 'restart'): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/portainer/containers/${serverId}/${endpointId}/${containerId}/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action })
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || `Falha ao executar ação '${action}' no container`);
+  }
+  return res.json();
+}
+
+// -- GitLab Plugin API -----------------------------------------------------
+
+export interface GitLabConfig {
+  url: string;
+  read_token?: string;
+  group_id?: string;
+  enabled?: boolean;
+}
+
+export async function fetchGitLabConfig(): Promise<GitLabConfig> {
+  const res = await authFetch(`${API_BASE}/plugins/gitlab/config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações do GitLab');
+  return res.json();
+}
+
+export async function saveGitLabConfig(config: GitLabConfig): Promise<{ message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/gitlab/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configurações do GitLab');
+  }
+  return res.json();
+}
+
+export async function testGitLabConfig(config: GitLabConfig): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/gitlab/config/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao testar conexão com o GitLab');
+  }
+  return res.json();
+}
+
+// -- Jenkins Plugin API ----------------------------------------------------
+
+export interface JenkinsConfig {
+  url: string;
+  user?: string;
+  api_token?: string;
+  enabled?: boolean;
+}
+
+export async function fetchJenkinsConfig(): Promise<JenkinsConfig> {
+  const res = await authFetch(`${API_BASE}/plugins/jenkins/config`);
+  if (!res.ok) throw new Error('Falha ao carregar configurações do Jenkins');
+  return res.json();
+}
+
+export async function saveJenkinsConfig(config: JenkinsConfig): Promise<{ message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/jenkins/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao salvar configurações do Jenkins');
+  }
+  return res.json();
+}
+
+export async function testJenkinsConfig(config: JenkinsConfig): Promise<{ success: boolean; message: string }> {
+  const res = await authFetch(`${API_BASE}/plugins/jenkins/config/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) {
+    const detail = await res.json().then(b => b?.detail).catch(() => null);
+    throw new Error(detail || 'Falha ao testar conexão com o Jenkins');
+  }
+  return res.json();
+}
+
+
+
 
 
 

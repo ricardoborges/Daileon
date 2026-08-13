@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Layers, Boxes, FolderGit2 } from 'lucide-svelte';
+  import { Layers, Boxes, FolderGit2, Server } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import type { CatalogEntity } from '$lib/catalogView';
 
@@ -11,11 +11,12 @@
   $: tabs = [
     { id: 'projects' as const, label: $t('catalog.tabProjects'), hint: $t('catalog.tabProjectsHint'), icon: Layers },
     { id: 'solutions' as const, label: $t('catalog.tabSolutions'), hint: $t('catalog.tabSolutionsHint'), icon: Boxes },
-    { id: 'domains' as const, label: $t('catalog.tabDomains'), hint: $t('catalog.tabDomainsHint'), icon: FolderGit2 }
+    { id: 'domains' as const, label: $t('catalog.tabDomains'), hint: $t('catalog.tabDomainsHint'), icon: FolderGit2 },
+    { id: 'resources' as const, label: $t('catalog.tabResources'), hint: $t('catalog.tabResourcesHint'), icon: Server }
   ];
 </script>
 
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-3" role="tablist" aria-label={$t('catalog.tabsLabel')}>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" role="tablist" aria-label={$t('catalog.tabsLabel')}>
   {#each tabs as tab}
     <button
       type="button"

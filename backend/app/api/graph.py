@@ -31,15 +31,16 @@ def _component_node(c: Any) -> Dict[str, Any]:
         "in_scope": True,
         "is_root": False,
         "is_external": False,
+        "is_resource": False,
     }
 
 
-def _unresolved_node(node_id: str, name: str, is_external: bool = False) -> Dict[str, Any]:
+def _unresolved_node(node_id: str, name: str, is_external: bool = False, is_resource: bool = False) -> Dict[str, Any]:
     """Nó de uma dependência declarada que não casa com nenhum componente.
 
-    Pode ser um serviço externo legítimo (uma API de terceiro ou projeto externo) ou um nome
-    errado no manifesto. O grafo não tem como distinguir os dois casos no nome solto,
-    mas se for marcado como external=True ele fica identificado.
+    Pode ser um serviço externo legítimo (uma API de terceiro ou projeto externo),
+    um recurso de infraestrutura/serviço compartilhado (resource), ou um nome
+    errado no manifesto.
     """
     return {
         "id": node_id,
@@ -55,6 +56,7 @@ def _unresolved_node(node_id: str, name: str, is_external: bool = False) -> Dict
         "in_scope": True,
         "is_root": False,
         "is_external": is_external,
+        "is_resource": is_resource,
     }
 
 
@@ -162,6 +164,7 @@ def build_graph(
                 continue
 
             is_ext = getattr(dep, "is_external", False)
+            is_res = getattr(dep, "is_resource", False)
             is_dependent = getattr(dep, "is_dependent", False)
 
             target = by_name.get(target_name.lower()) if not is_ext else None
@@ -170,16 +173,20 @@ def build_graph(
                 if target.id == c.id:
                     continue
                 other_node_id = f"c{target.id}"
+                if is_res:
+                    nodes[other_node_id]["is_resource"] = True
             else:
                 key = target_name.lower()
                 if key not in unresolved_ids:
                     node_id = f"u{len(unresolved_ids) + 1}"
                     unresolved_ids[key] = node_id
                     unresolved_names.append(target_name)
-                    nodes[node_id] = _unresolved_node(node_id, target_name, is_external=is_ext or is_dependent)
+                    nodes[node_id] = _unresolved_node(node_id, target_name, is_external=is_ext or is_dependent, is_resource=is_res)
                 other_node_id = unresolved_ids[key]
                 if is_ext or is_dependent:
                     nodes[other_node_id]["is_external"] = True
+                if is_res:
+                    nodes[other_node_id]["is_resource"] = True
 
             # Se is_dependent é False: c_node_id ---> other_node_id (c depende de outro)
             # Se is_dependent é True: other_node_id ---> c_node_id (outro depende de c)
@@ -201,6 +208,7 @@ def build_graph(
                     "resolved": target is not None,
                     "in_cycle": False,
                     "is_external": is_ext or nodes.get(other_node_id, {}).get("is_external", False),
+                    "is_resource": is_res or nodes.get(other_node_id, {}).get("is_resource", False),
                 }
             )
 

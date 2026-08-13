@@ -6,9 +6,11 @@
     fetchCatalog,
     fetchDomains,
     fetchSolutions,
+    fetchResources,
     type ComponentItem,
     type DomainItem,
-    type SolutionItem
+    type SolutionItem,
+    type ResourceItem
   } from '$lib/api';
   import CatalogCard from '$lib/components/CatalogCard.svelte';
   import CatalogTable from '$lib/components/CatalogTable.svelte';
@@ -26,7 +28,7 @@
     type CatalogEntity,
     type ViewMode
   } from '$lib/catalogView';
-  import { Layers, Boxes, FolderGit2, Search, X } from 'lucide-svelte';
+  import { Layers, Boxes, FolderGit2, Server, BookOpen, ArrowRight, Cpu, Search, X } from 'lucide-svelte';
   import { t } from '$lib/i18n';
 
   let entity: CatalogEntity = 'projects';
@@ -37,11 +39,12 @@
   let components: ComponentItem[] = [];
   let solutions: SolutionItem[] = [];
   let domains: DomainItem[] = [];
+  let resources: ResourceItem[] = [];
 
   // Uma flag de carga por entidade: trocar de aba não pode reexibir o
   // esqueleto de uma lista que já está em memória.
-  let loading: Record<CatalogEntity, boolean> = { projects: false, solutions: false, domains: false };
-  let loaded: Record<CatalogEntity, boolean> = { projects: false, solutions: false, domains: false };
+  let loading: Record<CatalogEntity, boolean> = { projects: false, solutions: false, domains: false, resources: false };
+  let loaded: Record<CatalogEntity, boolean> = { projects: false, solutions: false, domains: false, resources: false };
   // O erro também é por entidade: uma carga de fundo que falha não pode
   // sobrepor a lista que o usuário está vendo.
   let errors: Partial<Record<CatalogEntity, string>> = {};
@@ -55,7 +58,7 @@
   let selectedRisk = '';
   let selectedSort = 'activity_desc';
 
-  const ENTITIES: CatalogEntity[] = ['projects', 'solutions', 'domains'];
+  const ENTITIES: CatalogEntity[] = ['projects', 'solutions', 'domains', 'resources'];
 
   onMount(() => {
     entity = resolveEntity($page.url.searchParams.get('tab'));
@@ -65,7 +68,7 @@
     }
     ready = true;
     searchInput?.focus();
-    // Os contadores das abas saem das próprias listas: carregamos as três já
+    // Os contadores das abas saem das próprias listas: carregamos as quatro já
     // na abertura para os números aparecerem sem precisar visitar cada aba.
     // A aba ativa vai primeiro para não disputar a rede com as de fundo.
     load(entity).then(() => {
@@ -107,7 +110,8 @@
     try {
       if (target === 'projects') components = await fetchCatalog();
       else if (target === 'solutions') solutions = await fetchSolutions();
-      else domains = await fetchDomains();
+      else if (target === 'domains') domains = await fetchDomains();
+      else if (target === 'resources') resources = await fetchResources();
       loaded = { ...loaded, [target]: true };
     } catch (e: any) {
       console.error(e);
@@ -227,6 +231,18 @@
     );
   });
 
+  // --- Recursos ---
+  $: filteredResources = resources.filter((res) => {
+    if (selectedOwner && res.owner !== selectedOwner) return false;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      res.name.toLowerCase().includes(q) ||
+      (res.description || '').toLowerCase().includes(q) ||
+      res.consumers.some((c) => c.name.toLowerCase().includes(q))
+    );
+  });
+
   $: domainSolutionOptions = Array.from(new Set(domains.flatMap((d) => d.solutions))).sort();
 
   $: shown =
@@ -234,15 +250,24 @@
       ? sortedProjects.length
       : entity === 'solutions'
         ? filteredSolutions.length
-        : filteredDomains.length;
+        : entity === 'domains'
+          ? filteredDomains.length
+          : filteredResources.length;
 
   $: total =
-    entity === 'projects' ? components.length : entity === 'solutions' ? solutions.length : domains.length;
+    entity === 'projects'
+      ? components.length
+      : entity === 'solutions'
+        ? solutions.length
+        : entity === 'domains'
+          ? domains.length
+          : resources.length;
 
   $: counts = {
     projects: loaded.projects ? components.length : undefined,
     solutions: loaded.solutions ? solutions.length : undefined,
-    domains: loaded.domains ? domains.length : undefined
+    domains: loaded.domains ? domains.length : undefined,
+    resources: loaded.resources ? resources.length : undefined
   };
 
   $: solutionRows = filteredSolutions.map((s) => ({
@@ -266,7 +291,9 @@
       ? $t('catalog.emptyTitle')
       : entity === 'solutions'
         ? $t('catalog.emptySolutionsTitle')
-        : $t('catalog.emptyDomainsTitle');
+        : entity === 'domains'
+          ? $t('catalog.emptyDomainsTitle')
+          : $t('catalog.emptyResourcesTitle');
 </script>
 
 <svelte:head>
@@ -467,6 +494,69 @@
         crossLabel={$t('catalog.tabDomains')}
       />
     {/if}
+  {:else if entity === 'resources'}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {#each filteredResources as res (res.id)}
+        <div class="plate plate-interactive p-6 space-y-4 flex flex-col justify-between group transition-transform hover:-translate-y-1">
+          <div class="space-y-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="p-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--line)] shrink-0">
+                  <Server class="w-5 h-5 t-visor" />
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-bold text-lg t-txt group-hover:t-visor transition-colors truncate flex items-center gap-2">
+                    <a href="/catalog/{res.id}" class="hover:underline">{res.name}</a>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                      Recurso
+                    </span>
+                  </h3>
+                  {#if res.owner && res.owner !== 'unassigned'}
+                    <span class="text-xs t-dim block mt-0.5">Owner: {res.owner}</span>
+                  {/if}
+                </div>
+              </div>
+            </div>
+
+            {#if res.description}
+              <p class="text-xs t-dim line-clamp-2">{res.description}</p>
+            {/if}
+
+            <div class="pt-3 border-t border-[var(--line)] space-y-2">
+              <span class="text-[11px] uppercase font-mono font-bold tracking-wider t-faint flex items-center gap-1.5">
+                <Cpu class="w-3.5 h-3.5 t-visor" />
+                {$t('catalog.consumedByProjects', { count: res.consumers.length })}
+              </span>
+              {#if res.consumers.length === 0}
+                <p class="text-xs t-faint italic">Nenhum consumidor registrado.</p>
+              {:else}
+                <div class="flex flex-wrap gap-1.5">
+                  {#each res.consumers as consumer}
+                    <a href="/catalog/{consumer.id}" class="tag text-xs hover:t-visor transition-colors">
+                      {consumer.name}
+                    </a>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-[var(--line)] flex items-center justify-between">
+            <span class="text-xs font-mono t-faint">
+              {res.docs_count > 0 ? `${res.docs_count} doc(s)` : 'Sem docs indexadas'}
+            </span>
+            <a
+              href="/catalog/{res.id}/docs"
+              class="btn btn-sm btn-visor flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <BookOpen class="w-3.5 h-3.5" />
+              <span>{$t('catalog.viewDocs')}</span>
+              <ArrowRight class="w-3.5 h-3.5 ml-0.5" />
+            </a>
+          </div>
+        </div>
+      {/each}
+    </div>
   {:else if viewMode === 'cards'}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {#each filteredDomains as domain (domain.domain)}

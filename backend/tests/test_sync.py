@@ -25,7 +25,7 @@ CARREGA_DOCS = selectinload(Component.docs).options(
     undefer(DocFile.content_markdown),
     undefer(DocFile.content_binary),
 )
-from app.gitlab.gitlab_crawler import (
+from app.plugins.gitlab.crawler import (
     IGNORE_MARKER,
     MAX_BINARY_DOC_BYTES,
     GitLabCrawlerService,

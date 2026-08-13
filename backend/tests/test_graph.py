@@ -15,6 +15,7 @@ from app.api.graph import build_graph
 class FakeDependency:
     target_component_name: str
     is_external: bool = False
+    is_resource: bool = False
     is_dependent: bool = False
 
 
@@ -153,3 +154,29 @@ def test_bloco_dependents_inverte_aresta_no_grafo():
 
     assert ("c1", bdados_id) in edges
     assert (idea_id, "c1") in edges
+
+
+def test_dependencia_recurso_sinalizada_no_grafo():
+    catalogo = [
+        FakeComponent(1, "MeuProjeto", [
+            FakeDependency("Redmine", is_external=False),
+            FakeDependency("bc-ccs", is_resource=True),
+            FakeDependency("Credilink", is_resource=True),
+            FakeDependency("enviosms", is_resource=True),
+            FakeDependency("bcadastro", is_resource=True),
+        ]),
+    ]
+    graph = build_graph(catalogo, include_isolated=True)
+    by_name = {n["name"]: n for n in graph["nodes"]}
+
+    assert "bc-ccs" in by_name
+    assert by_name["bc-ccs"]["is_resource"] is True
+    assert "Credilink" in by_name
+    assert by_name["Credilink"]["is_resource"] is True
+    assert "enviosms" in by_name
+    assert by_name["enviosms"]["is_resource"] is True
+    assert "bcadastro" in by_name
+    assert by_name["bcadastro"]["is_resource"] is True
+
+    resource_edges = [e for e in graph["edges"] if e.get("is_resource")]
+    assert len(resource_edges) == 4

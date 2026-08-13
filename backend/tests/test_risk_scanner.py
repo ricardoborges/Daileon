@@ -1,5 +1,5 @@
 import pytest
-from app.gitlab.risk_scanner import scan_repository_tree, scan_file_content
+from app.plugins.gitlab.risk_scanner import scan_repository_tree, scan_file_content
 
 def test_scan_repository_tree_detects_versioned_env():
     tree = [
@@ -77,3 +77,34 @@ def test_scan_dotnet_web_config_detects_xml_passwords():
     titles = [f.title for f in findings]
     assert any("Web.config/App.config" in t for t in titles)
     assert any("SmtpPassword" in t for t in titles)
+
+
+def test_scan_repository_tree_missing_gitignore_service():
+    tree = [
+        {"path": "README.md", "type": "blob"},
+        {"path": "project-info.yml", "type": "blob"},
+    ]
+    findings = scan_repository_tree(tree, catalog_type="service")
+    titles = [f.title for f in findings]
+    assert "Arquivo .gitignore ausente" in titles
+
+    # Default catalog_type=None também gera alerta
+    findings_none = scan_repository_tree(tree)
+    titles_none = [f.title for f in findings_none]
+    assert "Arquivo .gitignore ausente" in titles_none
+
+
+def test_scan_repository_tree_missing_gitignore_resource():
+    tree = [
+        {"path": "README.md", "type": "blob"},
+        {"path": "project-info.yml", "type": "blob"},
+    ]
+    findings = scan_repository_tree(tree, catalog_type="resource")
+    titles = [f.title for f in findings]
+    assert "Arquivo .gitignore ausente" not in titles
+
+    # Testando com case insensitive "Resource"
+    findings_upper = scan_repository_tree(tree, catalog_type="Resource")
+    titles_upper = [f.title for f in findings_upper]
+    assert "Arquivo .gitignore ausente" not in titles_upper
+

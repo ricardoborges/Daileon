@@ -53,3 +53,6 @@ yarn-error.log*
 # OS System Files
 .DS_Store
 Thumbs.db
+
+# Interface compilada, copiada para dentro do backend pelo Dockerfile
+backend/static_site/

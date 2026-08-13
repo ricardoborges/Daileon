@@ -61,6 +61,10 @@ export function initMermaid(): void {
     securityLevel: 'loose',
     theme: 'base',
     fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+    flowchart: {
+      htmlLabels: false,
+      padding: 18
+    },
     themeVariables: {
       darkMode: dark,
       background: p.surface2,

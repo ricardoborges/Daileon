@@ -4,13 +4,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
-from sqlalchemy.orm import joinedload, undefer
+from sqlalchemy.orm import joinedload, selectinload, undefer
 
 from app.api.aggregations import build_group_detail, group_components
 from app.api.graph import build_graph
 from app.db.session import get_db
 from app.db.models import Component, DocFile, Tag, ComponentDeployment
-from app.gitlab.gitlab_crawler import (
+from app.plugins.gitlab import (
     BINARY_DOC_TYPES,
     GitLabCrawlerService,
     ProjectListError,
@@ -20,8 +20,9 @@ from app.gitlab.gitlab_crawler import (
 )
 from app.sync.jobs import SyncAlreadyRunning, sync_jobs
 from app.api.auth import auth_router, get_current_user, get_system_setting, set_system_setting
-from app.jenkins.jenkins_service import fetch_jenkins_job_status
+from app.plugins.jenkins import fetch_jenkins_job_status
 from app.core.config import settings
+from app.core.plugins import plugin_manager
 
 
 api_router = APIRouter()
@@ -141,14 +142,16 @@ async def get_component(component_id: int, db: AsyncSession = Depends(get_db)):
         "dependencies": [
             {
                 "name": d.target_component_name,
-                "is_external": getattr(d, "is_external", False)
+                "is_external": getattr(d, "is_external", False),
+                "is_resource": getattr(d, "is_resource", False)
             }
             for d in c.dependencies if not getattr(d, "is_dependent", False)
         ],
         "dependents": [
             {
                 "name": d.target_component_name,
-                "is_external": getattr(d, "is_external", False)
+                "is_external": getattr(d, "is_external", False),
+                "is_resource": getattr(d, "is_resource", False)
             }
             for d in c.dependencies if getattr(d, "is_dependent", False)
         ],
@@ -373,50 +376,65 @@ async def get_solution_detail(solution_name: str, db: AsyncSession = Depends(get
     return detail
 
 
+@protected_router.get("/resources")
+async def list_resources(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Component)
+        .options(
+            selectinload(Component.dependencies),
+            selectinload(Component.docs)
+        )
+    )
+    all_components = result.scalars().all()
 
-@protected_router.get("/catalog/{component_id}/jenkins")
-async def get_component_jenkins_status(component_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Component).where(Component.id == component_id))
-    c = result.scalar_one_or_none()
-    if not c:
-        raise HTTPException(status_code=404, detail="Component not found")
-    
-    pipelines_status = []
-    for pipe in c.jenkins_pipelines:
-        status_info = await fetch_jenkins_job_status(pipe.job, server_url=pipe.server_url)
-        pipelines_status.append({
-            "id": pipe.id,
-            "name": pipe.name,
-            "environment": pipe.environment,
-            "job": pipe.job,
-            "server_url": pipe.server_url,
-            "status_info": status_info
+    resource_names = set()
+    for c in all_components:
+        for dep in c.dependencies:
+            if getattr(dep, "is_resource", False):
+                resource_names.add(dep.target_component_name.lower())
+
+    resources = []
+    for c in all_components:
+        is_res_entity = (
+            (c.kind and c.kind.lower() == "resource") or
+            (c.type and c.type.lower() == "resource") or
+            c.name.lower() in resource_names
+        )
+        if not is_res_entity:
+            continue
+
+        consumers = []
+        for other in all_components:
+            if other.id == c.id:
+                continue
+            for dep in other.dependencies:
+                if dep.target_component_name.lower() == c.name.lower() and not getattr(dep, "is_dependent", False):
+                    consumers.append({
+                        "id": other.id,
+                        "name": other.name,
+                        "type": other.type,
+                        "owner": other.owner
+                    })
+                    break
+
+        resources.append({
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+            "kind": c.kind or "Resource",
+            "type": c.type or "resource",
+            "owner": c.owner,
+            "has_manifest": c.has_manifest,
+            "docs_count": len(c.docs) if c.docs else 0,
+            "docs_dir": c.docs_dir,
+            "consumers": consumers,
+            "created_at": c.created_at.isoformat() if getattr(c, "created_at", None) else None
         })
 
-    return {
-        "component_id": c.id,
-        "component_name": c.name,
-        "jenkins_token_configured": bool(settings.JENKINS_API_TOKEN or settings.JENKINS_USER),
-        "pipelines": pipelines_status
-    }
+    resources.sort(key=lambda r: r["name"].lower())
+    return resources
 
 
-@protected_router.get("/catalog/{component_id}/commits")
-async def get_component_commits(component_id: int, days: int = Query(365, ge=7, le=730), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Component).where(Component.id == component_id))
-    c = result.scalar_one_or_none()
-    if not c:
-        raise HTTPException(status_code=404, detail="Component not found")
-
-    crawler = GitLabCrawlerService()
-    commits_data = await crawler.fetch_project_commits(c.gitlab_project_id, days=days)
-
-    return {
-        "component_id": c.id,
-        "component_name": c.name,
-        "gitlab_project_id": c.gitlab_project_id,
-        **commits_data
-    }
 
 
 
@@ -550,35 +568,6 @@ class SyncRequest(BaseModel):
     #: Indexar as imagens encontradas na varredura da documentação.
     index_images: bool = True
 
-
-@protected_router.get("/sync/projects")
-async def list_syncable_projects(db: AsyncSession = Depends(get_db)):
-    """Projetos do GitLab que podem ser sincronizados individualmente.
-
-    Vem do GitLab, e não do catálogo, para que um projeto ainda não importado
-    também possa ser escolhido. `in_catalog` diz quais já estão no catálogo.
-    """
-    crawler = GitLabCrawlerService()
-    try:
-        projects = await crawler.fetch_projects()
-    except ProjectListError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-    known = set((await db.execute(select(Component.gitlab_project_id))).scalars().all())
-    return sorted(
-        (
-            {
-                "id": p.get("id"),
-                "name": p.get("name") or "",
-                "path": p.get("path_with_namespace") or "",
-                "web_url": p.get("web_url"),
-                "in_catalog": p.get("id") in known,
-            }
-            for p in projects
-            if p.get("id") is not None
-        ),
-        key=lambda p: (p["path"] or p["name"]).lower(),
-    )
 
 
 @protected_router.post("/sync", status_code=202)
@@ -721,3 +710,8 @@ async def update_org_config(payload: OrgConfigRequest, db: AsyncSession = Depend
     data = payload.model_dump()
     await set_system_setting(db, "org_config", data)
     return {"message": "Configurações da organização salvas com sucesso!"}
+
+@protected_router.get("/plugins")
+async def list_registered_plugins():
+    return plugin_manager.list_plugins()
+
