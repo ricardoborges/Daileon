@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fetchLDAPConfig, saveLDAPConfig, testLDAPConfig } from '$lib/api';
   import { Shield, CheckCircle2, AlertTriangle, RotateCw, Save } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
 
   let config = {
     enabled: false,
@@ -38,9 +39,9 @@
     statusMessage = null;
     try {
       await saveLDAPConfig(config);
-      statusMessage = { type: 'success', text: 'Configurações de LDAP salvas com sucesso!' };
+      statusMessage = { type: 'success', text: $t('plugins.ldap.saveSuccess') };
     } catch (e: any) {
-      statusMessage = { type: 'error', text: e.message || 'Erro ao salvar configurações do LDAP.' };
+      statusMessage = { type: 'error', text: e.message || $t('plugins.ldap.saveError') };
     } finally {
       saving = false;
     }
@@ -57,7 +58,7 @@
         statusMessage = { type: 'error', text: res.message };
       }
     } catch (e: any) {
-      statusMessage = { type: 'error', text: e.message || 'Erro ao testar conexão LDAP.' };
+      statusMessage = { type: 'error', text: e.message || $t('plugins.ldap.testError') };
     } finally {
       testing = false;
     }
@@ -72,8 +73,8 @@
   <div class="flex items-center gap-3 pb-4 border-b border-line">
     <Shield class="w-6 h-6 t-visor" />
     <div>
-      <h3 class="text-base font-bold t-txt">Autenticação LDAP / Active Directory</h3>
-      <p class="text-xs t-dim">Configure a integração com o diretório LDAP da sua organização.</p>
+      <h3 class="text-base font-bold t-txt">{$t('plugins.ldap.title')}</h3>
+      <p class="text-xs t-dim">{$t('plugins.ldap.subtitle')}</p>
     </div>
   </div>
 
@@ -104,13 +105,13 @@
           class="rounded bg-surface-3 border-line text-visor focus:ring-visor"
         />
         <label for="ldap_enabled" class="t-txt font-semibold cursor-pointer">
-          Habilitar Autenticação LDAP
+          {$t('plugins.ldap.enable')}
         </label>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
         <div>
-          <label for="server_host" class="block t-faint font-semibold mb-1">Servidor (Host)</label>
+          <label for="server_host" class="block t-faint font-semibold mb-1">{$t('plugins.ldap.host')}</label>
           <input
             type="text"
             id="server_host"
@@ -121,7 +122,7 @@
         </div>
 
         <div>
-          <label for="server_port" class="block t-faint font-semibold mb-1">Porta</label>
+          <label for="server_port" class="block t-faint font-semibold mb-1">{$t('plugins.ldap.port')}</label>
           <input
             type="number"
             id="server_port"
@@ -132,7 +133,7 @@
         </div>
 
         <div>
-          <label for="bind_dn" class="block t-faint font-semibold mb-1">Bind DN</label>
+          <label for="bind_dn" class="block t-faint font-semibold mb-1">{$t('plugins.ldap.bindDn')}</label>
           <input
             type="text"
             id="bind_dn"
@@ -143,7 +144,7 @@
         </div>
 
         <div>
-          <label for="bind_password" class="block t-faint font-semibold mb-1">Bind Password</label>
+          <label for="bind_password" class="block t-faint font-semibold mb-1">{$t('plugins.ldap.bindPassword')}</label>
           <input
             type="password"
             id="bind_password"
@@ -154,7 +155,7 @@
         </div>
 
         <div>
-          <label for="base_dn" class="block t-faint font-semibold mb-1">Base DN</label>
+          <label for="base_dn" class="block t-faint font-semibold mb-1">{$t('plugins.ldap.baseDn')}</label>
           <input
             type="text"
             id="base_dn"
@@ -165,7 +166,7 @@
         </div>
 
         <div>
-          <label for="user_attribute" class="block t-faint font-semibold mb-1">Atributo do Usuário</label>
+          <label for="user_attribute" class="block t-faint font-semibold mb-1">{$t('plugins.ldap.userAttr')}</label>
           <input
             type="text"
             id="user_attribute"
@@ -184,7 +185,7 @@
           class="btn btn-crest text-xs flex items-center gap-2"
         >
           <RotateCw class="w-3.5 h-3.5 {testing ? 'animate-spin' : ''}" />
-          Testar Conexão
+          {$t('plugins.ldap.testConnection')}
         </button>
 
         <button
@@ -193,7 +194,7 @@
           class="btn btn-visor text-xs flex items-center gap-2"
         >
           <Save class="w-3.5 h-3.5" />
-          Salvar Configurações
+          {$t('plugins.ldap.saveSettings')}
         </button>
       </div>
     </form>

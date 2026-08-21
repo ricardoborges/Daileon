@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fetchGitLabConfig, saveGitLabConfig, testGitLabConfig, type GitLabConfig } from '$lib/api';
   import { FolderGit2, CheckCircle2, AlertTriangle, RotateCw, Save, Globe, Key, Users } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
 
   let config: GitLabConfig = {
     url: 'https://gitlab.com',
@@ -23,7 +24,7 @@
         config = { ...config, ...res };
       }
     } catch (e) {
-      console.error('Falha ao carregar configurações do GitLab:', e);
+      console.error('Failed to load GitLab config:', e);
     } finally {
       loading = false;
     }
@@ -34,9 +35,9 @@
     statusMessage = null;
     try {
       const res = await saveGitLabConfig(config);
-      statusMessage = { type: 'success', text: res.message || 'Configurações do GitLab salvas com sucesso!' };
+      statusMessage = { type: 'success', text: res.message || $t('plugins.gitlab.saveSuccess') };
     } catch (e: any) {
-      statusMessage = { type: 'error', text: e.message || 'Erro ao salvar configurações do GitLab.' };
+      statusMessage = { type: 'error', text: e.message || $t('plugins.gitlab.saveError') };
     } finally {
       saving = false;
     }
@@ -53,7 +54,7 @@
         statusMessage = { type: 'error', text: res.message };
       }
     } catch (e: any) {
-      statusMessage = { type: 'error', text: e.message || 'Erro ao testar conexão com o GitLab.' };
+      statusMessage = { type: 'error', text: e.message || $t('plugins.gitlab.testError') };
     } finally {
       testing = false;
     }
@@ -69,11 +70,11 @@
     <div class="flex items-center gap-3">
       <FolderGit2 class="w-6 h-6 t-visor" />
       <div>
-        <h3 class="text-base font-bold t-txt">GitLab SCM & Catalog Crawler</h3>
-        <p class="text-xs t-dim">Configure as variáveis de ambiente e token para varredura automatcida de repositórios no GitLab.</p>
+        <h3 class="text-base font-bold t-txt">{$t('plugins.gitlab.title')}</h3>
+        <p class="text-xs t-dim">{$t('plugins.gitlab.subtitle')}</p>
       </div>
     </div>
-    <span class="chip chip-visor text-xs font-mono font-bold">Builtin Plugin</span>
+    <span class="chip chip-visor text-xs font-mono font-bold">{$t('plugins.builtin')}</span>
   </div>
 
   {#if loading}
@@ -103,29 +104,29 @@
           class="rounded bg-surface-3 border-line text-visor focus:ring-visor"
         />
         <label for="gitlab_enabled" class="t-txt font-semibold cursor-pointer">
-          Habilitar Integração SCM GitLab
+          {$t('plugins.gitlab.enable')}
         </label>
       </div>
 
       <div class="space-y-4 pt-2">
         <div>
           <label for="gitlab_url" class="block t-faint font-semibold mb-1">
-            <Globe class="w-3.5 h-3.5 inline mr-1" /> URL do GitLab (GITLAB_URL)
+            <Globe class="w-3.5 h-3.5 inline mr-1" /> {$t('plugins.gitlab.url')}
           </label>
           <input
             type="text"
             id="gitlab_url"
             bind:value={config.url}
-            placeholder="https://gitlab.com ou https://gitlab.empresa.com"
+            placeholder="https://gitlab.com"
             class="input w-full font-mono"
             required
           />
-          <p class="t-dim text-[11px] mt-1">URL base da sua instância do GitLab (Cloud ou Self-Hosted).</p>
+          <p class="t-dim text-[11px] mt-1">{$t('plugins.gitlab.urlHint')}</p>
         </div>
 
         <div>
           <label for="gitlab_token" class="block t-faint font-semibold mb-1">
-            <Key class="w-3.5 h-3.5 inline mr-1" /> Personal Access Token (GITLAB_READ_TOKEN)
+            <Key class="w-3.5 h-3.5 inline mr-1" /> {$t('plugins.gitlab.token')}
           </label>
           <input
             type="password"
@@ -134,21 +135,21 @@
             placeholder="glpat-..."
             class="input w-full font-mono"
           />
-          <p class="t-dim text-[11px] mt-1">Token com escopos <code class="text-visor">read_api</code> e <code class="text-visor">read_repository</code>.</p>
+          <p class="t-dim text-[11px] mt-1">{$t('plugins.gitlab.tokenHint')}</p>
         </div>
 
         <div>
           <label for="gitlab_group" class="block t-faint font-semibold mb-1">
-            <Users class="w-3.5 h-3.5 inline mr-1" /> ID do Grupo / Organização (GITLAB_GROUP_ID)
+            <Users class="w-3.5 h-3.5 inline mr-1" /> {$t('plugins.gitlab.group')}
           </label>
           <input
             type="text"
             id="gitlab_group"
             bind:value={config.group_id}
-            placeholder="Ex: 12345678 ou minha-empresa"
+            placeholder="Ex: 12345678"
             class="input w-full font-mono"
           />
-          <p class="t-dim text-[11px] mt-1">Opcional. Se especificado, limita a descoberta de projetos apenas aos subgrupos desta organização.</p>
+          <p class="t-dim text-[11px] mt-1">{$t('plugins.gitlab.groupHint')}</p>
         </div>
       </div>
 
@@ -160,7 +161,7 @@
           class="btn btn-crest text-xs flex items-center gap-2"
         >
           <RotateCw class="w-3.5 h-3.5 {testing ? 'animate-spin' : ''}" />
-          Testar Conexão
+          {$t('plugins.gitlab.test')}
         </button>
 
         <button
@@ -169,7 +170,7 @@
           class="btn btn-visor text-xs flex items-center gap-2"
         >
           <Save class="w-3.5 h-3.5" />
-          Salvar Configurações
+          {$t('plugins.gitlab.save')}
         </button>
       </div>
     </form>

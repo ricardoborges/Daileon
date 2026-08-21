@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     PORTAINER_USER: str = os.getenv("PORTAINER_USER", "")
     PORTAINER_PASSWORD: str = os.getenv("PORTAINER_PASSWORD", "")
 
+    # Zabbix Observability Configuration
+    ZABBIX_URL: str = os.getenv("ZABBIX_URL", "http://localhost/zabbix")
+    ZABBIX_API_TOKEN: str = os.getenv("ZABBIX_API_TOKEN", "")
+    ZABBIX_USER: str = os.getenv("ZABBIX_USER", "")
+    ZABBIX_PASSWORD: str = os.getenv("ZABBIX_PASSWORD", "")
+    ZABBIX_CACHE_TTL: int = int(os.getenv("ZABBIX_CACHE_TTL", "30"))
+
     # Break-Glass Admin Configuration
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin123"

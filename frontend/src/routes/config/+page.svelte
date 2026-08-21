@@ -332,7 +332,7 @@
       </h1>
     </div>
     <p class="t-dim text-sm">
-      Gerenciamento de sincronização do catálogo e autenticação LDAP.
+      {$t("config.subtitle")}
     </p>
   </header>
 
@@ -643,19 +643,19 @@
           <div class="flex items-center gap-4">
             {#if (status?.synced_count ?? 0) > 0}
               <span class="label"
-                >Sincronizados <span class="t-visor">{status?.synced_count}</span
+                >{$t("config.syncedCount")} <span class="t-visor">{status?.synced_count}</span
                 ></span
               >
             {/if}
             {#if (status?.removed_count ?? 0) > 0}
               <span class="label"
-                >Removidos <span class="t-crest">{status?.removed_count}</span
+                >{$t("config.removedCount")} <span class="t-crest">{status?.removed_count}</span
                 ></span
               >
             {/if}
             {#if (status?.failed_count ?? 0) > 0}
               <span class="label"
-                >Falhas <span class="t-alert">{status?.failed_count}</span></span
+                >{$t("config.failedCount")} <span class="t-alert">{status?.failed_count}</span></span
               >
             {/if}
             <span class="readout text-sm">
@@ -716,7 +716,7 @@
           >
             {#if logs.length === 0}
               <p class="px-3 py-3 t-faint">
-                Nenhuma operação executada nesta sessão.
+                {$t("config.noLogsInSession")}
               </p>
             {:else}
               {#each logs as line (line.seq)}
@@ -833,10 +833,10 @@
               class="btn btn-sm btn-ghost flex items-center gap-2 text-xs font-semibold t-dim hover:t-txt"
             >
               <ArrowLeft class="w-4 h-4" />
-              <span>Voltar para Central de Plugins</span>
+              <span>{$t("plugins.backToPluginCenter")}</span>
             </button>
             <span class="chip chip-visor text-xs font-mono font-bold">
-              Configurando: {plugin.name}
+              {$t("plugins.configuringPlugin", { name: plugin.name })}
             </span>
           </div>
           <svelte:component this={plugin.configComponent} />

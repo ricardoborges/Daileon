@@ -6,6 +6,7 @@
     testPortainerConfig,
     type PortainerServer
   } from '$lib/api';
+  import { t } from '$lib/i18n';
   import {
     Activity,
     CheckCircle2,
@@ -19,8 +20,6 @@
     Trash2
   } from 'lucide-svelte';
 
-  /** Estado local por servidor: modo de autenticação e resultado do teste,
-   *  que são da tela e não vão para o banco. */
   type Row = PortainerServer & {
     _key: number;
     _authMode: 'api_key' | 'user_pass';
@@ -33,7 +32,6 @@
   let saving = false;
   let statusMessage: { type: 'success' | 'error'; text: string } | null = null;
 
-  // Chave só para o `{#each}`: servidor novo ainda não tem id do backend.
   let nextKey = 1;
 
   function toRow(s: PortainerServer): Row {
@@ -57,7 +55,6 @@
     });
   }
 
-  /** Só os campos que o backend conhece — o resto é estado de tela. */
   function toPayload(r: Row): PortainerServer {
     return {
       id: r.id,
@@ -76,7 +73,7 @@
       const res = await fetchPortainerConfig();
       rows = (res?.servers ?? []).map(toRow);
     } catch (e) {
-      console.error('Falha ao carregar configurações do Portainer:', e);
+      console.error('Failed to load Portainer config:', e);
     } finally {
       loading = false;
     }
@@ -95,16 +92,13 @@
     statusMessage = null;
     try {
       const res = await savePortainerConfig({ servers: rows.map(toPayload) });
-      // O backend devolve a lista já normalizada: é dela que vêm os ids dos
-      // servidores recém-criados, sem os quais um novo salvamento duplicaria
-      // o registro em vez de atualizá-lo.
       rows = (res.servers ?? []).map(toRow);
       statusMessage = {
         type: 'success',
-        text: res.message || 'Configurações do Portainer salvas com sucesso!'
+        text: res.message || $t('plugins.portainer.saveSuccess')
       };
     } catch (e: any) {
-      statusMessage = { type: 'error', text: e.message || 'Erro ao salvar configurações do Portainer.' };
+      statusMessage = { type: 'error', text: e.message || $t('plugins.portainer.saveError') };
     } finally {
       saving = false;
     }
@@ -116,10 +110,10 @@
     rows = rows;
     try {
       const res = await testPortainerConfig(toPayload(row));
-      const extra = res.endpoints_count !== undefined ? ` (${res.endpoints_count} ambiente(s))` : '';
+      const extra = res.endpoints_count !== undefined ? ` (${res.endpoints_count} envs)` : '';
       row._test = { ok: res.success, text: `${res.message}${extra}` };
     } catch (e: any) {
-      row._test = { ok: false, text: e.message || 'Erro ao testar conexão.' };
+      row._test = { ok: false, text: e.message || 'Error testing connection.' };
     } finally {
       row._testing = false;
       rows = rows;
@@ -136,14 +130,13 @@
     <div class="flex items-center gap-3">
       <Activity class="w-6 h-6 t-visor" />
       <div>
-        <h3 class="text-base font-bold t-txt">Observabilidade com Portainer</h3>
+        <h3 class="text-base font-bold t-txt">{$t('plugins.portainer.title')}</h3>
         <p class="text-xs t-dim">
-          Cadastre um ou mais servidores Portainer. Os containers de todos eles são consultados
-          em conjunto e identificados pelo servidor de origem.
+          {$t('plugins.portainer.subtitle')}
         </p>
       </div>
     </div>
-    <span class="chip chip-visor text-xs font-mono font-bold">Builtin Plugin</span>
+    <span class="chip chip-visor text-xs font-mono font-bold">{$t('plugins.builtin')}</span>
   </div>
 
   {#if loading}
@@ -168,9 +161,9 @@
       {#if rows.length === 0}
         <div class="plate plate-deep p-8 text-center space-y-3">
           <Server class="w-8 h-8 t-dim mx-auto" />
-          <p class="t-dim">Nenhum servidor Portainer cadastrado.</p>
+          <p class="t-dim">{$t('plugins.portainer.noContainers')}</p>
           <button type="button" on:click={addServer} class="btn btn-visor text-xs inline-flex items-center gap-2">
-            <Plus class="w-3.5 h-3.5" /> Adicionar servidor
+            <Plus class="w-3.5 h-3.5" /> {$t('plugins.portainer.addServer')}
           </button>
         </div>
       {/if}
@@ -188,59 +181,58 @@
               <input
                 type="text"
                 bind:value={row.name}
-                placeholder="Nome do servidor (ex: Produção)"
-                aria-label="Nome do servidor"
+                placeholder={$t('plugins.portainer.serverName')}
+                aria-label={$t('plugins.portainer.serverName')}
                 class="input font-semibold flex-1 min-w-0"
                 required
               />
               {#if row.id}
-                <span class="chip text-[10px] font-mono t-dim shrink-0" title="Identificador interno">
+                <span class="chip text-[10px] font-mono t-dim shrink-0">
                   {row.id}
                 </span>
               {:else}
-                <span class="chip chip-crest text-[10px] font-mono shrink-0">novo</span>
+                <span class="chip chip-crest text-[10px] font-mono shrink-0">new</span>
               {/if}
             </div>
             <button
               type="button"
               on:click={() => removeServer(row._key)}
               class="btn btn-sm btn-ghost text-xs flex items-center gap-1.5 shrink-0"
-              title="Remover servidor"
             >
-              <Trash2 class="w-3.5 h-3.5" /> Remover
+              <Trash2 class="w-3.5 h-3.5" /> {$t('plugins.portainer.removeServer')}
             </button>
           </div>
 
           <div>
             <label for="url_{row._key}" class="block t-faint font-semibold mb-1">
-              <Server class="w-3.5 h-3.5 inline mr-1" /> URL do Portainer
+              <Server class="w-3.5 h-3.5 inline mr-1" /> {$t('plugins.portainer.serverUrl')}
             </label>
             <input
               type="text"
               id="url_{row._key}"
               bind:value={row.url}
-              placeholder="http://portainer.empresa.com:9000 ou https://portainer.empresa.com:9443"
+              placeholder="http://portainer.empresa.com:9000"
               class="input w-full font-mono"
               required
             />
           </div>
 
           <div class="space-y-2">
-            <span class="block t-faint font-semibold">Método de Autenticação</span>
+            <span class="block t-faint font-semibold">{$t('plugins.portainer.authMode')}</span>
             <div class="seg">
               <button
                 type="button"
                 class="seg-item cursor-pointer {row._authMode === 'api_key' ? 'is-active' : ''}"
                 on:click={() => (row._authMode = 'api_key')}
               >
-                <Key class="w-3.5 h-3.5" /> API Key (Recomendado)
+                <Key class="w-3.5 h-3.5" /> {$t('plugins.portainer.apiKey')}
               </button>
               <button
                 type="button"
                 class="seg-item cursor-pointer {row._authMode === 'user_pass' ? 'is-active' : ''}"
                 on:click={() => (row._authMode = 'user_pass')}
               >
-                <User class="w-3.5 h-3.5" /> Usuário e Senha
+                <User class="w-3.5 h-3.5" /> {$t('plugins.portainer.username')} &amp; {$t('plugins.portainer.password')}
               </button>
             </div>
           </div>
@@ -248,7 +240,7 @@
           {#if row._authMode === 'api_key'}
             <div>
               <label for="api_key_{row._key}" class="block t-faint font-semibold mb-1">
-                Portainer API Key (Access Token)
+                {$t('plugins.portainer.apiKey')}
               </label>
               <input
                 type="password"
@@ -257,19 +249,15 @@
                 placeholder="ptr_..."
                 class="input w-full font-mono"
               />
-              <p class="t-dim text-[11px] mt-1">
-                Gerada no perfil do usuário no Portainer (Settings &gt; Access Tokens).
-                Deixe o valor mascarado para manter a chave já gravada.
-              </p>
             </div>
           {:else}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label for="user_{row._key}" class="block t-faint font-semibold mb-1">Usuário</label>
+                <label for="user_{row._key}" class="block t-faint font-semibold mb-1">{$t('plugins.portainer.username')}</label>
                 <input type="text" id="user_{row._key}" bind:value={row.username} placeholder="admin" class="input w-full" />
               </div>
               <div>
-                <label for="pass_{row._key}" class="block t-faint font-semibold mb-1">Senha</label>
+                <label for="pass_{row._key}" class="block t-faint font-semibold mb-1">{$t('plugins.portainer.password')}</label>
                 <input type="password" id="pass_{row._key}" bind:value={row.password} placeholder="******" class="input w-full" />
               </div>
             </div>
@@ -298,7 +286,7 @@
               class="btn btn-sm btn-crest text-xs flex items-center gap-2"
             >
               <RotateCw class="w-3.5 h-3.5 {row._testing ? 'animate-spin' : ''}" />
-              Testar Conexão
+              {$t('plugins.portainer.test')}
             </button>
           </div>
         </div>
@@ -307,7 +295,7 @@
       <div class="flex items-center gap-3 pt-4 border-t border-line justify-between">
         {#if rows.length > 0}
           <button type="button" on:click={addServer} class="btn btn-ghost text-xs flex items-center gap-2">
-            <Plus class="w-3.5 h-3.5" /> Adicionar servidor
+            <Plus class="w-3.5 h-3.5" /> {$t('plugins.portainer.addServer')}
           </button>
         {:else}
           <span></span>
@@ -315,7 +303,7 @@
 
         <button type="submit" disabled={saving} class="btn btn-visor text-xs flex items-center gap-2">
           <Save class="w-3.5 h-3.5" />
-          Salvar Configurações
+          {$t('plugins.portainer.save')}
         </button>
       </div>
     </form>

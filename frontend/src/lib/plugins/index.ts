@@ -6,8 +6,10 @@ import GitLabConfig from './gitlab/GitLabConfig.svelte';
 import LdapConfig from './ldap/LdapConfig.svelte';
 import PortainerConfig from './portainer/PortainerConfig.svelte';
 import PortainerTab from './portainer/PortainerTab.svelte';
+import ZabbixPluginConfig from './zabbix/ZabbixPluginConfig.svelte';
+import ZabbixTab from './zabbix/ZabbixTab.svelte';
 
-import { Shield, FolderGit2, PlayCircle, Activity } from 'lucide-svelte';
+import { Shield, FolderGit2, PlayCircle, Activity, ServerHeart } from 'lucide-svelte';
 
 export function initializeFrontendPlugins() {
   // Plugin 1: LDAP
@@ -73,6 +75,25 @@ export function initializeFrontendPlugins() {
         id: 'portainer',
         label: 'Portainer',
         component: PortainerTab,
+        isVisible: () => true
+      }
+    ]
+  });
+
+  // Plugin 5: Zabbix
+  pluginRegistry.register({
+    id: 'zabbix',
+    name: 'Zabbix Observability',
+    version: '1.0.0',
+    description: 'Monitoramento de infraestrutura, alertas em tempo real e saúde de serviços via Zabbix.',
+    category: 'observability',
+    icon: Activity,
+    configComponent: ZabbixPluginConfig,
+    tabs: [
+      {
+        id: 'zabbix',
+        label: 'Zabbix Observability',
+        component: ZabbixTab,
         isVisible: () => true
       }
     ]

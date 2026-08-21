@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { pluginRegistry, type PluginDefinition } from './index';
   import { fetchBackendPlugins, type PluginBackendInfo } from '$lib/api';
+  import { t } from '$lib/i18n';
   import {
     Blocks,
     Shield,
@@ -23,12 +24,12 @@
   let error = '';
   let activeCategory: 'all' | 'auth' | 'scm' | 'cicd' | 'observability' = 'all';
 
-  const categoryLabels = {
-    all: 'Todos os Plugins',
-    auth: 'Autenticação',
-    scm: 'SCM & Crawlers',
-    cicd: 'CI / CD',
-    observability: 'Observabilidade'
+  $: categoryLabels = {
+    all: $t('plugins.categories.all'),
+    auth: $t('plugins.categories.auth'),
+    scm: $t('plugins.categories.scm'),
+    cicd: $t('plugins.categories.cicd'),
+    observability: $t('plugins.categories.observability')
   };
 
   function setCategory(cat: string) {
@@ -39,13 +40,25 @@
     return categoryLabels[cat as keyof typeof categoryLabels] || cat;
   }
 
+  function getPluginName(id: string, fallback: string): string {
+    const key = `plugins.${id}.name`;
+    const val = $t(key);
+    return val !== key ? val : fallback;
+  }
+
+  function getPluginDesc(id: string, fallback: string): string {
+    const key = `plugins.${id}.desc`;
+    const val = $t(key);
+    return val !== key ? val : fallback;
+  }
+
   async function loadPlugins() {
     loading = true;
     error = '';
     try {
       backendPlugins = await fetchBackendPlugins();
     } catch (e: any) {
-      error = e.message || 'Erro ao carregar plugins do backend';
+      error = e.message || 'Error loading backend plugins';
     } finally {
       loading = false;
     }
@@ -105,7 +118,7 @@
           hasBackend: false,
           configComponent: f.configComponent,
           tabsCount: f.tabs?.length || 0,
-          description: f.description || 'Plugin registrado no frontend.',
+          description: f.description || 'Frontend registered plugin.',
           icon: f.icon || getCategoryIcon(f.category || 'general')
         });
       }
@@ -125,16 +138,7 @@
   }
 
   function getFallbackDescription(id: string): string {
-    switch (id) {
-      case 'ldap':
-        return 'Autenticação centralizada e consulta de usuários via protocolo LDAP.';
-      case 'gitlab':
-        return 'Descoberta automatizada de projetos, leitura de project-info.yml e varredura de riscos.';
-      case 'jenkins':
-        return 'Monitoramento em tempo real do status de jobs e pipelines de integração contínua.';
-      default:
-        return 'Plugin do ecossistema Daileon.';
-    }
+    return getPluginDesc(id, 'Daileon ecosystem plugin.');
   }
 </script>
 
@@ -146,7 +150,7 @@
         <Blocks class="w-5 h-5 t-visor" />
       </div>
       <div>
-        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">Total de Plugins</p>
+        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">{$t('plugins.totalPlugins')}</p>
         <p class="text-xl font-bold t-txt">{pluginList.length}</p>
       </div>
     </div>
@@ -156,7 +160,7 @@
         <Cpu class="w-5 h-5 text-emerald-400" />
       </div>
       <div>
-        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">Backend Services</p>
+        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">{$t('plugins.backendServices')}</p>
         <p class="text-xl font-bold t-txt">{backendPlugins.length}</p>
       </div>
     </div>
@@ -166,7 +170,7 @@
         <Layers class="w-5 h-5 text-blue-400" />
       </div>
       <div>
-        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">Frontend Extension Tabs</p>
+        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">{$t('plugins.frontendTabs')}</p>
         <p class="text-xl font-bold t-txt">{frontendPlugins.reduce((acc, p) => acc + (p.tabs?.length || 0), 0)}</p>
       </div>
     </div>
@@ -176,7 +180,7 @@
         <Settings class="w-5 h-5 text-amber-400" />
       </div>
       <div>
-        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">Configuráveis</p>
+        <p class="text-[0.6875rem] font-bold uppercase tracking-wider t-faint">{$t('plugins.configurable')}</p>
         <p class="text-xl font-bold t-txt">{frontendPlugins.filter(p => Boolean(p.configComponent)).length}</p>
       </div>
     </div>
@@ -186,10 +190,10 @@
   <div class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--line)] pb-4">
     <div class="space-y-1">
       <h2 class="text-lg font-bold t-txt flex items-center gap-2">
-        <Blocks class="w-5 h-5 t-visor" /> Central de Plugins
+        <Blocks class="w-5 h-5 t-visor" /> {$t('plugins.title')}
       </h2>
       <p class="t-dim text-xs">
-        Gerenciamento e diagnóstico da arquitetura extensível do Daileon.
+        {$t('plugins.subtitle')}
       </p>
     </div>
 
@@ -211,7 +215,7 @@
         on:click={loadPlugins}
         disabled={loading}
         class="btn btn-sm btn-ghost p-2 flex items-center gap-1.5"
-        title="Atualizar lista de plugins"
+        title="Refresh plugin list"
       >
         <RefreshCw class="w-3.5 h-3.5 {loading ? 'animate-spin' : ''}" />
       </button>
@@ -220,7 +224,7 @@
 
   {#if error}
     <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-      <span class="font-bold">Erro:</span> {error}
+      <span class="font-bold">Error:</span> {error}
     </div>
   {/if}
 
@@ -233,7 +237,7 @@
     </div>
   {:else if filteredPlugins.length === 0}
     <div class="plate p-8 text-center space-y-2">
-      <p class="t-dim text-sm">Nenhum plugin encontrado para a categoria selecionada.</p>
+      <p class="t-dim text-sm">{$t('plugins.noPluginsFound')}</p>
     </div>
   {:else}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -248,20 +252,20 @@
                 </div>
                 <div>
                   <h3 class="font-bold text-sm t-txt flex items-center gap-2">
-                    {p.name}
+                    {getPluginName(p.id, p.name)}
                   </h3>
                   <span class="text-[0.6875rem] font-mono t-faint">v{p.version} &middot; {p.id}</span>
                 </div>
               </div>
 
               <span class="chip chip-ok text-[0.625rem] py-0.5 px-2 font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1">
-                <CheckCircle2 class="w-3 h-3" /> Builtin
+                <CheckCircle2 class="w-3 h-3" /> {$t('plugins.builtin')}
               </span>
             </div>
 
             <!-- Description -->
             <p class="text-xs t-dim leading-relaxed min-h-[2.5rem]">
-              {p.description}
+              {getPluginDesc(p.id, p.description)}
             </p>
 
             <!-- Metadata Badges -->
@@ -281,7 +285,7 @@
               {/if}
               {#if p.tabsCount > 0}
                 <span class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-semibold">
-                  {p.tabsCount} {p.tabsCount === 1 ? 'Aba' : 'Abas'} no Catálogo
+                  {p.tabsCount === 1 ? $t('plugins.catalogTabSingular', { count: p.tabsCount }) : $t('plugins.catalogTabPlural', { count: p.tabsCount })}
                 </span>
               {/if}
             </div>
@@ -291,7 +295,7 @@
           <div class="pt-3 border-t border-line flex items-center justify-between gap-2">
             <span class="text-[0.6875rem] t-faint flex items-center gap-1">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Ativo no Sistema
+              {$t('plugins.activeInSystem')}
             </span>
 
             {#if p.configComponent}
@@ -301,7 +305,7 @@
                 class="btn btn-sm btn-visor text-xs flex items-center gap-1.5"
               >
                 <Settings class="w-3.5 h-3.5" />
-                <span>Configurar</span>
+                <span>{$t('plugins.configure')}</span>
               </button>
             {/if}
           </div>

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fetchJenkinsConfig, saveJenkinsConfig, testJenkinsConfig, type JenkinsConfig } from '$lib/api';
   import { PlayCircle, CheckCircle2, AlertTriangle, RotateCw, Save, Server, User, Key } from 'lucide-svelte';
+  import { t } from '$lib/i18n';
 
   let config: JenkinsConfig = {
     url: 'https://jenkins.example.com',
@@ -23,7 +24,7 @@
         config = { ...config, ...res };
       }
     } catch (e) {
-      console.error('Falha ao carregar configurações do Jenkins:', e);
+      console.error('Failed to load Jenkins config:', e);
     } finally {
       loading = false;
     }
@@ -34,9 +35,9 @@
     statusMessage = null;
     try {
       const res = await saveJenkinsConfig(config);
-      statusMessage = { type: 'success', text: res.message || 'Configurações do Jenkins salvas com sucesso!' };
+      statusMessage = { type: 'success', text: res.message || $t('plugins.jenkins.saveSuccess') };
     } catch (e: any) {
-      statusMessage = { type: 'error', text: e.message || 'Erro ao salvar configurações do Jenkins.' };
+      statusMessage = { type: 'error', text: e.message || $t('plugins.jenkins.saveError') };
     } finally {
       saving = false;
     }
@@ -53,7 +54,7 @@
         statusMessage = { type: 'error', text: res.message };
       }
     } catch (e: any) {
-      statusMessage = { type: 'error', text: e.message || 'Erro ao testar conexão com o Jenkins.' };
+      statusMessage = { type: 'error', text: e.message || $t('plugins.jenkins.testError') };
     } finally {
       testing = false;
     }
@@ -69,11 +70,11 @@
     <div class="flex items-center gap-3">
       <PlayCircle class="w-6 h-6 t-visor" />
       <div>
-        <h3 class="text-base font-bold t-txt">Jenkins CI/CD Integration</h3>
-        <p class="text-xs t-dim">Configure o servidor Jenkins e credenciais de acesso à REST API para monitorar pipelines de builds.</p>
+        <h3 class="text-base font-bold t-txt">{$t('plugins.jenkins.title')}</h3>
+        <p class="text-xs t-dim">{$t('plugins.jenkins.subtitle')}</p>
       </div>
     </div>
-    <span class="chip chip-visor text-xs font-mono font-bold">Builtin Plugin</span>
+    <span class="chip chip-visor text-xs font-mono font-bold">{$t('plugins.builtin')}</span>
   </div>
 
   {#if loading}
@@ -103,14 +104,14 @@
           class="rounded bg-surface-3 border-line text-visor focus:ring-visor"
         />
         <label for="jenkins_enabled" class="t-txt font-semibold cursor-pointer">
-          Habilitar Integração CI/CD Jenkins
+          {$t('plugins.jenkins.enable')}
         </label>
       </div>
 
       <div class="space-y-4 pt-2">
         <div>
           <label for="jenkins_url" class="block t-faint font-semibold mb-1">
-            <Server class="w-3.5 h-3.5 inline mr-1" /> URL do Servidor (JENKINS_URL)
+            <Server class="w-3.5 h-3.5 inline mr-1" /> {$t('plugins.jenkins.url')}
           </label>
           <input
             type="text"
@@ -120,13 +121,13 @@
             class="input w-full font-mono"
             required
           />
-          <p class="t-dim text-[11px] mt-1">URL base da sua instância do Jenkins.</p>
+          <p class="t-dim text-[11px] mt-1">{$t('plugins.jenkins.urlHint')}</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label for="jenkins_user" class="block t-faint font-semibold mb-1">
-              <User class="w-3.5 h-3.5 inline mr-1" /> Usuário (JENKINS_USER)
+              <User class="w-3.5 h-3.5 inline mr-1" /> {$t('plugins.jenkins.user')}
             </label>
             <input
               type="text"
@@ -139,7 +140,7 @@
 
           <div>
             <label for="jenkins_api_token" class="block t-faint font-semibold mb-1">
-              <Key class="w-3.5 h-3.5 inline mr-1" /> API Token (JENKINS_API_TOKEN)
+              <Key class="w-3.5 h-3.5 inline mr-1" /> {$t('plugins.jenkins.token')}
             </label>
             <input
               type="password"
@@ -150,7 +151,6 @@
             />
           </div>
         </div>
-        <p class="t-dim text-[11px]">Gerado em Jenkins > Perfil do Usuário > Configure > API Token.</p>
       </div>
 
       <div class="flex items-center gap-3 pt-4 border-t border-line justify-end">
@@ -161,7 +161,7 @@
           class="btn btn-crest text-xs flex items-center gap-2"
         >
           <RotateCw class="w-3.5 h-3.5 {testing ? 'animate-spin' : ''}" />
-          Testar Conexão
+          {$t('plugins.jenkins.test')}
         </button>
 
         <button
@@ -170,7 +170,7 @@
           class="btn btn-visor text-xs flex items-center gap-2"
         >
           <Save class="w-3.5 h-3.5" />
-          Salvar Configurações
+          {$t('plugins.jenkins.save')}
         </button>
       </div>
     </form>

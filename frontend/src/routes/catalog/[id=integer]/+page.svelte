@@ -19,6 +19,7 @@
   import DocsSearch from '$lib/components/DocsSearch.svelte';
   import JenkinsTab from '$lib/plugins/jenkins/JenkinsTab.svelte';
   import PortainerTab from '$lib/plugins/portainer/PortainerTab.svelte';
+  import ZabbixTab from '$lib/plugins/zabbix/ZabbixTab.svelte';
   import { buildDocsTree, rootFolderPaths, allFolderPaths } from '$lib/docsTree';
   import { domainHref, solutionHref } from '$lib/catalogView';
   import { t } from '$lib/i18n';
@@ -46,7 +47,7 @@
     ChevronsUpDown
   } from 'lucide-svelte';
 
-  type Tab = 'overview' | 'deployments' | 'dependencies' | 'docs' | 'jenkins' | 'portainer' | 'risks';
+  type Tab = 'overview' | 'deployments' | 'dependencies' | 'docs' | 'jenkins' | 'portainer' | 'zabbix' | 'risks';
 
   let component: ComponentItem | null = null;
   let docs: DocFileItem[] = [];
@@ -328,8 +329,11 @@
           <button on:click={() => activeTab = 'portainer'} class="seg-item {activeTab === 'portainer' ? 'is-active' : ''}">
             <Activity class="w-3 h-3 t-visor" /> Portainer
           </button>
+          <button on:click={() => activeTab = 'zabbix'} class="seg-item {activeTab === 'zabbix' ? 'is-active' : ''}">
+            <Activity class="w-3 h-3 text-indigo-400" /> Zabbix
+          </button>
           <button on:click={() => activeTab = 'risks'} class="seg-item {activeTab === 'risks' ? 'is-active' : ''}">
-            <ShieldAlert class="w-3 h-3 {component.critical_risks_count ? 'text-red-400' : component.warning_risks_count ? 'text-amber-400' : ''}" /> Segurança &amp; Riscos
+            <ShieldAlert class="w-3 h-3 {component.critical_risks_count ? 'text-red-400' : component.warning_risks_count ? 'text-amber-400' : ''}" /> {$t('catalog.tab_risks')}
             {#if (component.risks?.length || 0) > 0}
               <span class="chip chip-sm ml-1 {component.critical_risks_count ? 'chip-alert' : 'chip-crest'} font-bold">
                 {component.risks?.length}
@@ -765,6 +769,8 @@
       <JenkinsTab {component} />
     {:else if activeTab === 'portainer'}
       <PortainerTab {component} />
+    {:else if activeTab === 'zabbix'}
+      <ZabbixTab {component} />
     {/if}
 
     {#if activeTab === 'risks'}
@@ -774,9 +780,9 @@
             <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 mb-2">
               <CheckCircle2 class="w-6 h-6" />
             </div>
-            <h3 class="text-lg font-bold t-txt">Nenhum Risco Detectado</h3>
+            <h3 class="text-lg font-bold t-txt">{$t('catalog.no_risks_title')}</h3>
             <p class="t-dim text-sm max-w-md mx-auto">
-              A varredura automática não encontrou arquivos .env versionados, senhas hardcoded ou chaves de credenciais neste repositório.
+              {$t('catalog.no_risks_desc')}
             </p>
           </section>
         {:else}
@@ -787,7 +793,7 @@
                   <div class="space-y-1">
                     <div class="flex items-center gap-2">
                       <span class="chip {risk.severity === 'critical' ? 'chip-alert' : 'chip-crest'} uppercase font-bold text-[10px]">
-                        {risk.severity === 'critical' ? 'Crítico' : 'Alerta'}
+                        {risk.severity === 'critical' ? $t('catalog.risk_critical') : $t('catalog.risk_warning')}
                       </span>
                       <h4 class="text-base font-bold t-txt flex items-center gap-2">
                         <ShieldAlert class="w-4 h-4 {risk.severity === 'critical' ? 'text-red-400' : 'text-amber-400'}" />
@@ -808,7 +814,7 @@
 
                 <div class="bg-surface-2/70 p-4 rounded-lg border border-line space-y-1.5">
                   <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                    <AlertTriangle class="w-3.5 h-3.5" /> Recomendação de Correção:
+                    <AlertTriangle class="w-3.5 h-3.5" /> {$t('catalog.risk_recommendation')}
                   </span>
                   <p class="text-xs t-txt leading-relaxed font-mono">
                     {risk.recommendation}

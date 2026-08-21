@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fetchComponentJenkins, type JenkinsComponentResponse, type ComponentItem } from '$lib/api';
+  import { t } from '$lib/i18n';
   import {
     Server,
     Activity,
@@ -53,10 +54,10 @@
   function formatTimeAgo(timestamp?: number): string {
     if (!timestamp) return '';
     const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-    if (diffSec < 60) return 'agora';
-    if (diffSec < 3600) return `há ${Math.floor(diffSec / 60)} min`;
-    if (diffSec < 86400) return `há ${Math.floor(diffSec / 3600)}h`;
-    return `há ${Math.floor(diffSec / 86400)}d`;
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    return `${Math.floor(diffSec / 86400)}d ago`;
   }
 </script>
 
@@ -65,12 +66,12 @@
     <div class="flex items-center gap-3">
       <Server class="w-5 h-5 t-visor" />
       <div>
-        <h3 class="text-sm font-semibold t-txt">Integração Jenkins CI/CD</h3>
+        <h3 class="text-sm font-semibold t-txt">{$t('plugins.jenkins.title')}</h3>
         <p class="text-xs t-dim">
           {#if jenkinsData?.jenkins_token_configured}
-            <span class="t-visor">● JENKINS_API_TOKEN ativo</span> — Monitoramento de builds em tempo real.
+            <span class="t-visor">{$t('plugins.jenkins.tokenActive')}</span>
           {:else}
-            <span class="t-alert">⚠️ JENKINS_API_TOKEN não configurado</span> — Adicione a variável no ambiente para habilitar a consulta automática.
+            <span class="t-alert">{$t('plugins.jenkins.tokenMissing')}</span>
           {/if}
         </p>
       </div>
@@ -82,7 +83,7 @@
       class="btn btn-crest text-xs flex items-center gap-2"
     >
       <RotateCw class="w-3.5 h-3.5 {loadingJenkins ? 'animate-spin' : ''}" />
-      Atualizar Status
+      {$t('plugins.jenkins.refresh')}
     </button>
   </div>
 
@@ -91,9 +92,9 @@
   {:else if !jenkinsData || jenkinsData.pipelines.length === 0}
     <div class="plate p-12 text-center space-y-3">
       <Activity class="w-8 h-8 mx-auto t-faint" />
-      <h4 class="font-medium t-txt text-base">Nenhuma pipeline cadastrada</h4>
+      <h4 class="font-medium t-txt text-base">{$t('plugins.jenkins.noPipelines')}</h4>
       <p class="t-dim text-xs max-w-md mx-auto">
-        Para visualizar os builds do Jenkins aqui, declare a seção <code class="text-xs font-mono bg-surface-3 border border-line px-1.5 py-0.5 rounded t-crest">jenkins</code> no seu arquivo <code class="text-xs font-mono bg-surface-3 border border-line px-1.5 py-0.5 rounded t-crest">project-info.yml</code>.
+        {$t('plugins.jenkins.noPipelinesHint')}
       </p>
     </div>
   {:else}
@@ -118,19 +119,19 @@
               <div class="shrink-0">
                 {#if status === 'SUCCESS'}
                   <span class="chip chip-ok flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
-                    <CheckCircle2 class="w-4 h-4" /> SUCESSO
+                    <CheckCircle2 class="w-4 h-4" /> {$t('plugins.jenkins.statusSuccess')}
                   </span>
                 {:else if status === 'FAILURE'}
                   <span class="chip chip-alert flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
-                    <XCircle class="w-4 h-4" /> FALHA
+                    <XCircle class="w-4 h-4" /> {$t('plugins.jenkins.statusFailure')}
                   </span>
                 {:else if status === 'BUILDING'}
                   <span class="chip chip-visor flex items-center gap-1.5 px-3 py-1 font-semibold text-xs animate-pulse">
-                    <PlayCircle class="w-4 h-4 animate-spin" /> EXECUTANDO
+                    <PlayCircle class="w-4 h-4 animate-spin" /> {$t('plugins.jenkins.statusBuilding')}
                   </span>
                 {:else if status === 'UNSTABLE'}
                   <span class="chip chip-crest flex items-center gap-1.5 px-3 py-1 font-semibold text-xs">
-                    <AlertTriangle class="w-4 h-4" /> INSTÁVEL
+                    <AlertTriangle class="w-4 h-4" /> {$t('plugins.jenkins.statusUnstable')}
                   </span>
                 {:else}
                   <span class="chip flex items-center gap-1.5 px-3 py-1 font-semibold text-xs t-faint">
@@ -151,7 +152,7 @@
 
                 <div class="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span class="t-faint block text-[11px]">Duração:</span>
+                    <span class="t-faint block text-[11px]">Duration:</span>
                     <span class="t-txt font-semibold">{formatDuration(build.duration_ms)}</span>
                   </div>
                   {#if build.branch}
@@ -164,7 +165,7 @@
 
                 {#if build.causes && build.causes.length > 0}
                   <div class="text-[11px] t-faint truncate pt-2 border-t border-[var(--line)]">
-                    Gatilho: <span class="t-txt font-medium">{build.causes[0]}</span>
+                    Trigger: <span class="t-txt font-medium">{build.causes[0]}</span>
                   </div>
                 {/if}
               </div>
@@ -184,7 +185,7 @@
                 rel="noopener noreferrer"
                 class="btn btn-crest text-xs py-1.5 px-3 flex items-center gap-1.5"
               >
-                Abrir no Jenkins <ExternalLink class="w-3 h-3" />
+                {$t('catalog.jenkins_open')} <ExternalLink class="w-3 h-3" />
               </a>
             {/if}
           </div>

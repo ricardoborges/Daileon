@@ -54,6 +54,12 @@ class ManifestJenkinsConfig(BaseModel):
     server_url: Optional[str] = None
     pipelines: List[ManifestJenkinsPipeline] = Field(default_factory=list)
 
+class ManifestZabbixConfig(BaseModel):
+    host_name: Optional[str] = None
+    host_group: Optional[str] = None
+    service_name: Optional[str] = None
+    server_url: Optional[str] = None
+
 class ManifestDeployment(BaseModel):
     environment: str = "production"
     url: Optional[str] = None
@@ -81,6 +87,7 @@ class ManifestSpec(BaseModel):
     dependencies: List[ManifestDependency] = Field(default_factory=list)
     dependents: List[ManifestDependency] = Field(default_factory=list)
     jenkins: Optional[ManifestJenkinsConfig] = None
+    zabbix: Optional[ManifestZabbixConfig] = None
     deployments: List[ManifestDeployment] = Field(default_factory=list)
 
 
